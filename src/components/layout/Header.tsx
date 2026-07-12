@@ -30,6 +30,8 @@ export function Header() {
     toggleOverlay,
     toggleSidebar,
     sidebarExpanded,
+    activeOverlay,
+    activeModalId,
   } = useOverlay();
 
   const navigate = useNavigate();
@@ -38,6 +40,10 @@ export function Header() {
 
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  const isSearchDisabled = activeModalId !== null || (activeOverlay !== null && activeOverlay !== 'search');
+  const isAIDisabled = activeModalId !== null || (activeOverlay !== null && activeOverlay !== 'ai');
+  const isNotificationsDisabled = activeModalId !== null || (activeOverlay !== null && activeOverlay !== 'notifications');
 
   const getPageTitle = () => {
     switch (activeView) {
@@ -93,12 +99,18 @@ export function Header() {
         {/* Global Search Trigger */}
         <button
           id="trigger-search-btn"
+          disabled={isSearchDisabled}
           onClick={(e) => {
+            if (isSearchDisabled) return;
             e.stopPropagation();
             e.preventDefault();
             toggleOverlay('search');
           }}
-          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors custom-focus cursor-pointer"
+          className={`p-2 rounded-lg transition-colors custom-focus cursor-pointer ${
+            isSearchDisabled
+              ? 'opacity-40 cursor-not-allowed pointer-events-none text-muted-foreground/40'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          }`}
           aria-label="Open global search panel"
         >
           <Search className="w-5 h-5" />
@@ -107,31 +119,47 @@ export function Header() {
         {/* AI Assistant Trigger */}
         <button
           id="trigger-ai-btn"
+          disabled={isAIDisabled}
           onClick={(e) => {
+            if (isAIDisabled) return;
             e.stopPropagation();
             e.preventDefault();
             toggleOverlay('ai');
           }}
-          className="p-2 rounded-lg text-cinema-ai hover:text-indigo-600 hover:bg-cinema-ai/5 dark:text-cinema-ai dark:hover:text-indigo-400 dark:hover:bg-cinema-ai/10 transition-colors custom-focus cursor-pointer relative"
+          className={`p-2 rounded-lg transition-colors custom-focus cursor-pointer relative ${
+            isAIDisabled
+              ? 'opacity-40 cursor-not-allowed pointer-events-none text-cinema-ai/40'
+              : 'text-cinema-ai hover:text-indigo-600 hover:bg-cinema-ai/5 dark:text-cinema-ai dark:hover:text-indigo-400 dark:hover:bg-cinema-ai/10'
+          }`}
           aria-label="Open AI Director sidebar"
         >
           <Sparkles className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-cinema-ai rounded-full animate-ping" />
+          {!isAIDisabled && (
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-cinema-ai rounded-full animate-ping" />
+          )}
         </button>
 
         {/* Notification bell trigger */}
         <button
           id="trigger-notifications-btn"
+          disabled={isNotificationsDisabled}
           onClick={(e) => {
+            if (isNotificationsDisabled) return;
             e.stopPropagation();
             e.preventDefault();
             toggleOverlay('notifications');
           }}
-          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors custom-focus cursor-pointer relative"
+          className={`p-2 rounded-lg transition-colors custom-focus cursor-pointer relative ${
+            isNotificationsDisabled
+              ? 'opacity-40 cursor-not-allowed pointer-events-none text-muted-foreground/40'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          }`}
           aria-label="Open Notifications Center"
         >
           <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-cinema-amber-500 rounded-full border border-white dark:border-cinema-slate-900" />
+          {!isNotificationsDisabled && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-cinema-amber-500 rounded-full border border-white dark:border-cinema-slate-900" />
+          )}
         </button>
 
         {/* Theme Toggle Button & Dropdown */}

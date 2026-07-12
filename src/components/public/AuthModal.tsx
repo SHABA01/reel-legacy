@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User, Sparkles, Film, ArrowRight, ShieldCheck, HelpCircle } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { useOverlay } from '../../context/OverlayContext';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 
@@ -19,6 +20,7 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose, initialTab = 'login', onSuccess }: AuthModalProps) {
   const { showToast } = useToast();
+  const { registerModalOpen, unregisterModalClose } = useOverlay();
   const [activeTab, setActiveTab] = useState<'login' | 'register'>(initialTab);
   const [registerStep, setRegisterStep] = useState<1 | 2>(1);
   
@@ -36,11 +38,21 @@ export function AuthModal({ isOpen, onClose, initialTab = 'login', onSuccess }: 
   // Synchronize state when modal is opened with a specific tab
   React.useEffect(() => {
     if (isOpen) {
+      const success = registerModalOpen('auth-modal');
+      if (!success) {
+        onClose();
+        return;
+      }
       setActiveTab(initialTab);
       setRegisterStep(1);
       setErrors({});
     }
-  }, [isOpen, initialTab]);
+    return () => {
+      if (isOpen) {
+        unregisterModalClose('auth-modal');
+      }
+    };
+  }, [isOpen, initialTab, registerModalOpen, unregisterModalClose, onClose]);
 
   const validateStep1 = () => {
     const newErrors: { [key: string]: string } = {};

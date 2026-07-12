@@ -117,6 +117,7 @@ export function NotificationOverlay() {
       title="Notification Center"
       position="right"
       size="md"
+      isOverlay={true}
     >
       <div id="notif-wrapper" className="flex flex-col h-full -mx-6 -my-4 text-foreground">
         {/* Actions Header */}

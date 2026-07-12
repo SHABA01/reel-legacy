@@ -63,6 +63,7 @@ import {
 
 function DashboardView() {
   const { showToast } = useToast();
+  const { activeOverlay, activeModalId } = useOverlay();
   const [modalOpen, setModalOpen] = useState(false);
   const [modalSize, setModalSize] = useState<'sm' | 'md' | 'lg' | 'xl' | 'fullscreen'>('md');
   const [modalTitle, setModalTitle] = useState('Workspace Modal Dialog');
@@ -71,17 +72,21 @@ function DashboardView() {
   const [drawerPos, setDrawerPos] = useState<'left' | 'right' | 'bottom'>('right');
   const [drawerSize, setDrawerSize] = useState<'sm' | 'md' | 'lg'>('md');
 
+  const isAnyOpen = activeOverlay !== null || activeModalId !== null;
+
   const triggerToast = (type: 'success' | 'warning' | 'error' | 'info' | 'loading', msg: string, desc?: string) => {
     showToast(type, msg, desc);
   };
 
   const openModalWithSize = (size: 'sm' | 'md' | 'lg' | 'xl' | 'fullscreen', title: string) => {
+    if (isAnyOpen) return;
     setModalSize(size);
     setModalTitle(title);
     setModalOpen(true);
   };
 
   const openDrawerWithConfig = (position: 'left' | 'right' | 'bottom', size: 'sm' | 'md' | 'lg') => {
+    if (isAnyOpen) return;
     setDrawerPos(position);
     setDrawerSize(size);
     setDrawerOpen(true);
@@ -258,6 +263,7 @@ function DashboardView() {
                 id="test-modal-sm"
                 variant="primary"
                 size="sm"
+                disabled={isAnyOpen}
                 onClick={() => openModalWithSize('sm', 'Compact Quick-Create Dialog')}
               >
                 Small Modal
@@ -266,6 +272,7 @@ function DashboardView() {
                 id="test-modal-md"
                 variant="primary"
                 size="sm"
+                disabled={isAnyOpen}
                 onClick={() => openModalWithSize('md', 'Medium Storyboard Details')}
               >
                 Medium Modal
@@ -274,6 +281,7 @@ function DashboardView() {
                 id="test-modal-lg"
                 variant="primary"
                 size="sm"
+                disabled={isAnyOpen}
                 onClick={() => openModalWithSize('lg', 'Large Chapter Blueprint Editor')}
               >
                 Large Modal
@@ -282,6 +290,7 @@ function DashboardView() {
                 id="test-modal-fullscreen"
                 variant="accent"
                 size="sm"
+                disabled={isAnyOpen}
                 onClick={() => openModalWithSize('fullscreen', 'Cinematic Workspace Fullscreen View')}
               >
                 Fullscreen Modal
@@ -300,6 +309,7 @@ function DashboardView() {
                 variant="ghost"
                 size="sm"
                 className="border border-border"
+                disabled={isAnyOpen}
                 onClick={() => openDrawerWithConfig('left', 'sm')}
               >
                 Left Drawer (Mobile Nav style)
@@ -309,6 +319,7 @@ function DashboardView() {
                 variant="ghost"
                 size="sm"
                 className="border border-border"
+                disabled={isAnyOpen}
                 onClick={() => openDrawerWithConfig('bottom', 'md')}
               >
                 Bottom Drawer (Terminal style)
@@ -318,6 +329,7 @@ function DashboardView() {
                 variant="ghost"
                 size="sm"
                 className="border border-border"
+                disabled={isAnyOpen}
                 onClick={() => openDrawerWithConfig('right', 'lg')}
               >
                 Right Drawer (Full Asset Deck)

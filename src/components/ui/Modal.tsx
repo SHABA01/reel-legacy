@@ -6,6 +6,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
+import { useOverlay } from '../../context/OverlayContext';
 
 interface ModalProps {
   isOpen: boolean;
@@ -18,6 +19,23 @@ interface ModalProps {
 
 export function Modal({ isOpen, onClose, title, size = 'md', children, id }: ModalProps) {
   const generatedId = id || `modal-${Math.random().toString(36).substring(2, 9)}`;
+  const { registerModalOpen, unregisterModalClose } = useOverlay();
+
+  // Handle modal registration with central Overlay & Modal Manager
+  useEffect(() => {
+    if (isOpen) {
+      const success = registerModalOpen(generatedId);
+      if (!success) {
+        // If registration fails because another modal or overlay is open, close this modal immediately
+        onClose();
+      }
+    }
+    return () => {
+      if (isOpen) {
+        unregisterModalClose(generatedId);
+      }
+    };
+  }, [isOpen, generatedId, registerModalOpen, unregisterModalClose, onClose]);
 
   // Close on Escape key press
   useEffect(() => {

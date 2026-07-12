@@ -6,6 +6,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
+import { useOverlay } from '../../context/OverlayContext';
 
 interface DrawerProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface DrawerProps {
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   id?: string;
+  isOverlay?: boolean;
 }
 
 export function Drawer({
@@ -25,10 +27,28 @@ export function Drawer({
   children,
   size = 'md',
   id,
+  isOverlay = false,
 }: DrawerProps) {
   const generatedId = id || `drawer-${Math.random().toString(36).substring(2, 9)}`;
+  const { registerModalOpen, unregisterModalClose } = useOverlay();
 
   const openTimeRef = React.useRef<number>(0);
+
+  // Handle drawer registration with central Overlay & Modal Manager
+  useEffect(() => {
+    if (isOpen && !isOverlay) {
+      const success = registerModalOpen(generatedId);
+      if (!success) {
+        // If registration fails because another modal/overlay is open, close this drawer immediately
+        onClose();
+      }
+    }
+    return () => {
+      if (isOpen && !isOverlay) {
+        unregisterModalClose(generatedId);
+      }
+    };
+  }, [isOpen, isOverlay, generatedId, registerModalOpen, unregisterModalClose, onClose]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {

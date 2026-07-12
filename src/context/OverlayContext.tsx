@@ -12,6 +12,11 @@ interface OverlayContextType {
   closeOverlay: () => void;
   toggleOverlay: (type: OverlayType) => void;
 
+  // Active modal/drawer tracking
+  activeModalId: string | null;
+  registerModalOpen: (id: string) => boolean;
+  unregisterModalClose: (id: string) => void;
+
   // Active View navigation inside the shell
   activeView: ActiveView;
   setActiveView: (view: ActiveView) => void;
@@ -33,13 +38,22 @@ const OverlayContext = createContext<OverlayContextType | undefined>(undefined);
 
 export function OverlayProvider({ children }: { children: React.ReactNode }) {
   const [activeOverlay, setActiveOverlay] = useState<OverlayType>(null);
+  const [activeModalId, setActiveModalId] = useState<string | null>(null);
   const [activeView, setActiveViewState] = useState<ActiveView>('dashboard');
   const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(true);
   const [rightPanelOpen, setRightPanelOpen] = useState<boolean>(false);
   const [activeRightWidget, setActiveRightWidget] = useState<RightPanelWidget>('ai-suggestions');
 
   const openOverlay = (type: OverlayType) => {
-    setActiveOverlay(type);
+    if (activeModalId !== null) {
+      return;
+    }
+    setActiveOverlay((prev) => {
+      if (prev !== null && prev !== type) {
+        return prev;
+      }
+      return type;
+    });
   };
 
   const closeOverlay = () => {
@@ -47,13 +61,39 @@ export function OverlayProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleOverlay = (type: OverlayType) => {
-    setActiveOverlay((prev) => (prev === type ? null : type));
+    if (activeModalId !== null) {
+      return;
+    }
+    setActiveOverlay((prev) => {
+      if (prev !== null && prev !== type) {
+        return prev;
+      }
+      return prev === type ? null : type;
+    });
+  };
+
+  const registerModalOpen = (id: string) => {
+    // If any overlay is open, block modal opening
+    if (activeOverlay !== null) {
+      return false;
+    }
+    // If another modal is open, block modal opening
+    if (activeModalId !== null && activeModalId !== id) {
+      return false;
+    }
+    setActiveModalId(id);
+    return true;
+  };
+
+  const unregisterModalClose = (id: string) => {
+    setActiveModalId((prev) => (prev === id ? null : prev));
   };
 
   const setActiveView = (view: ActiveView) => {
     setActiveViewState(view);
-    // Close overlays when navigating
+    // Close overlays and modals when navigating
     setActiveOverlay(null);
+    setActiveModalId(null);
   };
 
   const toggleSidebar = () => {
@@ -71,6 +111,9 @@ export function OverlayProvider({ children }: { children: React.ReactNode }) {
         openOverlay,
         closeOverlay,
         toggleOverlay,
+        activeModalId,
+        registerModalOpen,
+        unregisterModalClose,
         activeView,
         setActiveView,
         sidebarExpanded,

@@ -88,6 +88,7 @@ export function AIAssistantOverlay() {
       title="ReelLegacy AI Storyteller"
       position="right"
       size="md"
+      isOverlay={true}
     >
       <div id="ai-assistant-wrapper" className="flex flex-col h-full -mx-6 -my-4 text-foreground">
         {/* Helper Top Bar */}
