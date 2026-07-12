@@ -1,0 +1,6 @@
+{
+  "name": "ReelLegacy",
+  "description": "An AI-powered storytelling platform that converts structured information, media, documents, and memories into professionally narrated documentary-style films.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
