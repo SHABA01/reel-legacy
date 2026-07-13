@@ -4,8 +4,10 @@
  */
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { Menu, X, Sun, Moon, Laptop, Film, Sparkles, ArrowUpRight, HelpCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
 
@@ -16,6 +18,8 @@ interface NavbarProps {
 }
 
 export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps) {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
@@ -39,6 +43,26 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
     setCurrentPage(id);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const getThemeItemClass = (itemTheme: string) => {
+    const isActive = theme === itemTheme;
+    const base = "w-full flex items-center gap-2 px-2.5 py-2 text-xs font-semibold rounded-lg text-left transition-all duration-200 cursor-pointer border";
+    
+    if (resolvedTheme === 'light') {
+      if (isActive) {
+        return `${base} border-cinema-amber-500/20 bg-cinema-amber-500/10 text-cinema-amber-500`;
+      } else {
+        return `${base} border-transparent text-black hover:bg-cinema-amber-500/10 hover:border-cinema-amber-500/20 hover:text-cinema-amber-500`;
+      }
+    } else {
+      // dark mode
+      if (isActive) {
+        return `${base} border-cinema-amber-500/20 bg-cinema-amber-500/10 text-cinema-amber-500`;
+      } else {
+        return `${base} border-transparent text-cinema-slate-400 hover:bg-cinema-amber-500/10 hover:border-cinema-amber-500/20 hover:text-cinema-amber-500`;
+      }
+    }
   };
 
   return (
@@ -95,7 +119,7 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
           {/* Right Action buttons */}
           <div className="hidden md:flex items-center gap-3" id="desktop-actions">
             {/* Theme Dropdown Menu */}
-            <div id="desktop-theme-container" className="relative">
+            <div id="desktop-theme-container" className="relative inline-block">
               <button
                 id="desktop-theme-trigger"
                 onClick={() => setThemeMenuOpen(!themeMenuOpen)}
@@ -121,7 +145,11 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
                       initial={{ opacity: 0, scale: 0.95, y: 5 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                      className="absolute right-0 mt-1 w-36 bg-white dark:bg-cinema-slate-900 border border-cinema-slate-100 dark:border-cinema-slate-800 rounded-xl shadow-xl z-50 p-1.5"
+                      className={`absolute left-1/2 -translate-x-1/2 mt-1 w-36 rounded-xl shadow-xl z-50 p-1.5 border ${
+                        resolvedTheme === 'light' 
+                          ? 'bg-[#ffffff] border-neutral-200' 
+                          : 'bg-cinema-slate-900 border-cinema-slate-800'
+                      }`}
                     >
                       <button
                         id="theme-opt-light"
@@ -129,11 +157,7 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
                           setTheme('light', e);
                           setThemeMenuOpen(false);
                         }}
-                        className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs font-semibold rounded-lg text-left transition-colors cursor-pointer ${
-                          theme === 'light'
-                            ? 'bg-cinema-slate-50 text-cinema-amber-500 dark:bg-cinema-slate-850'
-                            : 'text-cinema-slate-600 dark:text-cinema-slate-400 hover:bg-cinema-slate-50 dark:hover:bg-cinema-slate-850'
-                        }`}
+                        className={getThemeItemClass('light')}
                       >
                         <Sun className="w-3.5 h-3.5" /> Light Mode
                       </button>
@@ -143,11 +167,7 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
                           setTheme('dark', e);
                           setThemeMenuOpen(false);
                         }}
-                        className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs font-semibold rounded-lg text-left transition-colors cursor-pointer ${
-                          theme === 'dark'
-                            ? 'bg-cinema-slate-50 text-cinema-amber-500 dark:bg-cinema-slate-850'
-                            : 'text-cinema-slate-600 dark:text-cinema-slate-400 hover:bg-cinema-slate-50 dark:hover:bg-cinema-slate-850'
-                        }`}
+                        className={getThemeItemClass('dark')}
                       >
                         <Moon className="w-3.5 h-3.5" /> Dark Mode
                       </button>
@@ -157,11 +177,7 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
                           setTheme('system', e);
                           setThemeMenuOpen(false);
                         }}
-                        className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs font-semibold rounded-lg text-left transition-colors cursor-pointer ${
-                          theme === 'system'
-                            ? 'bg-cinema-slate-50 text-cinema-amber-500 dark:bg-cinema-slate-850'
-                            : 'text-cinema-slate-600 dark:text-cinema-slate-400 hover:bg-cinema-slate-50 dark:hover:bg-cinema-slate-850'
-                        }`}
+                        className={getThemeItemClass('system')}
                       >
                         <Laptop className="w-3.5 h-3.5" /> System Mode
                       </button>
@@ -171,24 +187,39 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
               </AnimatePresence>
             </div>
 
-            <button
-              id="navbar-signin-btn"
-              onClick={() => onOpenAuth('login')}
-              className="px-3.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg cursor-pointer transition-colors"
-            >
-              Sign In
-            </button>
+            {isAuthenticated ? (
+              <Button
+                id="navbar-dashboard-btn"
+                variant="accent"
+                size="sm"
+                onClick={() => navigate('/workspace/dashboard')}
+                rightIcon={<ArrowUpRight className="h-3.5 w-3.5" />}
+                className="text-xs animate-fade-in"
+              >
+                Go to Studio
+              </Button>
+            ) : (
+              <>
+                <button
+                  id="navbar-signin-btn"
+                  onClick={() => onOpenAuth('login')}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg cursor-pointer transition-colors"
+                >
+                  Sign In
+                </button>
 
-            <Button
-              id="navbar-getstarted-btn"
-              variant="accent"
-              size="sm"
-              onClick={() => onOpenAuth('register')}
-              rightIcon={<ArrowUpRight className="h-3.5 w-3.5" />}
-              className="text-xs"
-            >
-              Get Started
-            </Button>
+                <Button
+                  id="navbar-getstarted-btn"
+                  variant="accent"
+                  size="sm"
+                  onClick={() => onOpenAuth('register')}
+                  rightIcon={<ArrowUpRight className="h-3.5 w-3.5" />}
+                  className="text-xs"
+                >
+                  Get Started
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Actions Overlay Trigger */}
@@ -280,28 +311,45 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
 
               {/* Mobile Actions Bottom Section */}
               <div className="space-y-4 pt-6 border-t border-border/60">
-                <button
-                  id="mobile-signin-btn"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenAuth('login');
-                  }}
-                  className="w-full flex items-center justify-center px-4 py-2.5 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
-                >
-                  Sign In
-                </button>
-                <Button
-                  id="mobile-getstarted-btn"
-                  variant="accent"
-                  className="w-full justify-center text-sm font-semibold py-2.5 rounded-xl"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenAuth('register');
-                  }}
-                  rightIcon={<Sparkles className="h-4 w-4" />}
-                >
-                  Get Started
-                </Button>
+                {isAuthenticated ? (
+                  <Button
+                    id="mobile-dashboard-btn"
+                    variant="accent"
+                    className="w-full justify-center text-sm font-semibold py-2.5 rounded-xl"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/workspace/dashboard');
+                    }}
+                    rightIcon={<ArrowUpRight className="h-4 w-4" />}
+                  >
+                    Go to Studio
+                  </Button>
+                ) : (
+                  <>
+                    <button
+                      id="mobile-signin-btn"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onOpenAuth('login');
+                      }}
+                      className="w-full flex items-center justify-center px-4 py-2.5 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
+                    >
+                      Sign In
+                    </button>
+                    <Button
+                      id="mobile-getstarted-btn"
+                      variant="accent"
+                      className="w-full justify-center text-sm font-semibold py-2.5 rounded-xl"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onOpenAuth('register');
+                      }}
+                      rightIcon={<Sparkles className="h-4 w-4" />}
+                    >
+                      Get Started
+                    </Button>
+                  </>
+                )}
               </div>
             </motion.div>
           </div>

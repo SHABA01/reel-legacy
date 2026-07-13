@@ -16,7 +16,10 @@ export type ActiveView =
   | 'render'
   | 'analytics'
   | 'integrations'
-  | 'settings';
+  | 'settings'
+  | 'notifications'
+  | 'search'
+  | 'help';
 
 export type OverlayType = 'search' | 'ai' | 'notifications' | null;
 

@@ -1,0 +1,1165 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useMemo } from 'react';
+import {
+  Search,
+  Grid,
+  List,
+  Plus,
+  Filter,
+  SlidersHorizontal,
+  Trash2,
+  Archive,
+  Copy,
+  MoreVertical,
+  BookOpen,
+  Heart,
+  Calendar,
+  ChevronRight,
+  TrendingUp,
+  X,
+  FileText,
+  Image as ImageIcon,
+  CheckCircle,
+  HelpCircle,
+  Sparkles,
+  Award,
+  Pin,
+  Film,
+  Star,
+  Clock,
+  ChevronLeft,
+  Briefcase,
+  Users,
+  Globe,
+  GraduationCap,
+  Wine,
+  Gift,
+  Eye,
+  CheckSquare,
+  Square
+} from 'lucide-react';
+import { Button } from '../ui/Button';
+import { useToast } from '../../context/ToastContext';
+import { EmptyState } from '../ui/EmptyState';
+import {
+  ExtendedStory,
+  INITIAL_STORIES,
+  STORY_TYPES,
+  STORY_STATUSES,
+  STORY_TYPE_ICONS
+} from './mockStoriesData';
+import { StoryWizard } from './StoryWizard';
+import { StoryDetails } from './StoryDetails';
+import { StoryWorkspace } from './StoryWorkspace';
+
+export function StoriesView() {
+  const { showToast } = useToast();
+
+  // App state
+  const [stories, setStories] = useState<ExtendedStory[]>(() => {
+    const cached = localStorage.getItem('rl_legacy_stories');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {
+        return INITIAL_STORIES;
+      }
+    }
+    return INITIAL_STORIES;
+  });
+
+  const saveToLocal = (newStories: ExtendedStory[]) => {
+    setStories(newStories);
+    localStorage.setItem('rl_legacy_stories', JSON.stringify(newStories));
+  };
+
+  // Subview controls
+  const [activeSubView, setActiveSubView] = useState<'catalog' | 'details' | 'create-wizard' | 'workspace'>('catalog');
+  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
+
+  // Search & Filters controls
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [aiReadyFilter, setAiReadyFilter] = useState<string>('all'); // all | yes | no
+  const [hasChaptersFilter, setHasChaptersFilter] = useState<string>('all'); // all | yes
+  const [hasTimelineFilter, setHasTimelineFilter] = useState<string>('all'); // all | yes
+  const [hasMediaFilter, setHasMediaFilter] = useState<string>('all'); // all | yes
+  
+  // Favorites / Pinned / Archived toggles
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [showPinnedOnly, setShowPinnedOnly] = useState(false);
+  const [showArchivedOnly, setShowArchivedOnly] = useState(false);
+
+  // Filter Drawer / Panel expansion
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  // Sorting
+  const [sortBy, setSortBy] = useState<'updated' | 'name' | 'progress' | 'duration'>('updated');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+
+  // Bulk operation lists
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+
+  // Individual Card dropdown triggers
+  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
+
+  // Render stats computed from stories state
+  const stats = useMemo(() => {
+    const total = stories.filter(s => s.status !== 'Archived').length;
+    const readyForAI = stories.filter(s => s.aiReady && s.status !== 'Archived').length;
+    const inProgress = stories.filter(s => s.status === 'In Progress').length;
+    const published = stories.filter(s => s.status === 'Published').length;
+
+    // Average story compilation progress
+    const activeStories = stories.filter(s => s.status !== 'Archived');
+    const totalProgress = activeStories.reduce((sum, s) => sum + s.completionProgress, 0);
+    const avgProgress = activeStories.length > 0 ? Math.round(totalProgress / activeStories.length) : 0;
+
+    return { total, readyForAI, inProgress, published, avgProgress };
+  }, [stories]);
+
+  // Handle opening subviews
+  const handleSelectStory = (id: string) => {
+    setSelectedStoryId(id);
+    setActiveSubView('details');
+  };
+
+  const handleSimulateEdit = (idOrTitle: string) => {
+    let target = stories.find(s => s.id === idOrTitle);
+    if (!target) {
+      target = stories.find(s => s.title === idOrTitle);
+    }
+    if (!target) return;
+
+    setSelectedStoryId(target.id);
+    setActiveSubView('workspace');
+    showToast(
+      'success',
+      'Opening Story Studio',
+      `Initializing narrative assets & archives for "${target.title}".`
+    );
+  };
+
+  // Actions for stories
+  const handleDuplicateStory = (id: string) => {
+    const original = stories.find(s => s.id === id);
+    if (!original) return;
+
+    const copy: ExtendedStory = {
+      ...original,
+      id: `story-${Date.now()}`,
+      title: `${original.title} (Copy)`,
+      subtitle: `${original.subtitle} (Copy)`,
+      completionProgress: 15, // reset progress for newly duplicated copy
+      lastEdited: new Date().toISOString(),
+      lastGenerated: null,
+      aiReady: false,
+      status: 'Draft',
+      pinned: false,
+      favorite: false
+    };
+
+    const updated = [copy, ...stories];
+    saveToLocal(updated);
+    showToast('success', 'Story Project Cloned', `"${original.title}" copy is now ready in your sandbox.`);
+    setActiveDropdownId(null);
+  };
+
+  const handleArchiveStory = (id: string) => {
+    const target = stories.find(s => s.id === id);
+    if (!target) return;
+
+    const isArchived = target.status === 'Archived';
+    const newStatus = isArchived ? 'In Progress' : 'Archived';
+
+    const updated = stories.map(s => s.id === id ? { ...s, status: newStatus as any } : s);
+    saveToLocal(updated);
+    showToast(
+      'info',
+      isArchived ? 'Story Unarchived' : 'Story Archived Successfully',
+      `"${target.title}" has been ${isArchived ? 'restored to active workspace' : 'moved to system archive vaults'}.`
+    );
+    setActiveDropdownId(null);
+  };
+
+  const handleDeleteStory = (id: string) => {
+    const target = stories.find(s => s.id === id);
+    if (!target) return;
+
+    const confirmDelete = window.confirm(`Are you absolutely sure you want to permanently delete "${target.title}"? This will dissolve all chapters, narrative drafts, and references.`);
+    if (confirmDelete) {
+      const updated = stories.filter(s => s.id !== id);
+      saveToLocal(updated);
+      setSelectedRowIds(prev => prev.filter(rowId => rowId !== id));
+      showToast('error', 'Story Permanently Deleted', `"${target.title}" has been purged from system memory.`);
+    }
+    setActiveDropdownId(null);
+  };
+
+  const handleRenameStory = (id: string) => {
+    const target = stories.find(s => s.id === id);
+    if (!target) return;
+
+    const newTitle = window.prompt('Enter new title for this story:', target.title);
+    if (newTitle && newTitle.trim()) {
+      const updated = stories.map(s => s.id === id ? { ...s, title: newTitle.trim(), lastEdited: new Date().toISOString() } : s);
+      saveToLocal(updated);
+      showToast('success', 'Story Renamed', `Project is now titled "${newTitle.trim()}".`);
+    }
+    setActiveDropdownId(null);
+  };
+
+  const handleTogglePin = (id: string) => {
+    const updated = stories.map(s => s.id === id ? { ...s, pinned: !s.pinned } : s);
+    saveToLocal(updated);
+    const target = stories.find(s => s.id === id);
+    if (target) {
+      showToast(
+        'info',
+        target.pinned ? 'Story Unpinned' : 'Story Pinned to Top',
+        `"${target.title}" has been ${target.pinned ? 'unpinned from' : 'pinned to'} the top shelf.`
+      );
+    }
+  };
+
+  const handleToggleFavorite = (id: string) => {
+    const updated = stories.map(s => s.id === id ? { ...s, favorite: !s.favorite } : s);
+    saveToLocal(updated);
+    const target = stories.find(s => s.id === id);
+    if (target) {
+      showToast(
+        'success',
+        target.favorite ? 'Removed from Favorites' : 'Added to Favorites',
+        `"${target.title}" ${target.favorite ? 'removed from' : 'added to'} favorites list.`
+      );
+    }
+  };
+
+  // Bulk actions
+  const handleBulkArchive = () => {
+    if (selectedRowIds.length === 0) return;
+    const updated = stories.map(s => selectedRowIds.includes(s.id) ? { ...s, status: 'Archived' as const } : s);
+    saveToLocal(updated);
+    showToast('info', 'Stories Archived', `${selectedRowIds.length} story projects have been moved to vaults.`);
+    setSelectedRowIds([]);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRowIds.length === 0) return;
+    const confirmDelete = window.confirm(`Are you sure you want to permanently delete ${selectedRowIds.length} selected story projects? This action is completely irreversible.`);
+    if (confirmDelete) {
+      const updated = stories.filter(s => !selectedRowIds.includes(s.id));
+      saveToLocal(updated);
+      showToast('error', 'Stories Deleted', `${selectedRowIds.length} stories have been permanently purged.`);
+      setSelectedRowIds([]);
+    }
+  };
+
+  // Create wizard save callback
+  const handleWizardSave = (newStory: ExtendedStory) => {
+    const updated = [newStory, ...stories];
+    saveToLocal(updated);
+    setActiveSubView('catalog');
+  };
+
+  // Clear query filters helper
+  const handleClearAllFilters = () => {
+    setSearchQuery('');
+    setCategoryFilter('all');
+    setStatusFilter('all');
+    setAiReadyFilter('all');
+    setHasChaptersFilter('all');
+    setHasTimelineFilter('all');
+    setHasMediaFilter('all');
+    setShowFavoritesOnly(false);
+    setShowPinnedOnly(false);
+    setShowArchivedOnly(false);
+    setCurrentPage(1);
+    showToast('info', 'Filters Cleared', 'Reset all search constraints.');
+  };
+
+  // Multi-dimensional Advanced Filtering and Sorting logic
+  const filteredStories = useMemo(() => {
+    return stories
+      .filter((s) => {
+        // Search text matching Title, Subtitle, or associated profile name
+        const textToMatch = `${s.title} ${s.subtitle} ${s.associatedProfileName} ${s.description} ${s.tags.join(' ')}`.toLowerCase();
+        const matchesSearch = textToMatch.includes(searchQuery.toLowerCase());
+
+        // Category filter
+        const matchesCategory = categoryFilter === 'all' || s.category === categoryFilter;
+
+        // Status filter (or archive filter)
+        let matchesStatus = true;
+        if (showArchivedOnly) {
+          matchesStatus = s.status === 'Archived';
+        } else if (statusFilter !== 'all') {
+          matchesStatus = s.status === statusFilter;
+        } else {
+          // If status filter is 'all' and not searching archived explicitly, hide archived from default workspace
+          matchesStatus = s.status !== 'Archived';
+        }
+
+        // AI Ready filter
+        let matchesAI = true;
+        if (aiReadyFilter === 'yes') matchesAI = s.aiReady === true;
+        if (aiReadyFilter === 'no') matchesAI = s.aiReady === false;
+
+        // Chapters filter
+        let matchesChapters = true;
+        if (hasChaptersFilter === 'yes') matchesChapters = s.chapterCount > 0;
+
+        // Timeline filter
+        let matchesTimeline = true;
+        if (hasTimelineFilter === 'yes') matchesTimeline = s.timelineEventCount > 0;
+
+        // Media filter
+        let matchesMedia = true;
+        if (hasMediaFilter === 'yes') matchesMedia = s.mediaCount > 0;
+
+        // Favorites / Pinned filters
+        const matchesFav = !showFavoritesOnly || s.favorite === true;
+        const matchesPinned = !showPinnedOnly || s.pinned === true;
+
+        return (
+          matchesSearch &&
+          matchesCategory &&
+          matchesStatus &&
+          matchesAI &&
+          matchesChapters &&
+          matchesTimeline &&
+          matchesMedia &&
+          matchesFav &&
+          matchesPinned
+        );
+      })
+      .sort((a, b) => {
+        // Pinned stories always float to top if sorting isn't overriding completely
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+
+        if (sortBy === 'name') {
+          return a.title.localeCompare(b.title);
+        }
+        if (sortBy === 'progress') {
+          return b.completionProgress - a.completionProgress;
+        }
+        if (sortBy === 'duration') {
+          const parseDur = (d: string) => parseInt(d) || 0;
+          return parseDur(b.durationEstimate) - parseDur(a.durationEstimate);
+        }
+        // Default recently edited
+        return new Date(b.lastEdited).getTime() - new Date(a.lastEdited).getTime();
+      });
+  }, [
+    stories,
+    searchQuery,
+    categoryFilter,
+    statusFilter,
+    aiReadyFilter,
+    hasChaptersFilter,
+    hasTimelineFilter,
+    hasMediaFilter,
+    showFavoritesOnly,
+    showPinnedOnly,
+    showArchivedOnly,
+    sortBy
+  ]);
+
+  // Pagination slicing
+  const paginatedStories = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredStories.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredStories, currentPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredStories.length / itemsPerPage));
+
+  // Retrieve current selected story reference
+  const selectedStory = useMemo(() => {
+    return stories.find(s => s.id === selectedStoryId);
+  }, [stories, selectedStoryId]);
+
+  // Helper for type icon lookup
+  const renderTypeIcon = (category: string) => {
+    const iconName = STORY_TYPE_ICONS[category] || 'BookOpen';
+    // Dynamically render Lucide components based on string lookup to match design systems
+    switch (iconName) {
+      case 'User': return <BookOpen className="w-4 h-4 text-cinema-amber-500" />;
+      case 'Heart': return <Heart className="w-4 h-4 text-cinema-amber-500" />;
+      case 'Sparkles': return <Sparkles className="w-4 h-4 text-cinema-amber-500" />;
+      case 'Briefcase': return <Briefcase className="w-4 h-4 text-cinema-amber-500" />;
+      case 'Users': return <Users className="w-4 h-4 text-cinema-amber-500" />;
+      case 'Globe': return <Globe className="w-4 h-4 text-cinema-amber-500" />;
+      case 'Calendar': return <Calendar className="w-4 h-4 text-cinema-amber-500" />;
+      case 'GraduationCap': return <GraduationCap className="w-4 h-4 text-cinema-amber-500" />;
+      case 'Wine': return <Wine className="w-4 h-4 text-cinema-amber-500" />;
+      case 'Gift': return <Gift className="w-4 h-4 text-cinema-amber-500" />;
+      default: return <BookOpen className="w-4 h-4 text-cinema-amber-500" />;
+    }
+  };
+
+  return (
+    <div id="story-library-module-root" className="h-full w-full overflow-y-auto px-6 py-6 space-y-6">
+      
+      {/* Subview router orchestration */}
+      {activeSubView === 'create-wizard' && (
+        <StoryWizard
+          onClose={() => setActiveSubView('catalog')}
+          onSave={handleWizardSave}
+        />
+      )}
+
+      {activeSubView === 'details' && selectedStory && (
+        <StoryDetails
+          story={selectedStory}
+          onBack={() => setActiveSubView('catalog')}
+          onDuplicate={handleDuplicateStory}
+          onArchive={handleArchiveStory}
+          onDelete={handleDeleteStory}
+          onSimulateEdit={handleSimulateEdit}
+        />
+      )}
+
+      {activeSubView === 'workspace' && selectedStory && (
+        <StoryWorkspace
+          story={selectedStory}
+          onClose={() => setActiveSubView('catalog')}
+          onSave={(updatedStory) => {
+            const updated = stories.map(s => s.id === updatedStory.id ? updatedStory : s);
+            saveToLocal(updated);
+          }}
+        />
+      )}
+
+      {activeSubView === 'catalog' && (
+        <div className="space-y-6" id="story-catalog-view-root">
+          
+          {/* Page Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4" id="catalog-header-title-row">
+            <div>
+              <h2 className="font-display text-xl font-black tracking-tight text-foreground flex items-center gap-2">
+                <Film className="w-5 h-5 text-cinema-amber-500" /> Story Production Library
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Organize, filter, structure, and prepare collaborative documentary projects for your legacy ancestors.
+              </p>
+            </div>
+
+            <Button
+              id="btn-create-story-trigger"
+              variant="accent"
+              size="sm"
+              leftIcon={<Plus className="w-4 h-4 text-slate-950" />}
+              onClick={() => setActiveSubView('create-wizard')}
+              className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold self-start md:self-auto shadow-sm"
+            >
+              Create New Story
+            </Button>
+          </div>
+
+          {/* Story Statistics Board row */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3" id="stories-stats-dashboard">
+            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="story-stat-total">
+              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">Total Stories</span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="font-display font-black text-2xl text-foreground">{stats.total}</span>
+                <span className="text-[10px] text-emerald-500 font-bold bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10">Active</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="story-stat-ready">
+              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">Ready for AI</span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="font-display font-black text-2xl text-indigo-500">{stats.readyForAI}</span>
+                <span className="text-[10px] text-indigo-500 font-bold bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10">Scripts</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="story-stat-progress">
+              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">In Progress</span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="font-display font-black text-2xl text-foreground">{stats.inProgress}</span>
+                <span className="text-[10px] text-amber-500 font-bold bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10">Drafting</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="story-stat-published">
+              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">Completed</span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="font-display font-black text-2xl text-foreground">{stats.published}</span>
+                <span className="text-[10px] text-emerald-500 font-bold bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10">Released</span>
+              </div>
+            </div>
+
+            <div className="col-span-2 md:col-span-1 p-4 rounded-2xl bg-cinema-amber-500/5 border border-cinema-amber-500/10 flex flex-col justify-between h-24 shadow-sm" id="story-stat-avg">
+              <span className="text-[10px] text-cinema-amber-800 dark:text-cinema-amber-300 font-mono uppercase tracking-wider block">Avg Completion Progress</span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="font-display font-black text-2xl text-cinema-amber-600 dark:text-cinema-amber-400">{stats.avgProgress}%</span>
+                <TrendingUp className="w-4 h-4 text-cinema-amber-500 animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          {/* Primary Filters Toolbar container */}
+          <div className="space-y-3" id="filters-toolbar-block">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-card border border-border rounded-2xl shadow-sm" id="main-controls-row">
+              {/* Left side: search input */}
+              <div className="flex items-center gap-2 flex-grow max-w-md relative" id="search-input-field-wrapper">
+                <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  id="search-stories-input"
+                  type="text"
+                  placeholder="Search production titles, tags, summaries..."
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                  className="w-full h-10 pl-10 pr-10 rounded-xl bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 focus:bg-muted/70 transition-all placeholder:text-muted-foreground/60"
+                />
+                {searchQuery && (
+                  <button
+                    id="btn-clear-search-query"
+                    onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
+                    className="p-1 rounded-full hover:bg-muted absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Middle & Right: Action dropdowns & toggles */}
+              <div className="flex flex-wrap items-center gap-3" id="controls-right-side-group">
+                {/* Expand advanced filters */}
+                <button
+                  id="btn-toggle-advanced-filters"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className={`h-10 px-3.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all cursor-pointer ${
+                    showAdvancedFilters || categoryFilter !== 'all' || statusFilter !== 'all' || aiReadyFilter !== 'all'
+                      ? 'border-cinema-amber-500 bg-cinema-amber-500/5 text-cinema-amber-600 dark:text-cinema-amber-400'
+                      : 'border-border bg-muted hover:bg-muted/75 text-foreground'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  <span>Advanced Filters</span>
+                  {(categoryFilter !== 'all' || statusFilter !== 'all' || aiReadyFilter !== 'all') && (
+                    <span className="w-2 h-2 rounded-full bg-cinema-amber-500 animate-pulse" />
+                  )}
+                </button>
+
+                {/* Sort dropdown */}
+                <div className="flex items-center gap-1.5 bg-muted px-3 py-2 rounded-xl border border-border text-xs h-10" id="sorting-dropdown-wrapper">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono">Sort:</span>
+                  <select
+                    id="story-sort-select"
+                    value={sortBy}
+                    onChange={(e) => { setSortBy(e.target.value as any); setCurrentPage(1); }}
+                    className="bg-transparent text-foreground font-semibold focus:outline-none focus:ring-0 text-xs border-none p-0 cursor-pointer"
+                  >
+                    <option value="updated">Recently Updated</option>
+                    <option value="name">Story Title A–Z</option>
+                    <option value="progress">Completion %</option>
+                    <option value="duration">Runtime Duration</option>
+                  </select>
+                </div>
+
+                {/* View Mode toggles */}
+                <div className="flex items-center border border-border rounded-xl p-0.5 h-10 bg-muted/40" id="view-mode-toggles-wrapper">
+                  <button
+                    id="btn-view-grid-mode"
+                    onClick={() => setViewMode('grid')}
+                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                      viewMode === 'grid' ? 'bg-cinema-amber-500 text-slate-950 font-black' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    aria-label="Grid View"
+                  >
+                    <Grid className="w-4 h-4" />
+                  </button>
+                  <button
+                    id="btn-view-list-mode"
+                    onClick={() => setViewMode('list')}
+                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                      viewMode === 'list' ? 'bg-cinema-amber-500 text-slate-950 font-black' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    aria-label="List View"
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Expandable Advanced Filters Drawer */}
+            {showAdvancedFilters && (
+              <div className="p-5 bg-card border border-border rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-4 animate-fade-in shadow-sm" id="advanced-filters-panel">
+                {/* Category Filter */}
+                <div className="space-y-1.5">
+                  <label htmlFor="category-select-field" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block font-mono">
+                    Story Type
+                  </label>
+                  <select
+                    id="category-select-field"
+                    value={categoryFilter}
+                    onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full h-9 px-3 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 transition-all cursor-pointer"
+                  >
+                    <option value="all">All Narrative Styles</option>
+                    {STORY_TYPES.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status Filter */}
+                <div className="space-y-1.5">
+                  <label htmlFor="status-select-field" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block font-mono">
+                    Workflow Status
+                  </label>
+                  <select
+                    id="status-select-field"
+                    value={statusFilter}
+                    onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full h-9 px-3 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 transition-all cursor-pointer"
+                  >
+                    <option value="all">All Stages</option>
+                    {STORY_STATUSES.map(status => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* AI Ready Filter */}
+                <div className="space-y-1.5">
+                  <label htmlFor="ai-ready-select-field" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block font-mono">
+                    AI Script Ready
+                  </label>
+                  <select
+                    id="ai-ready-select-field"
+                    value={aiReadyFilter}
+                    onChange={(e) => { setAiReadyFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full h-9 px-3 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 transition-all cursor-pointer"
+                  >
+                    <option value="all">All Projects</option>
+                    <option value="yes">Ready for AI script</option>
+                    <option value="no">Needs configuration</option>
+                  </select>
+                </div>
+
+                {/* Micro-indicators Filters & Toggles */}
+                <div className="flex flex-col justify-end gap-2 text-xs" id="quick-toggles-block">
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
+                      <input
+                        id="favorites-only-checkbox"
+                        type="checkbox"
+                        checked={showFavoritesOnly}
+                        onChange={(e) => { setShowFavoritesOnly(e.target.checked); setCurrentPage(1); }}
+                        className="w-4 h-4 rounded border-border bg-muted cursor-pointer"
+                      />
+                      <span>Favorites Only</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
+                      <input
+                        id="pinned-only-checkbox"
+                        type="checkbox"
+                        checked={showPinnedOnly}
+                        onChange={(e) => { setShowPinnedOnly(e.target.checked); setCurrentPage(1); }}
+                        className="w-4 h-4 rounded border-border bg-muted cursor-pointer"
+                      />
+                      <span>Pinned Only</span>
+                    </label>
+                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground mt-1">
+                    <input
+                      id="archived-only-checkbox"
+                      type="checkbox"
+                      checked={showArchivedOnly}
+                      onChange={(e) => { setShowArchivedOnly(e.target.checked); setCurrentPage(1); }}
+                      className="w-4 h-4 rounded border-border bg-muted cursor-pointer"
+                    />
+                    <span className="text-red-500 font-bold">Show Archived Vault Projects</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bulk Selection actions bar for List/Table view */}
+          {selectedRowIds.length > 0 && viewMode === 'list' && (
+            <div className="p-3 bg-muted border border-border rounded-xl flex items-center justify-between animate-fade-in" id="stories-bulk-operations-bar">
+              <span className="text-xs font-bold text-foreground">
+                {selectedRowIds.length} Stories selected for batch processing
+              </span>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  id="btn-bulk-archive-stories"
+                  variant="ghost"
+                  size="sm"
+                  leftIcon={<Archive className="w-4 h-4 text-muted-foreground" />}
+                  onClick={handleBulkArchive}
+                  className="text-xs hover:bg-card border border-border"
+                >
+                  Archive Selected
+                </Button>
+                <Button
+                  id="btn-bulk-delete-stories"
+                  variant="ghost"
+                  size="sm"
+                  leftIcon={<Trash2 className="w-4 h-4 text-red-500" />}
+                  onClick={handleBulkDelete}
+                  className="text-xs text-red-500 hover:bg-card hover:text-red-400 border border-border"
+                >
+                  Delete Selected
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* GRID VIEW PORTAL */}
+          {viewMode === 'grid' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="stories-grid-container" style={{ contentVisibility: 'auto' }}>
+              {paginatedStories.map((story) => {
+                const birthYr = 'N/A';
+                return (
+                  <div
+                    key={story.id}
+                    id={`story-grid-card-${story.id}`}
+                    className="group border border-border bg-card rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-sm hover:shadow-md transition-all h-[380px]"
+                  >
+                    {/* Story Cover Block */}
+                    <div className="h-28 w-full relative shrink-0 bg-muted">
+                      <img
+                        src={story.coverImage}
+                        alt={`${story.title} cover`}
+                        className="w-full h-full object-cover grayscale-10 group-hover:grayscale-0 transition-all duration-300"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+
+                      {/* Floating Category Tag overlay */}
+                      <span className="absolute top-3 left-3 inline-flex items-center text-[9px] font-mono font-bold bg-black/60 text-cinema-amber-400 border border-cinema-amber-500/20 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                        {story.category}
+                      </span>
+
+                      {/* Dropdown Action list trigger */}
+                      <div className="absolute top-3 right-3 z-10">
+                        <button
+                          id={`dropdown-trigger-${story.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveDropdownId(activeDropdownId === story.id ? null : story.id);
+                          }}
+                          className="p-1 rounded-lg bg-black/40 text-white/80 hover:text-white hover:bg-black/60 cursor-pointer backdrop-blur-sm"
+                          aria-label="Actions menu"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+
+                        {activeDropdownId === story.id && (
+                          <div className="absolute right-0 mt-1 w-40 bg-card border border-border rounded-xl shadow-lg py-1 z-20 text-left" id={`action-dropdown-${story.id}`}>
+                            <button
+                              id={`dropdown-action-explore-${story.id}`}
+                              onClick={() => { handleSelectStory(story.id); setActiveDropdownId(null); }}
+                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-muted-foreground" /> View Production
+                            </button>
+                            <button
+                              id={`dropdown-action-studio-${story.id}`}
+                              onClick={() => { handleSimulateEdit(story.title); setActiveDropdownId(null); }}
+                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
+                            >
+                              <Film className="w-3.5 h-3.5 text-cinema-amber-500" /> Story Studio
+                            </button>
+                            <button
+                              id={`dropdown-action-rename-${story.id}`}
+                              onClick={() => handleRenameStory(story.id)}
+                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-muted-foreground" /> Rename Project
+                            </button>
+                            <button
+                              id={`dropdown-action-duplicate-${story.id}`}
+                              onClick={() => handleDuplicateStory(story.id)}
+                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
+                            >
+                              <Copy className="w-3.5 h-3.5 text-muted-foreground" /> Duplicate
+                            </button>
+                            <button
+                              id={`dropdown-action-archive-${story.id}`}
+                              onClick={() => handleArchiveStory(story.id)}
+                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
+                            >
+                              <Archive className="w-3.5 h-3.5 text-muted-foreground" /> {story.status === 'Archived' ? 'Unarchive' : 'Archive'}
+                            </button>
+                            <div className="border-t border-border my-1" />
+                            <button
+                              id={`dropdown-action-delete-${story.id}`}
+                              onClick={() => handleDeleteStory(story.id)}
+                              className="w-full px-4 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 font-bold text-left flex items-center gap-2 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-500" /> Delete Project
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Favorite & Pin Indicators */}
+                      <div className="absolute bottom-2 left-3 flex items-center gap-1.5 z-10" id={`card-badges-row-${story.id}`}>
+                        <button
+                          id={`btn-toggle-favorite-${story.id}`}
+                          onClick={(e) => { e.stopPropagation(); handleToggleFavorite(story.id); }}
+                          className={`p-1 rounded-md cursor-pointer ${story.favorite ? 'bg-cinema-amber-500/20 text-cinema-amber-500' : 'bg-black/35 text-white/50 hover:text-white'}`}
+                        >
+                          <Star className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          id={`btn-toggle-pin-${story.id}`}
+                          onClick={(e) => { e.stopPropagation(); handleTogglePin(story.id); }}
+                          className={`p-1 rounded-md cursor-pointer ${story.pinned ? 'bg-indigo-500/20 text-indigo-400' : 'bg-black/35 text-white/50 hover:text-white'}`}
+                        >
+                          <Pin className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Profile avatar overlay details */}
+                    <div className="px-5 relative -mt-5 flex items-end justify-between shrink-0" id={`profile-avatar-row-${story.id}`}>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={story.associatedProfilePhoto}
+                          alt={story.associatedProfileName}
+                          className="w-10 h-10 rounded-full border-2 border-card object-cover bg-muted shadow-sm"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="text-[10px] font-bold text-foreground truncate max-w-28 bg-card/65 backdrop-blur-xs rounded px-1 border border-border/10">
+                          {story.associatedProfileName}
+                        </div>
+                      </div>
+
+                      {/* Story progress percentage badge */}
+                      <span className="text-[9px] font-bold font-mono text-cinema-amber-700 bg-cinema-amber-500/10 border border-cinema-amber-500/20 px-2 py-0.5 rounded-full">
+                        {story.completionProgress}% Drafted
+                      </span>
+                    </div>
+
+                    {/* Middle: Details text */}
+                    <div className="px-5 py-3 flex-grow flex flex-col justify-between" id={`card-text-body-${story.id}`}>
+                      <div>
+                        <h4 className="font-display font-black text-xs text-foreground truncate group-hover:text-cinema-amber-600 dark:group-hover:text-cinema-amber-400 transition-colors">
+                          {story.title}
+                        </h4>
+                        <p className="text-[10px] text-muted-foreground font-semibold leading-tight line-clamp-1 mt-0.5">
+                          {story.subtitle}
+                        </p>
+
+                        <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed mt-2.5 font-medium">
+                          {story.description}
+                        </p>
+                      </div>
+
+                      {/* Numeric indicators */}
+                      <div className="flex items-center justify-between pt-2.5 border-t border-border mt-2" id={`card-numbers-row-${story.id}`}>
+                        <div className="flex items-center gap-1 text-[9px] font-mono text-muted-foreground">
+                          <BookOpen className="w-3 h-3" />
+                          <span>{story.chapterCount} Chapters</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[9px] font-mono text-muted-foreground">
+                          <ImageIcon className="w-3 h-3" />
+                          <span>{story.mediaCount} Media</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[9px] font-mono text-muted-foreground">
+                          <Calendar className="w-3 h-3" />
+                          <span>{story.timelineEventCount} Milestones</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom footer button bar */}
+                    <div className="px-5 py-3 border-t border-sidebar-border bg-sidebar/45 flex items-center justify-between shrink-0" id={`card-bottom-bar-${story.id}`}>
+                      {/* AI Ready Badge */}
+                      {story.aiReady ? (
+                        <span className="inline-flex items-center gap-1 text-[8px] font-bold font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 px-1.5 py-0.5 rounded">
+                          <Sparkles className="w-2.5 h-2.5 animate-pulse" /> AI READY
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[8px] font-bold font-mono bg-muted text-muted-foreground border border-border px-1.5 py-0.5 rounded">
+                          DRAFT
+                        </span>
+                      )}
+
+                      <Button
+                        id={`btn-open-story-details-${story.id}`}
+                        onClick={() => handleSelectStory(story.id)}
+                        variant="ghost"
+                        size="xs"
+                        rightIcon={<ChevronRight className="w-3 h-3 text-foreground" />}
+                        className="text-[10px] font-bold hover:bg-muted"
+                      >
+                        Explore Project
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {filteredStories.length === 0 && (
+                <div className="col-span-full py-16 text-center space-y-4" id="empty-search-grid-state">
+                  <EmptyState
+                    type="search"
+                    title="No Matching Story Projects Found"
+                    description="We couldn't locate any biographical archives matching your search constraints. Try adjusting category or toggle constraints."
+                    primaryActionLabel="Reset All Active Filters"
+                    onPrimaryAction={handleClearAllFilters}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* LIST VIEW PORTAL TABLE */}
+          {viewMode === 'list' && (
+            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm" id="stories-table-wrapper" style={{ contentVisibility: 'auto' }}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse" id="stories-list-table">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <th className="p-4 w-10">
+                        <input
+                          id="bulk-all-stories-select-checkbox"
+                          type="checkbox"
+                          checked={selectedRowIds.length === paginatedStories.length && paginatedStories.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedRowIds(paginatedStories.map(s => s.id));
+                            } else {
+                              setSelectedRowIds([]);
+                            }
+                          }}
+                          className="w-3.5 h-3.5 rounded border-border bg-muted cursor-pointer"
+                        />
+                      </th>
+                      <th className="p-4">Commemorative Story</th>
+                      <th className="p-4">Profile Link</th>
+                      <th className="p-4">Style Style</th>
+                      <th className="p-4">Stage Status</th>
+                      <th className="p-4">Draft Progress</th>
+                      <th className="p-4">Linked Assets</th>
+                      <th className="p-4 text-right">Production Suite</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedStories.map((story) => {
+                      const isChecked = selectedRowIds.includes(story.id);
+                      return (
+                        <tr
+                          key={story.id}
+                          id={`story-table-row-${story.id}`}
+                          className={`border-b border-border text-xs hover:bg-muted/40 transition-colors ${isChecked ? 'bg-cinema-amber-500/5' : ''}`}
+                        >
+                          <td className="p-4">
+                            <input
+                              id={`select-story-checkbox-${story.id}`}
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedRowIds(prev => [...prev, story.id]);
+                                } else {
+                                  setSelectedRowIds(prev => prev.filter(rowId => rowId !== story.id));
+                                }
+                              }}
+                              className="w-3.5 h-3.5 rounded border-border bg-muted cursor-pointer"
+                            />
+                          </td>
+                          <td className="p-4">
+                            <button
+                              id={`btn-row-story-trigger-${story.id}`}
+                              onClick={() => handleSelectStory(story.id)}
+                              className="flex items-center gap-3 cursor-pointer group text-left"
+                            >
+                              <img
+                                src={story.coverImage}
+                                className="w-12 h-9 rounded object-cover border border-border shrink-0"
+                                alt={story.title}
+                                referrerPolicy="no-referrer"
+                              />
+                              <div>
+                                <h4 className="font-bold text-foreground truncate max-w-sm group-hover:text-cinema-amber-600 dark:group-hover:text-cinema-amber-400 transition-colors">
+                                  {story.title}
+                                </h4>
+                                <span className="text-[10px] text-muted-foreground leading-normal font-semibold line-clamp-1">
+                                  {story.subtitle}
+                                </span>
+                              </div>
+                            </button>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={story.associatedProfilePhoto}
+                                className="w-6 h-6 rounded-full object-cover border border-border"
+                                alt={story.associatedProfileName}
+                                referrerPolicy="no-referrer"
+                              />
+                              <span className="font-semibold text-foreground/80">
+                                {story.associatedProfileName}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <span className="font-mono text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                              {renderTypeIcon(story.category)}
+                              <span>{story.category}</span>
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            <span className={`inline-flex items-center text-[9px] font-bold font-mono uppercase px-2 py-0.5 rounded ${
+                              story.status === 'Published'
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25'
+                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25'
+                            }`}>
+                              {story.status}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div className="h-full bg-cinema-amber-500 rounded-full" style={{ width: `${story.completionProgress}%` }} />
+                              </div>
+                              <span className="font-mono text-[10px] font-bold text-foreground/75">
+                                {story.completionProgress}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-3 font-mono text-[10px] text-muted-foreground">
+                              <span title="Chapters">{story.chapterCount}C</span>
+                              <span>•</span>
+                              <span title="Media files">{story.mediaCount}M</span>
+                              <span>•</span>
+                              <span title="Timeline events">{story.timelineEventCount}E</span>
+                            </div>
+                          </td>
+                          <td className="p-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                id={`btn-row-explore-${story.id}`}
+                                onClick={() => handleSelectStory(story.id)}
+                                variant="ghost"
+                                size="xs"
+                                className="p-1.5 border border-border text-xs"
+                              >
+                                Explore
+                              </Button>
+                              <Button
+                                id={`btn-row-studio-${story.id}`}
+                                onClick={() => handleSimulateEdit(story.title)}
+                                variant="ghost"
+                                size="xs"
+                                className="p-1.5 border border-border text-xs text-cinema-amber-600 dark:text-cinema-amber-400"
+                              >
+                                Studio
+                              </Button>
+                              <Button
+                                id={`btn-row-delete-${story.id}`}
+                                onClick={() => handleDeleteStory(story.id)}
+                                variant="ghost"
+                                size="xs"
+                                className="p-1.5 text-red-500 hover:text-red-400"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {filteredStories.length === 0 && (
+                      <tr id="empty-search-table-state">
+                        <td colSpan={8} className="py-16 text-center">
+                          <EmptyState
+                            type="search"
+                            title="No Story Projects Found"
+                            description="We couldn't locate any archives matching your search constraints."
+                            primaryActionLabel="Reset All Active Filters"
+                            onPrimaryAction={handleClearAllFilters}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* PAGINATION PANEL FOOTER */}
+          {filteredStories.length > 0 && (
+            <div className="flex items-center justify-between border-t border-border pt-4 bg-card/10 px-2" id="stories-pagination-bar">
+              <span className="text-[10px] text-muted-foreground font-semibold font-mono uppercase tracking-wider">
+                Showing {(currentPage - 1) * itemsPerPage + 1} – {Math.min(currentPage * itemsPerPage, filteredStories.length)} of {filteredStories.length} projects
+              </span>
+
+              <div className="flex items-center gap-1.5">
+                <Button
+                  id="btn-pagination-prev"
+                  variant="ghost"
+                  size="xs"
+                  leftIcon={<ChevronLeft className="w-3.5 h-3.5 text-foreground" />}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1 border border-border"
+                >
+                  Prev
+                </Button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }).map((_, idx) => {
+                    const pg = idx + 1;
+                    return (
+                      <button
+                        key={pg}
+                        id={`btn-pagination-page-${pg}`}
+                        onClick={() => setCurrentPage(pg)}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                          currentPage === pg
+                            ? 'bg-cinema-amber-500 text-slate-950 font-black'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        }`}
+                      >
+                        {pg}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  id="btn-pagination-next"
+                  variant="ghost"
+                  size="xs"
+                  rightIcon={<ChevronRight className="w-3.5 h-3.5 text-foreground" />}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-1 border border-border"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

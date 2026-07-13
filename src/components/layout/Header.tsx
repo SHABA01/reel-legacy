@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { useOverlay } from '../../context/OverlayContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
   Film,
@@ -37,6 +38,7 @@ export function Header() {
   const navigate = useNavigate();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showToast } = useToast();
+  const { user, logout } = useAuth();
 
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -48,7 +50,7 @@ export function Header() {
   const getPageTitle = () => {
     switch (activeView) {
       case 'dashboard':
-        return 'Studio Dashboard';
+        return 'Dashboard';
       case 'stories':
         return 'Story Library';
       case 'profiles':
@@ -76,6 +78,26 @@ export function Header() {
 
   const handleQuickCreate = () => {
     showToast('info', 'Opening Quick Creator Wizard', 'Ready to map out another cinematic chapter draft.');
+  };
+
+  const getThemeItemClass = (itemTheme: string) => {
+    const isActive = theme === itemTheme;
+    const base = "w-full flex items-center gap-2 px-2.5 py-2 text-xs font-semibold rounded-lg text-left transition-all duration-200 cursor-pointer border";
+    
+    if (resolvedTheme === 'light') {
+      if (isActive) {
+        return `${base} border-cinema-amber-500/20 bg-cinema-amber-500/10 text-cinema-amber-500`;
+      } else {
+        return `${base} border-transparent text-black hover:bg-cinema-amber-500/10 hover:border-cinema-amber-500/20 hover:text-cinema-amber-500`;
+      }
+    } else {
+      // dark mode
+      if (isActive) {
+        return `${base} border-cinema-amber-500/20 bg-cinema-amber-500/10 text-cinema-amber-500`;
+      } else {
+        return `${base} border-transparent text-cinema-slate-400 hover:bg-cinema-amber-500/10 hover:border-cinema-amber-500/20 hover:text-cinema-amber-500`;
+      }
+    }
   };
 
   return (
@@ -163,7 +185,7 @@ export function Header() {
         </button>
 
         {/* Theme Toggle Button & Dropdown */}
-        <div id="theme-toggle-container" className="relative">
+        <div id="theme-toggle-container" className="relative inline-block">
           <button
             id="theme-menu-trigger"
             onClick={() => setThemeMenuOpen(!themeMenuOpen)}
@@ -189,7 +211,11 @@ export function Header() {
                   initial={{ opacity: 0, scale: 0.95, y: 5 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                  className="absolute right-0 mt-1 w-36 bg-white dark:bg-cinema-slate-900 border border-cinema-slate-100 dark:border-cinema-slate-800 rounded-xl shadow-xl z-50 p-1.5"
+                  className={`absolute left-1/2 -translate-x-1/2 mt-1 w-36 rounded-xl shadow-xl z-50 p-1.5 border ${
+                    resolvedTheme === 'light' 
+                      ? 'bg-[#ffffff] border-neutral-200' 
+                      : 'bg-cinema-slate-900 border-cinema-slate-800'
+                  }`}
                 >
                   <button
                     id="theme-opt-light"
@@ -197,11 +223,7 @@ export function Header() {
                       setTheme('light', e);
                       setThemeMenuOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs font-semibold rounded-lg text-left transition-colors cursor-pointer ${
-                      theme === 'light'
-                        ? 'bg-cinema-slate-50 text-cinema-amber-500 dark:bg-cinema-slate-850'
-                        : 'text-cinema-slate-600 dark:text-cinema-slate-400 hover:bg-cinema-slate-50 dark:hover:bg-cinema-slate-850'
-                    }`}
+                    className={getThemeItemClass('light')}
                   >
                     <Sun className="w-3.5 h-3.5" /> Light Mode
                   </button>
@@ -211,11 +233,7 @@ export function Header() {
                       setTheme('dark', e);
                       setThemeMenuOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs font-semibold rounded-lg text-left transition-colors cursor-pointer ${
-                      theme === 'dark'
-                        ? 'bg-cinema-slate-50 text-cinema-amber-500 dark:bg-cinema-slate-850'
-                        : 'text-cinema-slate-600 dark:text-cinema-slate-400 hover:bg-cinema-slate-50 dark:hover:bg-cinema-slate-850'
-                    }`}
+                    className={getThemeItemClass('dark')}
                   >
                     <Moon className="w-3.5 h-3.5" /> Dark Mode
                   </button>
@@ -225,11 +243,7 @@ export function Header() {
                       setTheme('system', e);
                       setThemeMenuOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs font-semibold rounded-lg text-left transition-colors cursor-pointer ${
-                      theme === 'system'
-                        ? 'bg-cinema-slate-50 text-cinema-amber-500 dark:bg-cinema-slate-850'
-                        : 'text-cinema-slate-600 dark:text-cinema-slate-400 hover:bg-cinema-slate-50 dark:hover:bg-cinema-slate-850'
-                    }`}
+                    className={getThemeItemClass('system')}
                   >
                     <Laptop className="w-3.5 h-3.5" /> System Mode
                   </button>
@@ -248,7 +262,7 @@ export function Header() {
             aria-label="Open Account settings menu"
           >
             <div className="w-6 h-6 rounded-full bg-cinema-amber-100 text-cinema-amber-600 flex items-center justify-center font-display font-bold text-xs select-none shrink-0 border border-cinema-amber-200/50">
-              PS
+              {user?.firstName ? `${user.firstName.charAt(0)}${user.lastName.charAt(0)}` : 'PS'}
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           </button>
@@ -266,8 +280,12 @@ export function Header() {
                   className="absolute right-0 mt-1 w-48 bg-card border border-border rounded-xl shadow-xl z-50 p-1.5 flex flex-col text-card-foreground"
                 >
                   <div className="px-2.5 py-2 border-b border-border mb-1" id="user-info-snippet">
-                    <p className="text-xs font-semibold text-foreground">Philip Shaba</p>
-                    <p className="text-[10px] text-muted-foreground truncate">PhilShaba96@gmail.com</p>
+                    <p className="text-xs font-semibold text-foreground">
+                      {user?.firstName ? `${user.firstName} ${user.lastName}` : 'Philip Shaba'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {user?.email || 'PhilShaba96@gmail.com'}
+                    </p>
                   </div>
                   <button
                     id="user-opt-profile"
@@ -282,11 +300,11 @@ export function Header() {
                   </button>
                   <button
                     id="user-opt-logout"
-                    onClick={() => {
+                    onClick={async () => {
                       showToast('warning', 'Session termination requested', 'Logging out safely.');
                       setUserMenuOpen(false);
-                      localStorage.removeItem('rl_authenticated');
-                      window.location.href = '/';
+                      await logout();
+                      navigate('/login');
                     }}
                     className="flex items-center gap-2 px-2.5 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg text-left transition-colors cursor-pointer"
                   >

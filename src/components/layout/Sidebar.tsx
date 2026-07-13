@@ -53,6 +53,9 @@ export function Sidebar() {
     analytics: '/workspace/studio-analytics',
     integrations: '/workspace/integrations',
     settings: '/workspace/settings',
+    search: '/workspace/search',
+    notifications: '/workspace/notifications',
+    help: '/workspace/help',
   };
 
   const navigationItems: SidebarItem[] = [

@@ -503,5 +503,51 @@ To achieve high-quality cinematic premium polish, we implemented deep transition
 
 ## High-Performance Circular Theme Ripple
 - **View Transitions API Wave**: Integrated an interactive radial wave-like transition using the modern `document.startViewTransition` API. Clicking the theme options triggers a circular expansion clip-path animation radiating outward directly from the click coordinates.
-- **Custom CSS Ripple Animations**: Implemented `::view-transition-new` and `::view-transition-old` keyframes to stretch the circular viewport dynamically from `0px` to the maximum calculated window radius in `450ms`, ensuring a highly professional, fluid transition sweep across all application cards and borders.
+- **Custom CSS Ripple Animations**: Implemented `::view-transition-new` and `::view-transition-old` keyframes to stretch the circular viewport dynamically from `0px` to the maximum calculated window radius in `850ms` (tuned from `450ms` using `cubic-bezier(0.4, 0, 0.2, 1)`) for a much smoother, fully visible sweep that lets the user experience the point of origin extending outward perfectly.
 - **Flicker & Hydration Flash Prevention**: Fixed initial load theme flashing. Added an inline micro-script in `/index.html` to synchronize the dark mode state immediately on the root DOM tree before React or Tailwind loads. Combined with a temporary `.no-transitions` style block on mount, this avoids any CSS transition popping or hydration flicker on load, releasing animations gracefully after paint.
+
+## Decoupled State & UI Orchestrator Refactor
+- **Isolated Domain Managers**: Replaced the previous tightly coupled shared UI state architecture with dedicated domain managers—`NavigationProvider`, `OverlayManagerProvider`, and `ModalManagerProvider`—to isolate navigation, overlays, and modal transitions.
+- **Lightweight UIOrchestrator**: Introduced `UIOrchestratorProvider` as an explicit coordination layer to handle cross-manager side effects (e.g., closing open overlays or modals on route change) without letting individual managers directly mutate or reference each other's state.
+- **Stable References & Re-render Prevention**: Memoized all Context Provider values and wrapped exported callbacks (like `openOverlay`, `closeOverlay`, `toggleOverlay`, `registerModalOpen`) with `useCallback` hooks, permanently curing the overlay flickering bug and reducing consumer component re-renders.
+- **Zero-Duplication Router Synchronization**: Eliminated state duplication and fragile `useEffect` synchronization loops by directly deriving `activeView` state from React Router's `location.pathname` inside the navigation manager.
+
+## Custom 404 Page Not Found
+- **Premium Standalone Fallback**: Created a custom `NotFound` page (`path="*"`) that acts as a polished dead-link fallback. Sticking to the eye-safe midnight palette (`#070b13`), it features an elegant radial background glow, a Lucide custom alert box, large display type typography, and a centered "Go home" white primary button.
+
+## Visual Polish & Layout Refinements
+- **Theme Dropdown Alignment Fix**: Fixed the theme options list positioning glitch. Constrained the parent theme container to `relative inline-block` to lock its layout box, and applied `absolute left-1/2 -translate-x-1/2 mt-1` on the dropdown menus (both workspace `Header` and landing `Navbar` instances) to center them perfectly underneath the theme toggle trigger, preventing menu encroachment on adjacent elements.
+- **Header Label Simplification**: Renamed the workspace main route heading from "Studio Dashboard" to "Dashboard" to establish a cleaner, more readable hierarchy.
+- **Responsive Theme Dropdown Selection & Styling**: Implemented responsive states on the theme option dropdown menu list in both workspace `Header` and landing `Navbar`. When in light mode, the background becomes pure `#ffffff`, non-active selections are styled with clean black text/icons, and the active/highlighted modes utilize a beautiful gold container tint (`bg-cinema-amber-500/10` with border `border-cinema-amber-500/20 text-cinema-amber-500`) matching the "Cinematic Legacy Preservation" badge accent. Same gold tint styling is consistently applied to dark mode selections.
+
+---
+
+# 20. Advanced Authentication & Session Security Module (July 2026)
+
+We implemented a robust, fully decoupled, accessible, and user-friendly Authentication and Session Security Module.
+
+## 1. Modular Context & Session Engine
+- **Global Auth Provider**: Built `AuthContext` with a custom `AuthProvider` and hook `useAuth()`. It coordinates login, registration, email verification, password resetting, and session termination.
+- **Session Lifecycles & Persistence**: Supports "Remember Me" toggle states. Sessions use `localStorage` for durable, long-term state across browser restarts, and `sessionStorage` for standard short-lived session security.
+- **Intelligent Redirect Cache**: Captures unauthorized deep-link requests (e.g. visiting `/workspace/story-library` while unauthenticated) in `localStorage.getItem('rl_redirect_after_auth')` and seamlessly redirects the user back to their requested deep-link path upon successful sign-in.
+
+## 2. Split-Screen Layouts & Cinema-Amber Styling
+- **Branded Left Showcase Carousel**: Engineered `AuthLayout` providing a custom split-screen layout. The left pane is a branded visual billboard with background overlay fades, typography pairing, and client quotation carousels.
+- **Accessible Right Panel Forms**: The right pane contains semantic, compact input containers featuring interactive helper elements, field-level inline error tags, and smooth viewport transitions.
+
+## 3. Form Validation & Password Security Auditor
+- **Password Strength Meter**: Created `PasswordStrengthMeter` to analyze input passwords in real-time across five validation dimensions (length, uppercase, lowercase, numeric digits, and special characters).
+- **Complexity Badges**: Shows interactive status indicators (Weak, Fair, Good, Strong) styled with matching colored badges to provide real-time feedback.
+
+## 4. Secure Route Protection Guards
+- **ProtectedRoute**: Restricts access to all `/workspace/*` routes. Redirects guests to `/login` and provides loading states during session hydration.
+- **GuestRoute**: Ensures authenticated users cannot access public auth screens (Login, Register, Forgot Password, Reset Password) by redirecting them straight to `/workspace/dashboard`.
+
+## 5. Rich Auth Page Inset Views
+- **Sign In (Login)**: Clear password toggle controls, error boundary states, and remember me flags. Includes sandbox mock accounts (`biographer@reellegacy.com`, password `LegacyPass123!`).
+- **Create Account (Register)**: Interactive terms of service controls and live security complexity gauges.
+- **Email Verification**: Handles automatic validation of email verification tokens from the URL search queries. Supports resend capabilities with cooldown timers, and instant email corrections.
+- **Forgot Password**: Password reset request with helper guides and sandbox email simulators (`notfound@reellegacy.com` to test email not found errors).
+- **Reset Password**: Verification of recovery tokens, live strength meters, password match validation checks, and simulated token expirations.
+
+
