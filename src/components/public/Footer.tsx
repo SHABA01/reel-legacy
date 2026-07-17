@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Film, Send, Shield, Sparkles, Youtube, Linkedin, Instagram, ArrowRight } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
@@ -27,7 +27,7 @@ export function Footer({ setCurrentPage }: FooterProps) {
     setNewsletterStatus('loading');
     setTimeout(() => {
       setNewsletterStatus('success');
-      showToast('success', 'Subscribed to Cinema Notes!', 'You are now on the ReelLegacy release catalog.');
+      showToast('success', 'Subscribed to Legacy Notes!', 'You are now on the ReelLegacy release catalog.');
       setNewsletterEmail('');
     }, 1200);
   };
@@ -37,7 +37,50 @@ export function Footer({ setCurrentPage }: FooterProps) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const currentYear = new Date().getFullYear();
+  const [currentYear, setCurrentYear] = useState(2026);
+
+  useEffect(() => {
+    let active = true;
+    async function fetchServerYear() {
+      try {
+        const response = await fetch(window.location.origin, { method: 'HEAD' });
+        const dateHeader = response.headers.get('date');
+        if (dateHeader && active) {
+          const year = new Date(dateHeader).getFullYear();
+          if (!isNaN(year) && year >= 2026) {
+            setCurrentYear(year);
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore & fallback
+      }
+
+      try {
+        const response = await fetch('https://worldtimeapi.org/api/ip');
+        const data = await response.json();
+        if (data && data.utc_datetime && active) {
+          const year = new Date(data.utc_datetime).getFullYear();
+          if (!isNaN(year) && year >= 2026) {
+            setCurrentYear(year);
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore & fallback
+      }
+
+      if (active) {
+        const clientYear = new Date().getFullYear();
+        setCurrentYear(clientYear >= 2026 ? clientYear : 2026);
+      }
+    }
+
+    fetchServerYear();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <footer id="public-footer" className="bg-cinema-slate-950 text-cinema-slate-300 border-t border-cinema-slate-900">
@@ -47,17 +90,17 @@ export function Footer({ setCurrentPage }: FooterProps) {
           <div className="space-y-4 xl:col-span-1" id="footer-brand-info">
             <button
               onClick={() => handleFooterLinkClick('home')}
-              className="flex items-center gap-2 text-left cursor-pointer"
+              className="flex items-center gap-2 text-left cursor-pointer group"
               id="footer-logo-btn"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cinema-amber-500/10 border border-cinema-amber-500/20 text-cinema-amber-400">
-                <Film className="h-5 w-5 animate-spin-slow" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-logo-tile-bg transition-all group-hover:scale-105 shadow-sm">
+                <Film className="h-5 w-5 text-cinema-amber-500 animate-spin-slow" />
               </div>
               <span className="font-display text-lg font-bold tracking-tight text-white">
                 Reel<span className="text-cinema-amber-500">Legacy</span>
               </span>
             </button>
-            <p className="text-xs leading-relaxed max-w-md text-cinema-slate-400">
+            <p className="text-xs leading-relaxed max-w-md text-cinema-slate-400 text-justify">
               The premier AI-assisted cinematic storytelling platform. We bridge modern filmmaking technology with personal, family, and career histories to produce broadcast-quality legacy documentaries that endure forever.
             </p>
             {/* Social icons */}
@@ -74,7 +117,7 @@ export function Footer({ setCurrentPage }: FooterProps) {
                 href="#"
                 onClick={(e) => { e.preventDefault(); showToast('info', 'LinkedIn Profile', 'Connect with IdeaCodex Labs on professional networking channels.'); }}
                 className="p-2 bg-cinema-slate-900 hover:bg-cinema-slate-800 rounded-lg text-cinema-slate-400 hover:text-white transition-colors"
-                title="LinkedIn IdeaCodex"
+                title="ReelLegacy LinkedIn"
               >
                 <Linkedin className="w-4 h-4" />
               </a>
@@ -82,7 +125,7 @@ export function Footer({ setCurrentPage }: FooterProps) {
                 href="#"
                 onClick={(e) => { e.preventDefault(); showToast('info', 'Instagram Showcase', 'Follow our design updates and production stills.'); }}
                 className="p-2 bg-cinema-slate-900 hover:bg-cinema-slate-800 rounded-lg text-cinema-slate-400 hover:text-white transition-colors"
-                title="Instagram Reels"
+                title="ReelLegacy Instagram"
               >
                 <Instagram className="w-4 h-4" />
               </a>
@@ -113,13 +156,12 @@ export function Footer({ setCurrentPage }: FooterProps) {
                     </button>
                   </li>
                   <li>
-                    <a
-                      href="#"
-                      onClick={(e) => { e.preventDefault(); showToast('info', 'CareerCanvas Integration', 'Directly load career transcripts and portfolios into ReelLegacy.'); }}
-                      className="text-xs text-cinema-slate-400 hover:text-white cursor-pointer transition-colors flex items-center gap-1"
-                    >
-                      CareerCanvas Link <Sparkles className="w-3 h-3 text-cinema-amber-400" />
-                    </a>
+                    <div className="relative group text-xs text-cinema-slate-500 flex items-center cursor-not-allowed select-none w-max">
+                      <span>CareerCanvas Link</span>
+                      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-cinema-slate-900 text-cinema-amber-500 text-[9px] font-mono font-semibold tracking-wider px-2 py-1 rounded shadow-lg border border-cinema-slate-800 pointer-events-none whitespace-nowrap z-50">
+                        COMING SOON
+                      </div>
+                    </div>
                   </li>
                 </ul>
               </div>
@@ -144,13 +186,12 @@ export function Footer({ setCurrentPage }: FooterProps) {
                     </button>
                   </li>
                   <li>
-                    <a
-                      href="#"
-                      onClick={(e) => { e.preventDefault(); showToast('info', 'IdeaCodex Labs', 'ReelLegacy is designed and sustained by IdeaCodex Labs.'); }}
-                      className="text-xs text-cinema-slate-400 hover:text-white cursor-pointer transition-colors"
-                    >
-                      IdeaCodex Labs
-                    </a>
+                    <div className="relative group text-xs text-cinema-slate-500 flex items-center cursor-not-allowed select-none w-max">
+                      <span>IdeaCodex Labs</span>
+                      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-cinema-slate-900 text-cinema-amber-500 text-[9px] font-mono font-semibold tracking-wider px-2 py-1 rounded shadow-lg border border-cinema-slate-800 pointer-events-none whitespace-nowrap z-50">
+                        COMING SOON
+                      </div>
+                    </div>
                   </li>
                 </ul>
               </div>
@@ -163,14 +204,6 @@ export function Footer({ setCurrentPage }: FooterProps) {
                 <ul role="list" className="mt-4 space-y-2">
                   <li>
                     <button
-                      onClick={() => handleFooterLinkClick('help')}
-                      className="text-xs text-cinema-slate-400 hover:text-white cursor-pointer transition-colors"
-                    >
-                      Help Center
-                    </button>
-                  </li>
-                  <li>
-                    <button
                       onClick={() => handleFooterLinkClick('faq')}
                       className="text-xs text-cinema-slate-400 hover:text-white cursor-pointer transition-colors"
                     >
@@ -178,13 +211,12 @@ export function Footer({ setCurrentPage }: FooterProps) {
                     </button>
                   </li>
                   <li>
-                    <a
-                      href="#"
-                      onClick={(e) => { e.preventDefault(); showToast('info', 'Legacy Academy', 'Curated guides and interview questions for capturing grandparent memories.'); }}
-                      className="text-xs text-cinema-slate-400 hover:text-white cursor-pointer transition-colors"
-                    >
-                      Legacy Academy
-                    </a>
+                    <div className="relative group text-xs text-cinema-slate-500 flex items-center cursor-not-allowed select-none w-max">
+                      <span>Legacy Academy</span>
+                      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-cinema-slate-900 text-cinema-amber-500 text-[9px] font-mono font-semibold tracking-wider px-2 py-1 rounded shadow-lg border border-cinema-slate-800 pointer-events-none whitespace-nowrap z-50">
+                        COMING SOON
+                      </div>
+                    </div>
                   </li>
                 </ul>
               </div>
@@ -218,17 +250,17 @@ export function Footer({ setCurrentPage }: FooterProps) {
         </div>
 
         {/* Newsletter and final brand row */}
-        <div className="mt-12 border-t border-cinema-slate-900 pt-8 lg:flex lg:items-center lg:justify-between" id="footer-newsletter-row">
-          <div className="max-w-md lg:max-w-none" id="newsletter-text">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-1.5">
-              Subscribe to Cinema Notes <Sparkles className="w-3.5 h-3.5 text-cinema-amber-400" />
+        <div className="mt-12 border-t border-cinema-slate-900 pt-8 flex flex-col items-center justify-center text-center space-y-4" id="footer-newsletter-row">
+          <div className="max-w-md" id="newsletter-text">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-white flex items-center justify-center gap-1.5">
+              Subscribe to Legacy Notes <Sparkles className="w-3.5 h-3.5 text-cinema-amber-400" />
             </h3>
-            <p className="mt-1.5 text-xs text-cinema-slate-400 leading-relaxed">
+            <p className="mt-1.5 text-xs text-cinema-slate-400 leading-relaxed text-justify lg:text-center lg:whitespace-nowrap">
               Receive tips on legacy archiving, memory collection, and early product features.
             </p>
           </div>
-          <div className="mt-4 sm:flex sm:max-w-md lg:mt-0 lg:ml-8" id="newsletter-form-container">
-            <form onSubmit={handleNewsletterSubmit} className="flex w-full max-w-sm items-center space-x-2">
+          <div className="w-full max-w-sm" id="newsletter-form-container">
+            <form onSubmit={handleNewsletterSubmit} className="flex w-full items-center space-x-2 justify-center">
               <input
                 type="email"
                 required
@@ -250,12 +282,9 @@ export function Footer({ setCurrentPage }: FooterProps) {
         </div>
 
         {/* Copyright */}
-        <div className="mt-8 border-t border-cinema-slate-900/60 pt-8 md:flex md:items-center md:justify-between" id="footer-copyright-row">
-          <p className="text-[10px] text-cinema-slate-500 md:order-1">
-            &copy; {currentYear} ReelLegacy by IdeaCodex Labs. All rights reserved.
-          </p>
-          <p className="mt-2 text-[10px] text-cinema-slate-500 md:order-2 md:mt-0">
-            Designed for enduring authenticity. Built on React & motion.
+        <div className="mt-8 border-t border-cinema-slate-900/60 pt-8 flex items-center justify-center text-center" id="footer-copyright-row">
+          <p className="text-[10px] text-cinema-slate-500">
+            © {currentYear} ReelLegacy by IdeaCodex Labs. All rights reserved.
           </p>
         </div>
       </div>

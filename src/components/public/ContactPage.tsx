@@ -28,7 +28,6 @@ export function ContactPage({ setCurrentPage }: ContactPageProps) {
   // Contact form state parameters
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [storyType, setStoryType] = useState('general');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -54,10 +53,9 @@ export function ContactPage({ setCurrentPage }: ContactPageProps) {
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
-      showToast('success', 'Inquiry submitted successfully!', 'Our lead legacy biographer will contact you within 24 hours.');
+      showToast('success', 'Inquiry submitted successfully!', 'Our ReelLegacy support team will contact you within 24 hours.');
       setFullName('');
       setEmail('');
-      setStoryType('general');
       setMessage('');
     }, 1200);
   };
@@ -77,10 +75,10 @@ export function ContactPage({ setCurrentPage }: ContactPageProps) {
             <Mail className="w-3.5 h-3.5 animate-pulse" /> Global Support Desk
           </span>
           <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground">
-            Connect with a Biographer
+            Contact ReelLegacy Support
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-            Have questions about scanning old photos, security parameters, or custom business documentaries? We are here to assist your legacy.
+            Have questions about rendering documentaries, security parameters, or ReelLegacy services? We are here to assist you.
           </p>
         </div>
 
@@ -133,23 +131,6 @@ export function ContactPage({ setCurrentPage }: ContactPageProps) {
               </div>
 
               <div>
-                <label htmlFor="contact-storytype" className="block text-xs font-semibold text-muted-foreground mb-1">
-                  Intended Story Type
-                </label>
-                <select
-                  id="contact-storytype"
-                  value={storyType}
-                  onChange={(e) => setStoryType(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cinema-amber-500/30 focus:border-cinema-amber-500 transition-all"
-                >
-                  <option value="general">General Archival Question</option>
-                  <option value="personal_memoir">Personal Biography / Family memoir</option>
-                  <option value="career_documentary">Career Biography / CareerCanvas Porting</option>
-                  <option value="corporate_legacy">Organization Legacy / Retiring Executive</option>
-                </select>
-              </div>
-
-              <div>
                 <label htmlFor="contact-message" className="block text-xs font-semibold text-muted-foreground mb-1">
                   Message Details
                 </label>
@@ -158,7 +139,7 @@ export function ContactPage({ setCurrentPage }: ContactPageProps) {
                   rows={4}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Describe the story files, recordings, or organizational timeline you want to preserve..."
+                  placeholder="Describe your inquiry about ReelLegacy services, rendering, or how we can help you..."
                   className={`w-full px-3 py-2 text-sm bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-cinema-amber-500/30 focus:border-cinema-amber-500 transition-all ${
                     errors.message ? 'border-red-500/80' : 'border-border'
                   }`}
@@ -192,7 +173,7 @@ export function ContactPage({ setCurrentPage }: ContactPageProps) {
             {/* Business Contact Cards */}
             <div className="p-6 bg-card border border-border rounded-2xl space-y-4 shadow-xs" id="corp-address-card">
               <h3 className="font-display text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Building className="w-4 h-4 text-cinema-amber-500" /> Labs Information
+                <Building className="w-4 h-4 text-cinema-amber-500" /> Company Information
               </h3>
               
               <div className="space-y-4 text-xs text-muted-foreground">
@@ -209,7 +190,7 @@ export function ContactPage({ setCurrentPage }: ContactPageProps) {
                   <Mail className="w-4 h-4 text-cinema-amber-500 shrink-0 mt-0.5" />
                   <div>
                     <h4 className="font-semibold text-foreground">Email Channels</h4>
-                    <p className="hover:underline">archivist@ideacodex.com</p>
+                    <p className="hover:underline">support@ideacodex.com</p>
                     <p className="hover:underline">support@reellegacy.com</p>
                   </div>
                 </div>
@@ -219,7 +200,7 @@ export function ContactPage({ setCurrentPage }: ContactPageProps) {
                   <div>
                     <h4 className="font-semibold text-foreground">Operational Hours</h4>
                     <p>Monday – Friday: 8:00 AM – 6:00 PM PST</p>
-                    <p>Saturday (Archivist Desk): 10:00 AM – 3:00 PM PST</p>
+                    <p>Saturday: 10:00 AM – 3:00 PM PST</p>
                   </div>
                 </div>
               </div>

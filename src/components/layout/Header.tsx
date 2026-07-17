@@ -33,6 +33,7 @@ export function Header() {
     sidebarExpanded,
     activeOverlay,
     activeModalId,
+    setActiveView,
   } = useOverlay();
 
   const navigate = useNavigate();
@@ -71,6 +72,12 @@ export function Header() {
         return 'Integrations';
       case 'settings':
         return 'System Settings';
+      case 'search':
+        return 'Advanced Search';
+      case 'notifications':
+        return 'Notification Center';
+      case 'help':
+        return 'Help Center';
       default:
         return 'ReelLegacy Studio';
     }
@@ -129,9 +136,11 @@ export function Header() {
             toggleOverlay('search');
           }}
           className={`p-2 rounded-lg transition-colors custom-focus cursor-pointer ${
-            isSearchDisabled
-              ? 'opacity-40 cursor-not-allowed pointer-events-none text-muted-foreground/40'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            activeOverlay === 'search'
+              ? 'text-cinema-amber-500 bg-cinema-amber-500/10 border border-cinema-amber-500/20'
+              : isSearchDisabled
+                ? 'opacity-40 cursor-not-allowed pointer-events-none text-muted-foreground/40'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
           }`}
           aria-label="Open global search panel"
         >
@@ -172,9 +181,11 @@ export function Header() {
             toggleOverlay('notifications');
           }}
           className={`p-2 rounded-lg transition-colors custom-focus cursor-pointer relative ${
-            isNotificationsDisabled
-              ? 'opacity-40 cursor-not-allowed pointer-events-none text-muted-foreground/40'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            activeOverlay === 'notifications'
+              ? 'text-cinema-amber-500 bg-cinema-amber-500/10 border border-cinema-amber-500/20'
+              : isNotificationsDisabled
+                ? 'opacity-40 cursor-not-allowed pointer-events-none text-muted-foreground/40'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
           }`}
           aria-label="Open Notifications Center"
         >

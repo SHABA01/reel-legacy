@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOverlay } from '../../context/OverlayContext';
 import { ActiveView } from '../../types';
 import { useNavigate } from 'react-router-dom';
+import { persistenceService } from '../../storage';
 import {
   LayoutDashboard,
   BookOpen,
@@ -21,6 +22,9 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Search,
+  Bell,
+  HelpCircle,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -39,7 +43,53 @@ export function Sidebar() {
   } = useOverlay();
 
   const navigate = useNavigate();
-  const [isLogoHovered, setIsLogoHovered] = React.useState(false);
+  const [isLogoHovered, setIsLogoHovered] = useState(false);
+  const [counts, setCounts] = useState({
+    stories: 0,
+    profiles: 0,
+    timeline: 0,
+    media: 0,
+    notifications: 0,
+  });
+
+  const updateCounts = async () => {
+    try {
+      const [storiesCount, profilesCount, timelineCount, mediaCount, unreadNotifs] = await Promise.all([
+        persistenceService.stories.count(),
+        persistenceService.profiles.count(),
+        persistenceService.timeline.count(),
+        persistenceService.media.count(),
+        persistenceService.notifications.getUnread().then(notifs => notifs.filter(n => !n.read).length).catch(() => 0)
+      ]);
+      setCounts({
+        stories: storiesCount,
+        profiles: profilesCount,
+        timeline: timelineCount,
+        media: mediaCount,
+        notifications: unreadNotifs,
+      });
+    } catch (err) {
+      console.warn('Error fetching sidebar counts:', err);
+    }
+  };
+
+  useEffect(() => {
+    updateCounts();
+
+    const handleUpdate = () => {
+      updateCounts();
+    };
+
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('storage-activity-updated', handleUpdate);
+    window.addEventListener('reellegacy-data-changed', handleUpdate);
+
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('storage-activity-updated', handleUpdate);
+      window.removeEventListener('reellegacy-data-changed', handleUpdate);
+    };
+  }, []);
 
   const viewPaths: Record<ActiveView, string> = {
     dashboard: '/workspace/dashboard',
@@ -69,6 +119,9 @@ export function Sidebar() {
     { id: 'render', label: 'Render Queue', icon: Film, category: 'production' },
     { id: 'analytics', label: 'Studio Analytics', icon: BarChart3, category: 'system' },
     { id: 'integrations', label: 'Integrations', icon: Link2, category: 'system' },
+    { id: 'search', label: 'Global Search', icon: Search, category: 'system' },
+    { id: 'notifications', label: 'Notifications', icon: Bell, category: 'system' },
+    { id: 'help', label: 'Help Center', icon: HelpCircle, category: 'system' },
     { id: 'settings', label: 'Settings', icon: Settings, category: 'system' },
   ];
 
@@ -153,7 +206,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation list */}
-      <div id="sidebar-nav" className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+      <div id="sidebar-nav" className="flex-1 overflow-y-auto scrollbar-ephemeral px-4 py-6 space-y-6">
         {(Object.keys(categories) as Array<keyof typeof categories>).map((catKey) => {
           const itemsInCat = navigationItems.filter((item) => item.category === catKey);
           if (itemsInCat.length === 0) return null;
@@ -213,6 +266,28 @@ export function Sidebar() {
                         {item.label}
                       </span>
 
+                      {/* Real-time Entity Counts Badge */}
+                      {sidebarExpanded && counts[item.id as keyof typeof counts] !== undefined && counts[item.id as keyof typeof counts] > 0 && (
+                        <span 
+                          id={`sidebar-count-badge-${item.id}`}
+                          className={`ml-auto text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md leading-none ${
+                            isActive 
+                              ? 'bg-cinema-slate-950 text-cinema-amber-500' 
+                              : 'bg-muted-foreground/15 text-muted-foreground'
+                          }`}
+                        >
+                          {counts[item.id as keyof typeof counts]}
+                        </span>
+                      )}
+
+                      {/* Collapsed notification dot */}
+                      {!sidebarExpanded && counts[item.id as keyof typeof counts] !== undefined && counts[item.id as keyof typeof counts] > 0 && (
+                        <span 
+                          id={`sidebar-collapsed-dot-${item.id}`}
+                          className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-cinema-amber-500" 
+                        />
+                      )}
+
                       {/* Tooltip on collapsed state */}
                       {!sidebarExpanded && (
                         <div
@@ -243,9 +318,13 @@ export function Sidebar() {
             <span className="font-display">ReelLegacy</span>
             <span className="font-mono text-[9px] text-sidebar-foreground/50 bg-sidebar-accent px-1.5 py-0.5 rounded">v0.1.0</span>
           </div>
-          <div id="early-access-badge-container">
+          <div id="early-access-badge-container" className="flex items-center justify-between w-full">
             <span className="inline-flex items-center text-[9px] uppercase tracking-wider font-bold text-cinema-amber-700 dark:text-cinema-amber-400 bg-cinema-amber-500/15 dark:bg-cinema-amber-500/10 px-2 py-0.5 rounded-full border border-cinema-amber-500/30 dark:border-cinema-amber-500/20">
               Early Access
+            </span>
+            <span className="text-[9px] text-sidebar-foreground/60 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              Engine Online
             </span>
           </div>
         </div>
@@ -256,7 +335,10 @@ export function Sidebar() {
             sidebarExpanded ? 'opacity-0 scale-75 pointer-events-none' : 'opacity-100 scale-100'
           }`}
         >
-          <span className="font-mono text-[9px] text-sidebar-foreground/45 bg-sidebar-accent px-2 py-1 rounded">v0.1</span>
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" title="Studio Engine Online" />
+            <span className="font-mono text-[9px] text-sidebar-foreground/45 bg-sidebar-accent px-2 py-0.5 rounded">v0.1</span>
+          </div>
         </div>
       </div>
     </aside>

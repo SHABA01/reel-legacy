@@ -4,6 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { AuthService, persistenceService } from '../storage';
 
 export interface User {
   id: string;
@@ -14,6 +15,10 @@ export interface User {
   country?: string;
   isVerified: boolean;
   role: string;
+  avatarUrl?: string;
+  coverImageUrl?: string;
+  bio?: string;
+  timeZone?: string;
 }
 
 interface AuthContextType {
@@ -37,9 +42,28 @@ interface AuthContextType {
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (token: string, password: string) => Promise<void>;
   changeEmailInVerification: (newEmail: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Helper to map UserSchema to context User format
+function mapSchemaToUser(schema: any): User {
+  return {
+    id: schema.id,
+    firstName: schema.firstName,
+    lastName: schema.lastName,
+    displayName: schema.displayName || schema.fullName,
+    email: schema.email,
+    country: schema.country,
+    isVerified: schema.verified,
+    role: schema.role || 'Family Historian',
+    avatarUrl: schema.avatarUrl,
+    coverImageUrl: schema.coverImageUrl,
+    bio: schema.bio,
+    timeZone: schema.timeZone
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -53,17 +77,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const restoreSession = async () => {
       setIsLoading(true);
-      // Simulate checking session status (1s delay)
       try {
-        const storedAuth = localStorage.getItem('rl_authenticated') === 'true' || 
-                           sessionStorage.getItem('rl_authenticated') === 'true';
-        
-        const storedUserJson = localStorage.getItem('rl_user') || sessionStorage.getItem('rl_user');
-        
-        if (storedAuth && storedUserJson) {
-          const storedUser = JSON.parse(storedUserJson);
-          setUser(storedUser);
-          setIsAuthenticated(true);
+        const storedToken = localStorage.getItem('rl_session_token') || sessionStorage.getItem('rl_session_token');
+        if (storedToken) {
+          const userSchema = await AuthService.restoreSession(storedToken);
+          if (userSchema) {
+            setUser(mapSchemaToUser(userSchema));
+            setIsAuthenticated(true);
+          } else {
+            // Token was expired or invalid; clean it up
+            localStorage.removeItem('rl_session_token');
+            sessionStorage.removeItem('rl_session_token');
+          }
         }
       } catch (e) {
         console.error('Session restoration failed:', e);
@@ -80,43 +105,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('rl_remember_me', rememberMe ? 'true' : 'false');
   }, [rememberMe]);
 
-  const login = async (email: string, password: string, remember: boolean): Promise<User> => {
+  /**
+   * Refetches the user data from storage to keep context synced.
+   */
+  const refreshUser = async () => {
+    if (!user) return;
+    try {
+      const updatedSchema = await persistenceService.users.getById(user.id);
+      if (updatedSchema) {
+        setUser(mapSchemaToUser(updatedSchema));
+      }
+    } catch (e) {
+      console.error('Failed to refresh user:', e);
+    }
+  };
+
+  const login = async (email: string, password_val: string, remember: boolean): Promise<User> => {
     setIsLoading(true);
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        setIsLoading(false);
-        // Standard user test credentials or random
-        if (email === 'error@reellegacy.com') {
-          reject(new Error('Network failure. Please verify your connection.'));
-          return;
-        }
-        if (password === 'wrongpass') {
-          reject(new Error('Invalid credentials. The email address or password you entered is incorrect.'));
-          return;
-        }
+    try {
+      // Direct pass for sandbox connectivity error
+      if (email === 'error@reellegacy.com') {
+        throw new Error('Network failure. Please verify your connection.');
+      }
 
-        const mockUser: User = {
-          id: 'usr_' + Math.random().toString(36).substr(2, 9),
-          firstName: 'John',
-          lastName: 'Doe',
-          displayName: 'Johnnie',
-          email,
-          country: 'United States',
-          isVerified: email !== 'unverified@reellegacy.com', // Simulate unverified email
-          role: 'Family Historian'
-        };
+      const { user: userSchema, session } = await AuthService.login(email, password_val, remember);
+      
+      const mappedUser = mapSchemaToUser(userSchema);
+      setUser(mappedUser);
+      setIsAuthenticated(true);
+      setRememberMe(remember);
 
-        setUser(mockUser);
-        setIsAuthenticated(true);
-        setRememberMe(remember);
+      // Store token based on rememberMe option
+      if (remember) {
+        localStorage.setItem('rl_session_token', session.token);
+        sessionStorage.removeItem('rl_session_token');
+      } else {
+        sessionStorage.setItem('rl_session_token', session.token);
+        localStorage.removeItem('rl_session_token');
+      }
 
-        const storage = remember ? localStorage : sessionStorage;
-        storage.setItem('rl_authenticated', 'true');
-        storage.setItem('rl_user', JSON.stringify(mockUser));
-
-        resolve(mockUser);
-      }, 1500);
-    });
+      return mappedUser;
+    } catch (err) {
+      setIsLoading(false);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const register = async (data: {
@@ -128,143 +162,152 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     country?: string;
   }): Promise<User> => {
     setIsLoading(true);
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        setIsLoading(false);
-        
-        if (data.email === 'taken@reellegacy.com') {
-          reject(new Error('This email address is already in use. Please sign in or use another.'));
-          return;
-        }
-        if (data.email === 'error@reellegacy.com') {
-          reject(new Error('Network failure. Could not contact registration server.'));
-          return;
-        }
+    try {
+      // Simulate sandbox connectivity error
+      if (data.email === 'error@reellegacy.com') {
+        throw new Error('Network failure. Could not contact registration server.');
+      }
 
-        const newUser: User = {
-          id: 'usr_' + Math.random().toString(36).substr(2, 9),
-          firstName: data.firstName,
-          lastName: data.lastName,
-          displayName: data.displayName || `${data.firstName} ${data.lastName.charAt(0)}.`,
-          email: data.email,
-          country: data.country || 'United States',
-          isVerified: false, // Starts as unverified
-          role: 'Family Historian'
-        };
+      const userSchema = await AuthService.register(data);
+      
+      // Automatically log the user in to initialize active session
+      const { user: loggedInUser, session } = await AuthService.login(data.email, data.password, rememberMe);
+      
+      const mappedUser = mapSchemaToUser(loggedInUser);
+      setUser(mappedUser);
+      setIsAuthenticated(true);
 
-        // For registration, we do NOT automatically mark them fully authenticated as they need verification
-        // But for mock purposes, we can store their user information
-        setUser(newUser);
-        setIsAuthenticated(true); // Let them sign in to view verification flow
+      // Store token
+      if (rememberMe) {
+        localStorage.setItem('rl_session_token', session.token);
+        sessionStorage.removeItem('rl_session_token');
+      } else {
+        sessionStorage.setItem('rl_session_token', session.token);
+        localStorage.removeItem('rl_session_token');
+      }
 
-        const storage = rememberMe ? localStorage : sessionStorage;
-        storage.setItem('rl_authenticated', 'true');
-        storage.setItem('rl_user', JSON.stringify(newUser));
-
-        resolve(newUser);
-      }, 1500);
-    });
+      return mappedUser;
+    } catch (err) {
+      setIsLoading(false);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const logout = async (): Promise<void> => {
     setIsLoading(true);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        setUser(null);
-        setIsAuthenticated(false);
-        setIsLoading(false);
-
-        localStorage.removeItem('rl_authenticated');
-        localStorage.removeItem('rl_user');
-        sessionStorage.removeItem('rl_authenticated');
-        sessionStorage.removeItem('rl_user');
-        
-        resolve();
-      }, 1000);
-    });
+    try {
+      const storedToken = localStorage.getItem('rl_session_token') || sessionStorage.getItem('rl_session_token');
+      if (storedToken) {
+        await AuthService.logout(storedToken);
+      }
+    } catch (e) {
+      console.error('Logout error on backend session:', e);
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
+      localStorage.removeItem('rl_session_token');
+      sessionStorage.removeItem('rl_session_token');
+      setIsLoading(false);
+    }
   };
 
   const sendVerificationEmail = async (email: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (email === 'fail@reellegacy.com') {
-          reject(new Error('Could not resend email. Please try again.'));
-        } else {
-          resolve();
-        }
-      }, 1200);
-    });
+    // Sandbox simulate failure
+    if (email === 'fail@reellegacy.com') {
+      throw new Error('Could not resend email. Please try again.');
+    }
+    // Fully functional stub
+    return Promise.resolve();
   };
 
   const verifyEmailToken = async (token: string): Promise<{ success: boolean; message: string }> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        if (token === 'expired') {
-          resolve({ success: false, message: 'The verification link has expired. Please request a new one.' });
-        } else if (token === 'invalid') {
-          resolve({ success: false, message: 'The verification link is invalid or corrupted.' });
-        } else {
-          // Success
+    return new Promise(async (resolve) => {
+      if (token === 'expired') {
+        resolve({ success: false, message: 'The verification link has expired. Please request a new one.' });
+      } else if (token === 'invalid') {
+        resolve({ success: false, message: 'The verification link is invalid or corrupted.' });
+      } else {
+        try {
           if (user) {
-            const verifiedUser = { ...user, isVerified: true };
-            setUser(verifiedUser);
-            const storage = rememberMe ? localStorage : sessionStorage;
-            storage.setItem('rl_user', JSON.stringify(verifiedUser));
+            const updatedUserSchema = await AuthService.verifyEmail(user.id);
+            setUser(mapSchemaToUser(updatedUserSchema));
+            resolve({ success: true, message: 'Your email address has been successfully verified.' });
+          } else {
+            resolve({ success: false, message: 'No active session found to verify.' });
           }
-          resolve({ success: true, message: 'Your email address has been successfully verified.' });
+        } catch (e: any) {
+          resolve({ success: false, message: e.message || 'An error occurred during verification.' });
         }
-      }, 1500);
+      }
     });
   };
 
   const forgotPassword = async (email: string): Promise<void> => {
     setIsLoading(true);
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        setIsLoading(false);
-        if (email === 'notfound@reellegacy.com') {
-          reject(new Error('We could not find an account with that email address.'));
-        } else if (email === 'error@reellegacy.com') {
-          reject(new Error('Network failure. Please try again.'));
-        } else {
-          resolve();
-        }
-      }, 1500);
-    });
+    try {
+      if (email === 'error@reellegacy.com') {
+        throw new Error('Network failure. Please try again.');
+      }
+      
+      await AuthService.requestPasswordReset(email);
+      // Retain email securely in local state to permit password replace simulation
+      localStorage.setItem('rl_reset_password_email', email);
+    } catch (err) {
+      setIsLoading(false);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const resetPassword = async (token: string, password_val: string): Promise<void> => {
     setIsLoading(true);
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        setIsLoading(false);
-        if (token === 'expired') {
-          reject(new Error('The reset password link has expired.'));
-        } else if (token === 'invalid') {
-          reject(new Error('The reset password link is invalid or has already been used.'));
-        } else {
-          resolve();
-        }
-      }, 1500);
-    });
+    try {
+      if (token === 'expired') {
+        throw new Error('The reset password link has expired.');
+      }
+      if (token === 'invalid') {
+        throw new Error('The reset password link is invalid or has already been used.');
+      }
+
+      const email = localStorage.getItem('rl_reset_password_email');
+      if (!email) {
+        throw new Error('No password recovery request exists or session expired.');
+      }
+
+      await AuthService.resetPasswordByEmail(email, password_val);
+      localStorage.removeItem('rl_reset_password_email');
+    } catch (err) {
+      setIsLoading(false);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const changeEmailInVerification = async (newEmail: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (!/\S+@\S+\.\S+/.test(newEmail)) {
-          reject(new Error('Invalid email format'));
-          return;
-        }
-        if (user) {
-          const updatedUser = { ...user, email: newEmail };
-          setUser(updatedUser);
-          const storage = rememberMe ? localStorage : sessionStorage;
-          storage.setItem('rl_user', JSON.stringify(updatedUser));
-        }
-        resolve();
-      }, 1000);
+    if (!user) {
+      throw new Error('Must be signed in to change verification email.');
+    }
+    
+    // Check if the target email is already taken
+    const isAvailable = await AuthService.checkEmailAvailability(newEmail);
+    if (!isAvailable) {
+      throw new Error('This email address is already in use by another archive account.');
+    }
+
+    // Direct repository update
+    const updatedUserSchema = await persistenceService.users.update(user.id, {
+      email: newEmail
     });
+
+    if (updatedUserSchema) {
+      setUser(mapSchemaToUser(updatedUserSchema));
+    } else {
+      throw new Error('Failed to update email address.');
+    }
   };
 
   return (
@@ -282,7 +325,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         verifyEmailToken,
         forgotPassword,
         resetPassword,
-        changeEmailInVerification
+        changeEmailInVerification,
+        refreshUser
       }}
     >
       {children}

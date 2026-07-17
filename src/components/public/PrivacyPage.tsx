@@ -113,7 +113,7 @@ export function PrivacyPage() {
             </p>
             <div className="p-4 bg-muted/20 border border-border rounded-xl mt-3 space-y-1" id="privacy-contacts-box">
               <p className="font-semibold text-foreground">IdeaCodex Laboratories Inc. — Legal Desk</p>
-              <p>Email Channel: archivist@ideacodex.com</p>
+              <p>Email Channel: support@ideacodex.com</p>
               <p>Address: Silicon Valley, San Francisco, CA</p>
             </div>
           </div>

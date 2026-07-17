@@ -169,7 +169,7 @@ export function StoryTypesPage({ onOpenAuth }: StoryTypesPageProps) {
                   {/* Purpose */}
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Purpose</span>
-                    <p className="text-xs text-foreground/80 leading-relaxed">
+                    <p className="text-xs text-foreground/80 leading-relaxed text-justify">
                       {story.purpose}
                     </p>
                   </div>
@@ -177,7 +177,7 @@ export function StoryTypesPage({ onOpenAuth }: StoryTypesPageProps) {
                   {/* Best Use */}
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Best Use Case</span>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
+                    <p className="text-xs text-muted-foreground leading-relaxed text-justify">
                       {story.useCase}
                     </p>
                   </div>
@@ -185,7 +185,7 @@ export function StoryTypesPage({ onOpenAuth }: StoryTypesPageProps) {
                   {/* Recommended Audience */}
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Target Audience</span>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
+                    <p className="text-xs text-muted-foreground leading-relaxed text-justify">
                       {story.audience}
                     </p>
                   </div>
@@ -195,7 +195,7 @@ export function StoryTypesPage({ onOpenAuth }: StoryTypesPageProps) {
                     <span className="text-[9px] font-bold text-cinema-amber-600 dark:text-cinema-amber-400 uppercase tracking-widest block flex items-center gap-1">
                       <Info className="w-3 h-3" /> Rendered Output
                     </span>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    <p className="text-[11px] text-muted-foreground leading-relaxed text-justify">
                       {story.output}
                     </p>
                   </div>
@@ -207,11 +207,11 @@ export function StoryTypesPage({ onOpenAuth }: StoryTypesPageProps) {
                 <Button
                   id={`btn-select-${story.id}`}
                   variant="ghost"
-                  className="w-full text-xs font-semibold justify-between border border-border bg-muted/20 hover:bg-muted/40 text-foreground cursor-pointer"
+                  className="w-full text-xs font-semibold flex flex-row flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer border border-transparent bg-cinema-slate-800 text-cinema-slate-50 hover:bg-cinema-slate-700 dark:border-border dark:bg-muted/20 dark:text-foreground dark:hover:bg-muted/40"
                   onClick={() => onOpenAuth('register')}
+                  rightIcon={<ArrowRight className="w-3.5 h-3.5 shrink-0" />}
                 >
-                  <span>Begin Capturing Memoir</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  Begin here
                 </Button>
               </div>
             </div>
@@ -225,7 +225,7 @@ export function StoryTypesPage({ onOpenAuth }: StoryTypesPageProps) {
             <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
               Not sure which narrative format fits your goals?
             </h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <p className="text-xs text-muted-foreground leading-relaxed text-justify">
               Don’t worry. Our **AI Storytelling Assistant** can analyze your initial media imports and interview answers, and recommend the best-suited documentary structure automatically during step two of the creation wizard.
             </p>
           </div>

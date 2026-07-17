@@ -144,7 +144,7 @@ export function RightUtilityPanel() {
         </div>
 
         {/* Active Widget Viewport */}
-        <div id="right-panel-viewport" className="flex-1 overflow-y-auto p-5 space-y-5">
+        <div id="right-panel-viewport" className="flex-1 overflow-y-auto scrollbar-ephemeral p-5 space-y-5">
           {activeRightWidget === 'ai-suggestions' && (
             <div id="widget-ai-suggestions" className="space-y-4 animate-fade-in">
               <h4 className="font-display text-sm font-semibold text-foreground flex items-center gap-2">

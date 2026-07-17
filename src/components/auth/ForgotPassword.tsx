@@ -54,99 +54,105 @@ export function ForgotPassword() {
       title="Restore Your Workspace Access" 
       subtitle="No worries, request a secure, time-sensitive link to reset your biography credentials and protect your legacy archive."
     >
-      <div id="forgot-password-container" className="space-y-6">
-        {/* Card Header */}
-        <div id="forgot-password-header" className="space-y-1 text-left">
-          <h1 className="font-display text-2xl font-black tracking-tight text-white">
+      <div id="forgot-password-container" className="flex-grow flex flex-col justify-between h-full overflow-hidden">
+        {/* Card Header - FIXED */}
+        <div id="forgot-password-header" className="space-y-1 text-left pb-4 shrink-0">
+          <h1 className="font-display text-2xl font-black tracking-tight text-foreground">
             Forgot Password?
           </h1>
-          <p className="text-xs text-[#64748b]">
+          <p className="text-xs text-muted-foreground">
             Request a secure credentials replacement envelope.
           </p>
         </div>
 
         {success ? (
-          <div className="space-y-6 animate-fade-in" id="forgot-password-success-view">
-            {/* Success Banner */}
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-start gap-2.5">
-              <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-500 mt-0.5" />
-              <div className="space-y-1">
-                <span className="font-bold block text-sm text-white">Email Sent successfully!</span>
-                <p className="leading-relaxed text-[#94a3b8] mt-1 text-xs">
-                  A time-sensitive recovery link has been dispatched to{' '}
-                  <span className="text-emerald-400 font-mono font-bold">{email}</span>. 
-                  The link will expire in 2 hours for security safety.
-                </p>
+          <div className="flex-grow flex flex-col justify-between h-full overflow-hidden animate-fade-in" id="forgot-password-success-view">
+            {/* Scrollable View Area */}
+            <div className="flex-1 overflow-y-auto scrollbar-ephemeral pl-5 pr-3 py-2 min-h-[100px]" id="forgot-password-success-scroll">
+              <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-start gap-2.5">
+                <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-500 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-bold block text-sm text-foreground">Email Sent successfully!</span>
+                  <p className="leading-relaxed text-muted-foreground mt-1 text-xs">
+                    A time-sensitive recovery link has been dispatched to{' '}
+                    <span className="text-emerald-500 dark:text-emerald-400 font-mono font-bold">{email}</span>. 
+                    The link will expire in 2 hours for security safety.
+                  </p>
+                </div>
+              </div>
+
+              {/* Keep a minimal action to test the next step in a cleaner way */}
+              <div className="pt-4" id="simulated-reset-action-block">
+                <Button 
+                  id="simulate-reset-link-btn"
+                  onClick={() => navigate('/reset-password?token=valid-secret-token')}
+                  variant="secondary"
+                  className="w-full py-2.5 border border-border bg-card hover:bg-muted/50 text-foreground flex items-center justify-center gap-2 text-xs rounded-xl cursor-pointer"
+                >
+                  Simulate Password Reset Link
+                </Button>
               </div>
             </div>
 
-            {/* Quick Simulation Help */}
-            <div className="p-3.5 rounded-xl bg-cinema-amber-500/5 border border-cinema-amber-500/20 text-[11px] text-cinema-amber-400 space-y-1 font-sans">
-              <span className="font-bold uppercase tracking-wider text-[9px] font-mono">Sandbox Simulator:</span>
-              <p className="leading-relaxed">
-                To test the next step of the flow, click the button below to simulate receiving the link:<br />
-                <code className="text-white bg-slate-950/70 p-1 rounded mt-1 select-all block text-center font-mono">/reset-password?token=valid-secret-token</code>
-              </p>
+            {/* FIXED Footer */}
+            <div className="shrink-0 pt-4" id="forgot-password-success-footer">
+              <Link 
+                id="back-to-login-success-btn"
+                to="/login" 
+                className="flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors pt-2 font-semibold cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
+              </Link>
             </div>
-
-            <Button 
-              id="simulate-reset-link-btn"
-              onClick={() => navigate('/reset-password?token=valid-secret-token')}
-              variant="secondary"
-              className="w-full py-3 border border-slate-800 bg-slate-900/40 text-white flex items-center justify-center gap-2 text-xs"
-            >
-              Simulate Password Reset Link
-            </Button>
-
-            <Link 
-              id="back-to-login-success-btn"
-              to="/login" 
-              className="flex items-center justify-center gap-2 text-xs text-[#64748b] hover:text-white transition-colors pt-2 font-semibold"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
-            </Link>
           </div>
         ) : (
-          <div className="space-y-5" id="forgot-password-form-view">
+          <div className="flex-grow flex flex-col justify-between h-full overflow-hidden" id="forgot-password-form-view">
+            {/* Global States Announcement - FIXED */}
             {errorMsg && (
-              <div 
-                id="forgot-password-error"
-                className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start gap-2.5 animate-shake"
-              >
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
-                <div>
-                  <span className="font-bold">Error: </span>
-                  {errorMsg}
+              <div className="shrink-0 pb-3" id="forgot-password-banners">
+                <div 
+                  id="forgot-password-error"
+                  className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 dark:text-red-400 text-xs flex items-start gap-2.5 animate-shake"
+                >
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
+                  <div>
+                    <span className="font-bold">Error: </span>
+                    {errorMsg}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Simulated Error Tips */}
-            <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-850 text-[10px] text-[#475569] font-mono leading-relaxed" id="forgot-password-sandbox-tips">
-              <span className="text-cinema-amber-500 font-bold uppercase block mb-0.5 text-[9px]">Sandbox Simulation Guides:</span>
-              Enter <span className="text-[#94a3b8] font-bold">notfound@reellegacy.com</span> to simulate an "email not found" error, or <span className="text-[#94a3b8] font-bold">error@reellegacy.com</span> to simulate a connection fault.
+            {/* Scrollable Fields Wrapper */}
+            <div 
+              className="flex-1 overflow-y-auto scrollbar-ephemeral pl-5 pr-3 py-2 min-h-[80px] max-h-[160px]" 
+              id="forgot-password-inputs-scroll"
+            >
+              <form onSubmit={handleSubmit} className="space-y-4" id="forgot-password-form">
+                <Input 
+                  id="forgot-password-email"
+                  label="Email Address"
+                  type="email"
+                  placeholder="e.g. biographer@reellegacy.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => setEmailTouched(true)}
+                  error={emailError}
+                  disabled={isPending}
+                  leftElement={<Mail className="w-4 h-4" />}
+                  autoFocus
+                />
+              </form>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4" id="forgot-password-form">
-              <Input 
-                id="forgot-password-email"
-                label="Email Address"
-                type="email"
-                placeholder="e.g. biographer@reellegacy.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onBlur={() => setEmailTouched(true)}
-                error={emailError}
-                disabled={isPending}
-                leftElement={<Mail className="w-4 h-4" />}
-                autoFocus
-              />
-
+            {/* FIXED Footer Actions Container */}
+            <div className="shrink-0 pt-4 space-y-4" id="forgot-password-footer">
               <Button 
                 id="forgot-password-submit"
                 type="submit"
+                form="forgot-password-form"
                 variant="primary"
-                className="w-full py-3 rounded-xl font-bold transition-all relative overflow-hidden bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 rounded-xl font-bold transition-all relative overflow-hidden bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 disabled={!isFormValid || isPending}
               >
                 {isPending ? (
@@ -158,16 +164,16 @@ export function ForgotPassword() {
                   'Send Reset Link'
                 )}
               </Button>
-            </form>
 
-            <div className="text-center pt-2" id="forgot-password-back">
-              <Link 
-                id="forgot-password-back-link"
-                to="/login" 
-                className="inline-flex items-center gap-1.5 text-xs text-[#64748b] hover:text-white transition-colors"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" /> Back to Login
-              </Link>
+              <div className="text-center pt-2" id="forgot-password-back">
+                <Link 
+                  id="forgot-password-back-link"
+                  to="/login" 
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" /> Back to Login
+                </Link>
+              </div>
             </div>
           </div>
         )}

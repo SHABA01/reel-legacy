@@ -275,7 +275,6 @@ export function NotificationsView() {
       {/* Page Title Header */}
       <div id="notifications-title-card" className="border-b border-border pb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight">Notification Center</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Review synthesis milestones, rendering queue updates, and co-author workflow triggers.
           </p>

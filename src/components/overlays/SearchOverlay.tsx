@@ -9,7 +9,7 @@ import { Search, Clock, Sparkles, BookOpen, User, Image, ArrowRight, X, Sparkle 
 import { useOverlay } from '../../context/OverlayContext';
 
 export function SearchOverlay() {
-  const { activeOverlay, closeOverlay } = useOverlay();
+  const { activeOverlay, closeOverlay, setActiveView } = useOverlay();
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -116,7 +116,26 @@ export function SearchOverlay() {
             </div>
 
             {/* Results Area */}
-            <div id="search-body" className="flex-1 overflow-y-auto p-5 space-y-6">
+            <div id="search-body" className="flex-1 overflow-y-auto scrollbar-ephemeral p-5 space-y-6">
+              {/* Option to Navigate to Advanced Search */}
+              <button
+                id="search-advanced-link"
+                onClick={() => {
+                  closeOverlay();
+                  setActiveView('search');
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-xl border border-cinema-amber-500/20 bg-cinema-amber-500/5 hover:bg-cinema-amber-500/10 text-cinema-amber-500 transition-colors cursor-pointer text-xs font-bold"
+              >
+                <div className="flex items-center gap-2">
+                  <Search className="w-4 h-4 text-cinema-amber-500" />
+                  <span>Looking for deep filters? Open Advanced Search Page</span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-cinema-amber-500/80">Open Page</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </button>
+
               {query.length === 0 ? (
                 <>
                   {/* Recent Searches */}

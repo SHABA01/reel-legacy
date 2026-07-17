@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Drawer } from '../ui/Drawer';
 import { useOverlay } from '../../context/OverlayContext';
-import { Bell, Film, Sparkles, CheckCircle2, AlertTriangle, ShieldCheck, Trash2, Check } from 'lucide-react';
+import { Bell, Film, Sparkles, CheckCircle2, AlertTriangle, ShieldCheck, Trash2, Check, ChevronRight } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
 interface AppNotification {
@@ -20,7 +20,7 @@ interface AppNotification {
 }
 
 export function NotificationOverlay() {
-  const { activeOverlay, closeOverlay } = useOverlay();
+  const { activeOverlay, closeOverlay, setActiveView } = useOverlay();
   const { showToast } = useToast();
   const [notifications, setNotifications] = useState<AppNotification[]>([
     {
@@ -146,7 +146,26 @@ export function NotificationOverlay() {
         </div>
 
         {/* List Body */}
-        <div id="notif-body" className="flex-1 overflow-y-auto p-5 space-y-3">
+        <div id="notif-body" className="flex-1 overflow-y-auto scrollbar-ephemeral p-5 space-y-3">
+          {/* Option to Navigate to Full Notification Manager */}
+          <button
+            id="notif-full-manager-link"
+            onClick={() => {
+              closeOverlay();
+              setActiveView('notifications');
+            }}
+            className="w-full flex items-center justify-between p-3 mb-2 rounded-xl border border-cinema-amber-500/20 bg-cinema-amber-500/5 hover:bg-cinema-amber-500/10 text-cinema-amber-500 transition-colors cursor-pointer text-xs font-bold"
+          >
+            <div className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-cinema-amber-500" />
+              <span>Looking for history logs? Open Notifications Page</span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-[10px] uppercase font-mono tracking-wider text-cinema-amber-500/80">Open Page</span>
+              <ChevronRight className="w-4 h-4" />
+            </div>
+          </button>
+
           {notifications.length === 0 ? (
             <div id="notif-empty" className="py-16 text-center flex flex-col items-center justify-center gap-4 text-muted-foreground">
               <div className="w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center">

@@ -19,14 +19,16 @@ import {
   ArrowRight,
   Sparkles,
   ChevronDown,
-  X
+  X,
+  Shield
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { Button } from '../ui/Button';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 
 export interface HelpArticle {
   id: string;
-  category: 'getting-started' | 'tutorials' | 'guides' | 'faqs' | 'shortcuts' | 'features' | 'troubleshoot';
+  category: 'getting-started' | 'tutorials' | 'guides' | 'faqs' | 'shortcuts' | 'features' | 'troubleshoot' | 'legal';
   title: string;
   excerpt: string;
   content: string;
@@ -112,6 +114,28 @@ const HELP_ARTICLES: HelpArticle[] = [
     title: 'Resolving AI Synthesis Safety Rejections',
     excerpt: 'Fixing script generation blocks and safety validator threshold failures.',
     content: 'The AI safety validator blocks text containing offensive terms or high-level military classifications. If synthesis aborts, modify your timeline event summaries to be simpler and exclude sensitive terms.',
+  },
+  // Legal & Privacy
+  {
+    id: 'art-legal-rules',
+    category: 'legal',
+    title: 'Workspace Rules: Code of Conduct & Standards',
+    excerpt: 'Review our standards for authentic generative cinema co-authoring and safety outlines.',
+    content: 'ReelLegacy provides a premium, safe co-authoring space for historical archiving. All workspace co-authors are expected to adhere strictly to the following rules:\n\n1. Respect Human Authenticity: Do not generate deepfakes or impersonate individuals without documented familial rights or direct consent.\n2. Protect Living Relatives: Keep personal details, private journal letters, and medical scans secure and confidential within your workspace boundary.\n3. Prevent Low-Value Slop: Focus scripts and timeline milestones on genuine, real-life biographical details rather than automated spam.\n4. Secure Invite Keys: Do not distribute workspace collaboration tokens, project credentials, or system credentials to external public domains.',
+  },
+  {
+    id: 'art-legal-privacy',
+    category: 'legal',
+    title: 'Privacy Shield & User Data Deletion Rights',
+    excerpt: 'How we protect uploaded memoir assets, family photography, and offer options to delete them.',
+    content: 'ReelLegacy is fully committed to absolute user privacy under GDPR, CCPA, and COPPA frameworks.\n\n### What Data We Collect\n• Account Identity: Basic profile settings, usernames, emails, and permissions.\n• Biographical Metadata: Subject summaries, lineage details, and timeline milestones.\n• Heritage Media: Scanned family photos, voice narrations, letters, and home movies.\n\n### How We Use Your Data\nAll uploaded files are processed privately and used solely to restore vintage pictures, clone subject voices for memoirs, and compile rendering queues. We never sell your personal data or use private assets to train global models.\n\n### Immediate Data Deletion\nYou hold absolute sovereignty over your family records. You can request instant, permanent deletion of specific media files or close your entire workspace at any time. Use the interactive controls below to execute these requests under secure supervision.',
+  },
+  {
+    id: 'art-legal-terms',
+    category: 'legal',
+    title: 'Terms of Service & Generative Cinema Agreement',
+    excerpt: 'Learn about user asset ownership licenses, rendering service limits, and terminations.',
+    content: 'By utilizing the ReelLegacy platform, you agree to the following terms and conditions:\n\n1. Complete Asset Ownership: You retain full, exclusive intellectual property ownership and copyrights for any file uploaded to our servers.\n2. Limited Process License: You grant ReelLegacy a restricted, non-transferable license to host, upscale, and synthesize uploaded materials exclusively for your private cinematic renders.\n3. Dedicated Compiler Usage: Cinematic compilation queues are computationally expensive. System capacities and speeds may scale dynamically depending on real-time server loads.\n4. Service Terminations: ReelLegacy reserves the absolute right to suspend or close projects that actively violate our authenticity directives, or generate deceptive visual impersonations.',
   }
 ];
 
@@ -121,6 +145,29 @@ export function HelpCenterView() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeArticle, setActiveArticle] = useState<HelpArticle | null>(null);
 
+  // Deletion Modal states for GDPR Compliance
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; type: 'media' | 'account' | null }>({
+    isOpen: false,
+    type: null,
+  });
+
+  const handleTriggerDelete = (type: 'media' | 'account') => {
+    setDeleteModal({ isOpen: true, type });
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteModal.type === 'media') {
+      localStorage.removeItem('reellegacy_user_assets');
+      showToast('error', 'All Media Deleted', 'Your custom uploaded media shelf has been completely wiped.');
+    } else if (deleteModal.type === 'account') {
+      localStorage.clear();
+      showToast('error', 'Account Purged', 'Your profile and history have been permanently wiped from the ledger.');
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
+    }
+  };
+
   // Help Categories
   const categories = [
     { id: 'all', label: 'All Help Sections', icon: HelpCircle, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-950/20' },
@@ -129,7 +176,8 @@ export function HelpCenterView() {
     { id: 'guides', label: 'User Guides', icon: BookOpen, color: 'text-sky-500', bg: 'bg-sky-50 dark:bg-sky-950/20' },
     { id: 'faqs', label: 'FAQs', icon: FileText, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-950/20' },
     { id: 'shortcuts', label: 'Keyboard Shortcuts', icon: Keyboard, color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/20' },
-    { id: 'troubleshoot', label: 'Troubleshooting', icon: Wrench, color: 'text-cyan-500', bg: 'bg-cyan-50 dark:bg-cyan-950/20' }
+    { id: 'troubleshoot', label: 'Troubleshooting', icon: Wrench, color: 'text-cyan-500', bg: 'bg-cyan-50 dark:bg-cyan-950/20' },
+    { id: 'legal', label: 'Legal & Privacy', icon: Shield, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-950/20' }
   ];
 
   // Filtering Logic
@@ -284,6 +332,35 @@ export function HelpCenterView() {
               ))}
             </div>
           </div>
+
+          {/* Legal Documents */}
+          <div className="border border-border/60 rounded-2xl p-5 bg-card/40 space-y-4" id="help-legal-links-card">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              Legal & Compliance
+            </h4>
+            <div className="space-y-2.5" id="legal-articles-list">
+              <button
+                id="btn-help-privacy"
+                onClick={() => {
+                  const privacyArt = HELP_ARTICLES.find(a => a.id === 'art-legal-privacy');
+                  if (privacyArt) setActiveArticle(privacyArt);
+                }}
+                className="w-full text-left text-[11px] text-cinema-amber-500 hover:underline transition-colors cursor-pointer block"
+              >
+                Privacy Policy & Deletion Rights
+              </button>
+              <button
+                id="btn-help-terms"
+                onClick={() => {
+                  const termsArt = HELP_ARTICLES.find(a => a.id === 'art-legal-terms');
+                  if (termsArt) setActiveArticle(termsArt);
+                }}
+                className="w-full text-left text-[11px] text-cinema-amber-500 hover:underline transition-colors cursor-pointer block"
+              >
+                Terms of Service & Licensing
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Right column: Filterable articles list */}
@@ -396,6 +473,33 @@ export function HelpCenterView() {
               <div className="text-xs md:text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap bg-muted/30 p-4 rounded-xl border border-border/40 font-medium">
                 {activeArticle.content}
               </div>
+
+              {activeArticle.id === 'art-legal-privacy' && (
+                <div className="mt-4 p-4 rounded-xl border border-red-500/10 dark:border-red-500/20 bg-red-500/5 space-y-3 animate-fade-in" id="help-reader-gdpr-box">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-red-500 flex items-center gap-1.5">
+                    <Shield className="w-4 h-4 text-red-500" /> GDPR & CCPA Deletion Panel
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground">
+                    Under the Privacy Shield framework, you retain sovereign rights to erase any personal history and uploaded files stored in your co-author workspace.
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1" id="gdpr-action-buttons">
+                    <button
+                      id="btn-gdpr-delete-media"
+                      onClick={() => handleTriggerDelete('media')}
+                      className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-[10px] uppercase tracking-wider font-bold rounded-lg cursor-pointer transition-colors"
+                    >
+                      Delete Media Shelf
+                    </button>
+                    <button
+                      id="btn-gdpr-delete-account"
+                      onClick={() => handleTriggerDelete('account')}
+                      className="px-3 py-2 border border-red-500/20 dark:border-red-500/30 hover:bg-red-500/10 text-red-500 text-[10px] uppercase tracking-wider font-bold rounded-lg cursor-pointer transition-colors"
+                    >
+                      Delete Account
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
@@ -422,6 +526,19 @@ export function HelpCenterView() {
           </div>
         </div>
       )}
+
+      {/* GDPR Data Deletion Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, type: null })}
+        onConfirm={handleConfirmDelete}
+        title={deleteModal.type === 'media' ? 'Delete Uploaded Media Shelf?' : 'Permanently Delete Workspace Account?'}
+        message={
+          deleteModal.type === 'media'
+            ? 'This will permanently destroy all custom imagery, voiceover narrations, home films, and historical documents uploaded to your vault. All chronological story chapter associations will be unlinked.'
+            : 'This will instantly terminate your ReelLegacy co-author access, and wipe all your custom biography logs, stories, and historical parameters from our system ledger.'
+        }
+      />
     </div>
   );
 }

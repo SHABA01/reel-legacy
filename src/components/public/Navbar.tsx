@@ -34,7 +34,6 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
     { id: 'features', label: 'Features' },
     { id: 'story-types', label: 'Story Types' },
     { id: 'about', label: 'About' },
-    { id: 'help', label: 'Help Center' },
     { id: 'contact', label: 'Contact' },
     { id: 'faq', label: 'FAQs' },
   ];

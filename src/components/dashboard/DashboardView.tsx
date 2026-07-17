@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useOverlay } from '../../context/OverlayContext';
@@ -45,6 +45,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { persistenceService, StoryService, ActivityService } from '../../storage';
 
 // Define the dashboard state modes
 type DashboardStateMode =
@@ -64,6 +65,90 @@ export function DashboardView() {
   // Active state for sandbox testing
   const [dashboardMode, setDashboardMode] = useState<DashboardStateMode>('returning');
   const [isPending, startTransition] = useTransition();
+
+  const [stats, setStats] = useState({
+    storiesCount: 0,
+    storiesMax: 15,
+    avgProgress: 0,
+    mediaCount: 0,
+    timelineCount: 0,
+    profilesCount: 0,
+    profileNames: [] as string[],
+    recentActivities: [] as { title: string; desc: string; time: string; iconColor: string }[],
+  });
+
+  const loadDashboardData = async () => {
+    try {
+      // 1. Fetch stories stats
+      const storiesStats = await StoryService.getStatistics().catch(() => ({ total: 0, avgProgress: 0 }));
+      
+      // 2. Fetch media count
+      const mediaCount = await persistenceService.media.count().catch(() => 0);
+      
+      // 3. Fetch timeline count
+      const timelineCount = await persistenceService.timeline.count().catch(() => 0);
+      
+      // 4. Fetch profiles count & names
+      const profilesCount = await persistenceService.profiles.count().catch(() => 0);
+      const profiles = await persistenceService.profiles.getAll().catch(() => []);
+      const profileNames = profiles.map(p => p.preferredName || `${p.firstName} ${p.lastName}`).slice(0, 3);
+      
+      // 5. Fetch recent activities from ActivityService
+      const activities = await ActivityService.getActivities().catch(() => []);
+      const formattedActivities = activities.map(act => ({
+        title: act.title,
+        desc: act.description,
+        time: act.relativeTime || 'Just now',
+        iconColor: act.iconColor || 'bg-cinema-amber-500',
+      })).slice(0, 5);
+
+      const finalActivities = formattedActivities.length > 0 ? formattedActivities : [
+        {
+          title: 'Welcome to ReelLegacy',
+          desc: 'Your localized biographical vault and narrative studio is ready.',
+          time: 'Just now',
+          iconColor: 'bg-cinema-amber-500',
+        },
+        {
+          title: 'Sandbox environment initialized',
+          desc: 'Local browser repositories loaded successfully.',
+          time: '5 mins ago',
+          iconColor: 'bg-emerald-500',
+        }
+      ];
+
+      setStats({
+        storiesCount: storiesStats.total,
+        storiesMax: Math.max(15, storiesStats.total),
+        avgProgress: Math.round(storiesStats.avgProgress),
+        mediaCount,
+        timelineCount,
+        profilesCount,
+        profileNames,
+        recentActivities: finalActivities,
+      });
+    } catch (err) {
+      console.warn('Failed to load dashboard statistics:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+
+    const handleUpdate = () => {
+      loadDashboardData();
+    };
+
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('storage-activity-updated', handleUpdate);
+    window.addEventListener('reellegacy-data-changed', handleUpdate);
+
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('storage-activity-updated', handleUpdate);
+      window.removeEventListener('reellegacy-data-changed', handleUpdate);
+    };
+  }, []);
 
   // Onboarding Checklist state for "New User" mode
   const [onboardingSteps, setOnboardingSteps] = useState([
@@ -139,51 +224,6 @@ export function DashboardView() {
 
   return (
     <div id="main-dashboard-viewport" className="space-y-8 animate-fade-in text-foreground pb-8">
-      {/* 1. STATE SELECTION CONTROL PANEL (Sandbox Helper) */}
-      <div
-        id="sandbox-state-controller"
-        className="p-3.5 rounded-xl border border-border bg-card/60 backdrop-blur-sm shadow-sm flex flex-col md:flex-row items-center justify-between gap-4"
-      >
-        <div className="flex items-center gap-2" id="sandbox-title-container">
-          <Cpu className="w-4 h-4 text-cinema-amber-500 animate-pulse shrink-0" />
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-cinema-amber-500 font-mono block">
-              Workspace Blueprint Controller
-            </span>
-            <p className="text-[11px] text-muted-foreground">
-              Simulate diverse lifecycle states of the first logged-in experience.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-center gap-1.5" id="sandbox-actions-row">
-          {(
-            [
-              { id: 'returning', label: 'Returning User' },
-              { id: 'new', label: 'New User Onboarding' },
-              { id: 'loading', label: 'Loading Shimmers' },
-              { id: 'empty', label: 'Empty Dashboard' },
-              { id: 'offline', label: 'Offline Mode' },
-              { id: 'error', label: 'Compilation Error' },
-              { id: 'permission', label: 'System Permissions' },
-            ] as const
-          ).map((mode) => (
-            <button
-              key={mode.id}
-              id={`btn-mode-${mode.id}`}
-              onClick={() => setDashboardMode(mode.id)}
-              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold font-mono transition-all uppercase cursor-pointer border ${
-                dashboardMode === mode.id
-                  ? 'bg-cinema-amber-500 border-cinema-amber-500 text-slate-950 shadow-sm'
-                  : 'bg-muted/40 hover:bg-muted text-muted-foreground border-border'
-              }`}
-            >
-              {mode.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <AnimatePresence mode="wait">
         {/* ========================================================= */}
         {/* STATE A: LOADING SHIMMER STATE                            */}
@@ -729,9 +769,9 @@ export function DashboardView() {
               <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left" id="stat-card-stories">
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Stories Drafted</p>
-                  <p className="text-2xl font-black text-foreground">12 / 15</p>
+                  <p className="text-2xl font-black text-foreground">{stats.storiesCount} / {stats.storiesMax}</p>
                   <p className="text-[10px] text-emerald-500 flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3" /> 80% Completion
+                    <TrendingUp className="w-3 h-3" /> {stats.avgProgress}% Avg Progress
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-cinema-amber-500/10 text-cinema-amber-500 border border-cinema-amber-500/20 flex items-center justify-center shrink-0">
@@ -743,7 +783,7 @@ export function DashboardView() {
               <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left" id="stat-card-media">
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Media Shelf</p>
-                  <p className="text-2xl font-black text-foreground">142 Files</p>
+                  <p className="text-2xl font-black text-foreground">{stats.mediaCount} Files</p>
                   <p className="text-[10px] text-muted-foreground">Audio, video, clipping docs</p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 flex items-center justify-center shrink-0">
@@ -751,13 +791,13 @@ export function DashboardView() {
                 </div>
               </div>
 
-              {/* Stat 3: Render status */}
+              {/* Stat 3: Timeline Events */}
               <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left" id="stat-card-render">
                 <div className="space-y-1">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Render Queue</p>
-                  <p className="text-2xl font-black text-foreground">4 Active</p>
-                  <p className="text-[10px] text-indigo-400 flex items-center gap-1 animate-pulse">
-                    <Cpu className="w-3 h-3" /> Rendering Scene 3...
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Timeline Chronology</p>
+                  <p className="text-2xl font-black text-foreground">{stats.timelineCount} Events</p>
+                  <p className="text-[10px] text-indigo-400 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" /> Historical milestones
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 flex items-center justify-center shrink-0">
@@ -769,8 +809,10 @@ export function DashboardView() {
               <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left" id="stat-card-profiles">
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Legacy Profiles</p>
-                  <p className="text-2xl font-black text-foreground">3 Registered</p>
-                  <p className="text-[10px] text-muted-foreground">Elizabeth, Bob, Vance Family</p>
+                  <p className="text-2xl font-black text-foreground">{stats.profilesCount} Registered</p>
+                  <p className="text-[10px] text-muted-foreground truncate max-w-[150px]">
+                    {stats.profileNames.length > 0 ? stats.profileNames.join(', ') : 'No profiles registered'}
+                  </p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center justify-center shrink-0">
                   <UserCheck className="w-5 h-5" />
@@ -1110,26 +1152,7 @@ export function DashboardView() {
 
                   {/* Left-Bordered Timeline List */}
                   <div className="relative border-l border-border pl-4 space-y-4 ml-1.5" id="timeline-list">
-                    {[
-                      {
-                        title: 'Elizabeth Vance voice clip compiled by AI',
-                        desc: 'Synthesized voiceover narrative track scene 2 is locked.',
-                        time: '12 mins ago',
-                        iconColor: 'bg-indigo-500',
-                      },
-                      {
-                        title: 'Uploaded 14 military photographs',
-                        desc: 'Vance Grandpa military catalog verified.',
-                        time: '2 hours ago',
-                        iconColor: 'bg-cinema-amber-500',
-                      },
-                      {
-                        title: 'Created new chapter outline draft',
-                        desc: 'Phase 2: World War II Childhood established.',
-                        time: 'Yesterday',
-                        iconColor: 'bg-emerald-500',
-                      },
-                    ].map((act, idx) => (
+                    {stats.recentActivities.map((act, idx) => (
                       <div key={idx} className="relative" id={`timeline-item-${idx}`}>
                         {/* Bullet Circle */}
                         <span className={`absolute -left-[21.5px] top-1 w-2.5 h-2.5 rounded-full border border-card ${act.iconColor}`} />

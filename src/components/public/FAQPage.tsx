@@ -176,7 +176,7 @@ export function FAQPage() {
                         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180 text-cinema-amber-500' : ''}`} />
                       </button>
                       {isOpen && (
-                        <div className="px-5 pb-4 pt-1 text-xs text-muted-foreground leading-relaxed border-t border-border/40 animate-fade-in" id={`faq-answer-${faq.id}`}>
+                        <div className="px-5 pb-4 pt-1 text-xs text-muted-foreground leading-relaxed border-t border-border/40 animate-fade-in text-justify" id={`faq-answer-${faq.id}`}>
                           {faq.a}
                         </div>
                       )}

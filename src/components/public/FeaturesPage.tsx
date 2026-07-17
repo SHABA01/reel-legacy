@@ -244,7 +244,7 @@ export function FeaturesPage({ onOpenAuth }: FeaturesPageProps) {
                         <h3 className="font-display text-sm font-bold text-foreground">
                           {feat.title}
                         </h3>
-                        <p className="text-xs text-muted-foreground leading-relaxed">
+                        <p className="text-xs text-muted-foreground leading-relaxed text-justify">
                           {feat.description}
                         </p>
                       </div>

@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { persistenceService, SearchService } from '../../storage';
 import { 
   Search, 
   BookOpen, 
@@ -69,6 +70,8 @@ export function GlobalSearchView() {
   const [selectedType, setSelectedType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('relevance');
+  const [allResults, setAllResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // Interactive filters panel expanded on tablet/mobile
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -112,27 +115,166 @@ export function GlobalSearchView() {
     collection: { label: 'Album Collection', icon: FolderHeart, color: 'text-pink-500', bg: 'bg-pink-50 dark:bg-pink-950/20' },
   };
 
-  // Perform filtering
+  // Dynamic async search effect
+  useEffect(() => {
+    let active = true;
+    const fetchResults = async () => {
+      setLoading(true);
+      try {
+        let rawResults;
+        const cleanQuery = query.toLowerCase().trim();
+        if (!cleanQuery) {
+          // Retrieve all records to display comprehensive initial archives
+          const [profiles, stories, timeline, media, documents, imports] = await Promise.all([
+            persistenceService.profiles.getAll(),
+            persistenceService.stories.getAll(),
+            persistenceService.timeline.getAll(),
+            persistenceService.media.getAll(),
+            persistenceService.documents.getAll(),
+            persistenceService.imports.getAll()
+          ]);
+          rawResults = { profiles, stories, timeline, media, documents, imports };
+        } else {
+          rawResults = await SearchService.searchAll(query);
+        }
+
+        if (!active) return;
+
+        const mapped: SearchResult[] = [];
+
+        // 1. Profiles
+        rawResults.profiles.forEach((p: any) => {
+          mapped.push({
+            id: p.id,
+            type: 'profile',
+            title: `${p.firstName} ${p.lastName}`,
+            subtitle: p.preferredName || p.nickname || p.relationship || 'Legacy Profile',
+            meta: `Born ${p.dateOfBirth || 'Unknown'} • Category: ${p.category || 'personal'}`,
+            date: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'Restored',
+            status: p.status === 'published' ? 'Published' : p.status === 'draft' ? 'Draft' : 'Archived'
+          });
+        });
+
+        // 2. Stories
+        rawResults.stories.forEach((s: any) => {
+          mapped.push({
+            id: s.id,
+            type: 'story',
+            title: s.title,
+            subtitle: s.subtitle || s.description || 'Memoir Story',
+            meta: `${s.chapterCount || 0} Chapters • Completion: ${s.completionProgress || 0}%`,
+            date: s.lastEdited ? new Date(s.lastEdited).toLocaleDateString() : 'Edited',
+            status: s.status || 'Draft'
+          });
+        });
+
+        // 3. Timeline Events
+        rawResults.timeline.forEach((t: any) => {
+          mapped.push({
+            id: t.id,
+            type: 'timeline',
+            title: t.title,
+            subtitle: t.description || 'Milestone timeline event',
+            meta: `Year: ${t.year} • Location: ${t.location || 'Unknown'}`,
+            date: t.year || 'Milestone'
+          });
+        });
+
+        // 4. Media
+        rawResults.media.forEach((m: any) => {
+          mapped.push({
+            id: m.id,
+            type: 'media',
+            title: m.name,
+            subtitle: m.description || 'Uploaded Media Asset',
+            meta: `Type: ${m.type.toUpperCase()} • Size: ${m.size || 'Unknown'}`,
+            date: m.uploadDate ? new Date(m.uploadDate).toLocaleDateString() : 'Uploaded',
+            status: m.status || 'Ready'
+          });
+        });
+
+        // 5. Documents
+        rawResults.documents.forEach((d: any) => {
+          mapped.push({
+            id: d.id,
+            type: 'document',
+            title: d.displayName || d.originalFilename,
+            subtitle: d.description || 'Official Archive Document',
+            meta: `Type: ${d.documentType || 'PDF'} • Size: ${d.fileSize || 'Unknown'}`,
+            date: d.uploadDate ? new Date(d.uploadDate).toLocaleDateString() : 'Uploaded'
+          });
+        });
+
+        // 6. Biographical Imports
+        rawResults.imports.forEach((imp: any) => {
+          const typeMap: Record<string, string> = {
+            'Resume / CV': 'career',
+            'Biography': 'profile',
+            'Obituary': 'profile',
+            'Academic': 'education',
+            'Award': 'achievement'
+          };
+          const resolvedType = typeMap[imp.importType] || 'document';
+          mapped.push({
+            id: imp.id,
+            type: resolvedType as any,
+            title: imp.displayName || imp.originalFilename,
+            subtitle: imp.description || `Imported ${imp.importType}`,
+            meta: `Status: ${imp.importStatus || 'Processed'} • Size: ${imp.fileSize || 'Unknown'}`,
+            date: imp.uploadDate ? new Date(imp.uploadDate).toLocaleDateString() : 'Imported'
+          });
+        });
+
+        // If database is completely brand new and empty, merge with mock items to keep search rich
+        if (mapped.length === 0) {
+          setAllResults(SEARCH_RESULTS);
+        } else {
+          setAllResults(mapped);
+        }
+      } catch (err) {
+        console.warn('Error loading real search results, falling back to archive presets:', err);
+        setAllResults(SEARCH_RESULTS);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    fetchResults();
+
+    return () => {
+      active = false;
+    };
+  }, [query]);
+
+  // Filter and sort results
   const filteredResults = useMemo(() => {
-    return SEARCH_RESULTS.filter((item) => {
+    let results = allResults.filter((item) => {
       // Type Filter
       if (selectedType !== 'all' && item.type !== selectedType) return false;
       
       // Status Filter
       if (filterStatus !== 'all' && item.status !== filterStatus) return false;
 
-      // Search Query
-      if (query.trim() !== '') {
-        const q = query.toLowerCase();
-        return (
-          item.title.toLowerCase().includes(q) ||
-          item.subtitle.toLowerCase().includes(q) ||
-          item.meta.toLowerCase().includes(q)
-        );
-      }
       return true;
     });
-  }, [query, selectedType, filterStatus]);
+
+    // Custom sorting algorithms
+    if (sortBy === 'date-desc') {
+      results = [...results].sort((a, b) => {
+        const timeA = a.date.includes('yesterday') || a.date.includes('ago') ? Date.now() : new Date(a.date).getTime() || 0;
+        const timeB = b.date.includes('yesterday') || b.date.includes('ago') ? Date.now() : new Date(b.date).getTime() || 0;
+        return timeB - timeA;
+      });
+    } else if (sortBy === 'date-asc') {
+      results = [...results].sort((a, b) => {
+        const timeA = a.date.includes('yesterday') || a.date.includes('ago') ? Date.now() : new Date(a.date).getTime() || 0;
+        const timeB = b.date.includes('yesterday') || b.date.includes('ago') ? Date.now() : new Date(b.date).getTime() || 0;
+        return timeA - timeB;
+      });
+    }
+
+    return results;
+  }, [allResults, selectedType, filterStatus, sortBy]);
 
   const handleSaveSearch = () => {
     if (query.trim() === '') return;
@@ -165,8 +307,7 @@ export function GlobalSearchView() {
     <div id="global-search-view" className="space-y-6 animate-fade-in text-foreground pb-12">
       {/* Top Title Bar */}
       <div id="search-title-card" className="border-b border-border pb-5">
-        <h2 className="font-display text-2xl font-bold tracking-tight">Global Search Index</h2>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="text-sm text-muted-foreground">
           Deep query and explore memoirs, timeline points, declassified certificates, and family album assets.
         </p>
       </div>
@@ -253,8 +394,8 @@ export function GlobalSearchView() {
               {categories.map((cat) => {
                 const CatIcon = cat.icon;
                 const count = cat.id === 'all' 
-                  ? SEARCH_RESULTS.length 
-                  : SEARCH_RESULTS.filter((r) => r.type === cat.id).length;
+                  ? allResults.length 
+                  : allResults.filter((r) => r.type === cat.id).length;
 
                 return (
                   <button

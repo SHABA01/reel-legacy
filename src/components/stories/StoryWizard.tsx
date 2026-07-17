@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft,
@@ -41,6 +41,7 @@ import { Button } from '../ui/Button';
 import { useToast } from '../../context/ToastContext';
 import { ExtendedStory, STORY_TYPES } from './mockStoriesData';
 import { ExtendedLegacyProfile } from '../profiles/mockData';
+import { persistenceService } from '../../storage';
 
 interface StoryWizardProps {
   onClose: () => void;
@@ -191,16 +192,18 @@ export function StoryWizard({ onClose, onSave }: StoryWizardProps) {
   const totalSteps = 8;
 
   // Load active legacy profiles to let user select one
-  const profiles: ExtendedLegacyProfile[] = useMemo(() => {
-    const cached = localStorage.getItem('rl_legacy_profiles');
-    if (cached) {
+  const [profiles, setProfiles] = useState<ExtendedLegacyProfile[]>([]);
+
+  useEffect(() => {
+    const fetchProfiles = async () => {
       try {
-        return JSON.parse(cached);
-      } catch (e) {
-        return [];
+        const fetched = await persistenceService.profiles.getAll();
+        setProfiles(fetched as any);
+      } catch (err) {
+        console.error('Failed to load profiles inside wizard:', err);
       }
-    }
-    return [];
+    };
+    fetchProfiles();
   }, []);
 
   // Filter state for profile selection (Step 1)

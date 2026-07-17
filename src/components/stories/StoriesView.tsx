@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Grid,
@@ -47,7 +47,6 @@ import { useToast } from '../../context/ToastContext';
 import { EmptyState } from '../ui/EmptyState';
 import {
   ExtendedStory,
-  INITIAL_STORIES,
   STORY_TYPES,
   STORY_STATUSES,
   STORY_TYPE_ICONS
@@ -55,27 +54,29 @@ import {
 import { StoryWizard } from './StoryWizard';
 import { StoryDetails } from './StoryDetails';
 import { StoryWorkspace } from './StoryWorkspace';
+import { persistenceService, StoryService } from '../../storage';
 
 export function StoriesView() {
   const { showToast } = useToast();
 
   // App state
-  const [stories, setStories] = useState<ExtendedStory[]>(() => {
-    const cached = localStorage.getItem('rl_legacy_stories');
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch (e) {
-        return INITIAL_STORIES;
-      }
-    }
-    return INITIAL_STORIES;
-  });
+  const [stories, setStories] = useState<ExtendedStory[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const saveToLocal = (newStories: ExtendedStory[]) => {
-    setStories(newStories);
-    localStorage.setItem('rl_legacy_stories', JSON.stringify(newStories));
+  const refreshStories = async () => {
+    try {
+      const fetched = await persistenceService.stories.getAll();
+      setStories(fetched as any);
+    } catch (err) {
+      console.error('Failed to load stories:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    refreshStories();
+  }, []);
 
   // Subview controls
   const [activeSubView, setActiveSubView] = useState<'catalog' | 'details' | 'create-wizard' | 'workspace'>('catalog');
@@ -150,125 +151,154 @@ export function StoriesView() {
   };
 
   // Actions for stories
-  const handleDuplicateStory = (id: string) => {
-    const original = stories.find(s => s.id === id);
-    if (!original) return;
-
-    const copy: ExtendedStory = {
-      ...original,
-      id: `story-${Date.now()}`,
-      title: `${original.title} (Copy)`,
-      subtitle: `${original.subtitle} (Copy)`,
-      completionProgress: 15, // reset progress for newly duplicated copy
-      lastEdited: new Date().toISOString(),
-      lastGenerated: null,
-      aiReady: false,
-      status: 'Draft',
-      pinned: false,
-      favorite: false
-    };
-
-    const updated = [copy, ...stories];
-    saveToLocal(updated);
-    showToast('success', 'Story Project Cloned', `"${original.title}" copy is now ready in your sandbox.`);
+  const handleDuplicateStory = async (id: string) => {
+    try {
+      const duplicated = await StoryService.duplicateStory(id);
+      if (duplicated) {
+        await refreshStories();
+        showToast('success', 'Story Project Cloned', `"${duplicated.title}" copy is now ready in your sandbox.`);
+      }
+    } catch (error: any) {
+      showToast('error', 'Duplication Failed', error.message || 'Could not clone the story.');
+    }
     setActiveDropdownId(null);
   };
 
-  const handleArchiveStory = (id: string) => {
+  const handleArchiveStory = async (id: string) => {
     const target = stories.find(s => s.id === id);
     if (!target) return;
 
     const isArchived = target.status === 'Archived';
-    const newStatus = isArchived ? 'In Progress' : 'Archived';
-
-    const updated = stories.map(s => s.id === id ? { ...s, status: newStatus as any } : s);
-    saveToLocal(updated);
-    showToast(
-      'info',
-      isArchived ? 'Story Unarchived' : 'Story Archived Successfully',
-      `"${target.title}" has been ${isArchived ? 'restored to active workspace' : 'moved to system archive vaults'}.`
-    );
+    try {
+      if (isArchived) {
+        await StoryService.restoreStory(id);
+      } else {
+        await StoryService.archiveStory(id);
+      }
+      await refreshStories();
+      showToast(
+        'info',
+        isArchived ? 'Story Unarchived' : 'Story Archived Successfully',
+        `"${target.title}" has been ${isArchived ? 'restored to active workspace' : 'moved to system archive vaults'}.`
+      );
+    } catch (error: any) {
+      showToast('error', 'Operation Failed', error.message || 'Could not alter archive status.');
+    }
     setActiveDropdownId(null);
   };
 
-  const handleDeleteStory = (id: string) => {
+  const handleDeleteStory = async (id: string) => {
     const target = stories.find(s => s.id === id);
     if (!target) return;
 
     const confirmDelete = window.confirm(`Are you absolutely sure you want to permanently delete "${target.title}"? This will dissolve all chapters, narrative drafts, and references.`);
     if (confirmDelete) {
-      const updated = stories.filter(s => s.id !== id);
-      saveToLocal(updated);
-      setSelectedRowIds(prev => prev.filter(rowId => rowId !== id));
-      showToast('error', 'Story Permanently Deleted', `"${target.title}" has been purged from system memory.`);
+      try {
+        await StoryService.deleteStory(id);
+        await refreshStories();
+        setSelectedRowIds(prev => prev.filter(rowId => rowId !== id));
+        showToast('error', 'Story Permanently Deleted', `"${target.title}" has been purged from system memory.`);
+      } catch (error: any) {
+        showToast('error', 'Deletion Failed', error.message || 'Could not delete story.');
+      }
     }
     setActiveDropdownId(null);
   };
 
-  const handleRenameStory = (id: string) => {
+  const handleRenameStory = async (id: string) => {
     const target = stories.find(s => s.id === id);
     if (!target) return;
 
     const newTitle = window.prompt('Enter new title for this story:', target.title);
     if (newTitle && newTitle.trim()) {
-      const updated = stories.map(s => s.id === id ? { ...s, title: newTitle.trim(), lastEdited: new Date().toISOString() } : s);
-      saveToLocal(updated);
-      showToast('success', 'Story Renamed', `Project is now titled "${newTitle.trim()}".`);
+      try {
+        await StoryService.updateStory(id, { title: newTitle.trim() });
+        await refreshStories();
+        showToast('success', 'Story Renamed', `Project is now titled "${newTitle.trim()}".`);
+      } catch (error: any) {
+        showToast('error', 'Rename Failed', error.message || 'Could not rename story.');
+      }
     }
     setActiveDropdownId(null);
   };
 
-  const handleTogglePin = (id: string) => {
-    const updated = stories.map(s => s.id === id ? { ...s, pinned: !s.pinned } : s);
-    saveToLocal(updated);
+  const handleTogglePin = async (id: string) => {
     const target = stories.find(s => s.id === id);
-    if (target) {
+    if (!target) return;
+
+    try {
+      await StoryService.pinStory(id, !target.pinned);
+      await refreshStories();
       showToast(
         'info',
         target.pinned ? 'Story Unpinned' : 'Story Pinned to Top',
         `"${target.title}" has been ${target.pinned ? 'unpinned from' : 'pinned to'} the top shelf.`
       );
+    } catch (error: any) {
+      showToast('error', 'Operation Failed', error.message || 'Could not pin story.');
     }
   };
 
-  const handleToggleFavorite = (id: string) => {
-    const updated = stories.map(s => s.id === id ? { ...s, favorite: !s.favorite } : s);
-    saveToLocal(updated);
+  const handleToggleFavorite = async (id: string) => {
     const target = stories.find(s => s.id === id);
-    if (target) {
+    if (!target) return;
+
+    try {
+      await StoryService.favoriteStory(id, !target.favorite);
+      await refreshStories();
       showToast(
         'success',
         target.favorite ? 'Removed from Favorites' : 'Added to Favorites',
         `"${target.title}" ${target.favorite ? 'removed from' : 'added to'} favorites list.`
       );
+    } catch (error: any) {
+      showToast('error', 'Operation Failed', error.message || 'Could not favorite story.');
     }
   };
 
   // Bulk actions
-  const handleBulkArchive = () => {
+  const handleBulkArchive = async () => {
     if (selectedRowIds.length === 0) return;
-    const updated = stories.map(s => selectedRowIds.includes(s.id) ? { ...s, status: 'Archived' as const } : s);
-    saveToLocal(updated);
-    showToast('info', 'Stories Archived', `${selectedRowIds.length} story projects have been moved to vaults.`);
-    setSelectedRowIds([]);
+    try {
+      for (const id of selectedRowIds) {
+        await StoryService.archiveStory(id);
+      }
+      await refreshStories();
+      showToast('info', 'Stories Archived', `${selectedRowIds.length} story projects have been moved to vaults.`);
+      setSelectedRowIds([]);
+    } catch (error: any) {
+      showToast('error', 'Bulk Archive Failed', error.message || 'Could not archive some stories.');
+    }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedRowIds.length === 0) return;
     const confirmDelete = window.confirm(`Are you sure you want to permanently delete ${selectedRowIds.length} selected story projects? This action is completely irreversible.`);
     if (confirmDelete) {
-      const updated = stories.filter(s => !selectedRowIds.includes(s.id));
-      saveToLocal(updated);
-      showToast('error', 'Stories Deleted', `${selectedRowIds.length} stories have been permanently purged.`);
-      setSelectedRowIds([]);
+      try {
+        for (const id of selectedRowIds) {
+          await StoryService.deleteStory(id);
+        }
+        await refreshStories();
+        showToast('error', 'Stories Deleted', `${selectedRowIds.length} stories have been permanently purged.`);
+        setSelectedRowIds([]);
+      } catch (error: any) {
+        showToast('error', 'Bulk Deletion Failed', error.message || 'Could not delete some stories.');
+      }
     }
   };
 
   // Create wizard save callback
-  const handleWizardSave = (newStory: ExtendedStory) => {
-    const updated = [newStory, ...stories];
-    saveToLocal(updated);
-    setActiveSubView('catalog');
+  const handleWizardSave = async (newStory: ExtendedStory) => {
+    try {
+      // In F4, the wizard outputs a complete Story schema. We can save it via createStory.
+      await StoryService.createStory(newStory as any);
+      await refreshStories();
+      setActiveSubView('catalog');
+      showToast('success', 'Story Created', `"${newStory.title}" is now ready in your production library.`);
+    } catch (error: any) {
+      showToast('error', 'Creation Failed', error.message || 'Could not save new story.');
+    }
   };
 
   // Clear query filters helper
@@ -433,9 +463,14 @@ export function StoriesView() {
         <StoryWorkspace
           story={selectedStory}
           onClose={() => setActiveSubView('catalog')}
-          onSave={(updatedStory) => {
-            const updated = stories.map(s => s.id === updatedStory.id ? updatedStory : s);
-            saveToLocal(updated);
+          onSave={async (updatedStory) => {
+            try {
+              await StoryService.updateStory(updatedStory.id, updatedStory as any);
+              await refreshStories();
+              showToast('success', 'Changes Saved', `"${updatedStory.title}" updated successfully.`);
+            } catch (error: any) {
+              showToast('error', 'Save Failed', error.message || 'Could not save modifications.');
+            }
           }}
         />
       )}

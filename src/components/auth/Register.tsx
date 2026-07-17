@@ -11,7 +11,7 @@ import { AuthLayout } from './AuthLayout';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { PasswordStrengthMeter } from './PasswordStrengthMeter';
-import { Mail, Lock, Eye, EyeOff, Loader, User, Globe, AlertCircle, CheckCircle, Sparkles } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader, User, Globe, AlertCircle, CheckCircle, Sparkles, Chrome, Linkedin } from 'lucide-react';
 
 const COUNTRIES = [
   { value: 'US', label: 'United States' },
@@ -134,223 +134,236 @@ export function Register() {
       title="Begin Your Storytelling Journey" 
       subtitle="Register an account to map timelines, synthesize transcripts, upload biographic metadata, and collaborate on premium legacy documentaries."
     >
-      <div id="register-container" className="space-y-6">
-        {/* Card Header */}
-        <div id="register-header" className="space-y-1 text-left">
-          <h1 className="font-display text-2xl font-black tracking-tight text-white">
+      <div id="register-container" className="flex-grow flex flex-col justify-between h-full overflow-hidden">
+        {/* Card Header - FIXED */}
+        <div id="register-header" className="space-y-1 text-left pb-4 shrink-0">
+          <h1 className="font-display text-2xl font-black tracking-tight text-foreground">
             Create an account
           </h1>
-          <p className="text-xs text-[#64748b]">
+          <p className="text-xs text-muted-foreground">
             Provision your biographic studio with zero initial costs.
           </p>
         </div>
 
-        {/* Global States Announcement */}
-        {errorMsg && (
-          <div 
-            id="register-error-banner"
-            className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start gap-2.5 animate-shake"
-          >
-            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
-            <div>
-              <span className="font-bold">Error: </span>
-              {errorMsg}
-            </div>
-          </div>
-        )}
-
-        {successMsg && (
-          <div 
-            id="register-success-banner"
-            className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-start gap-2.5"
-          >
-            <CheckCircle className="w-4 h-4 mt-0.5 shrink-0 text-emerald-500" />
-            <div>
-              <span className="font-bold">Registered: </span>
-              {successMsg}
-            </div>
-          </div>
-        )}
-
-        {/* Core Register Form */}
-        <form onSubmit={handleRegister} className="space-y-4" id="register-form">
-          {/* First & Last Name */}
-          <div className="grid grid-cols-2 gap-3" id="register-full-name-row">
-            <Input 
-              id="register-firstname"
-              label="First Name"
-              type="text"
-              placeholder="e.g. Eleanor"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              onBlur={() => handleBlur('firstName')}
-              error={firstNameError}
-              disabled={isPending}
-              leftElement={<User className="w-4 h-4" />}
-            />
-            <Input 
-              id="register-lastname"
-              label="Last Name"
-              type="text"
-              placeholder="e.g. Vance"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              onBlur={() => handleBlur('lastName')}
-              error={lastNameError}
-              disabled={isPending}
-              leftElement={<User className="w-4 h-4" />}
-            />
-          </div>
-
-          {/* Optional Display Name */}
-          <Input 
-            id="register-displayname"
-            label="Display Name (Optional)"
-            type="text"
-            placeholder="e.g. Ellie (defaults to First Name)"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            disabled={isPending}
-            leftElement={<Sparkles className="w-4 h-4" />}
-          />
-
-          {/* Email Address */}
-          <Input 
-            id="register-email"
-            label="Email Address"
-            type="email"
-            placeholder="e.g. biographer@reellegacy.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onBlur={() => handleBlur('email')}
-            error={emailError}
-            disabled={isPending}
-            leftElement={<Mail className="w-4 h-4" />}
-          />
-
-          {/* Password */}
-          <Input 
-            id="register-password"
-            label="Security Password"
-            type={showPassword ? 'text' : 'password'}
-            placeholder="Choose a strong password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onBlur={() => handleBlur('password')}
-            error={passwordError}
-            disabled={isPending}
-            leftElement={<Lock className="w-4 h-4" />}
-            rightElement={
-              <button
-                type="button"
-                id="register-toggle-password"
-                onClick={() => setShowPassword(!showPassword)}
-                className="hover:text-white transition-colors focus:outline-none"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+        {/* Global States Announcement - FIXED */}
+        {(errorMsg || successMsg) && (
+          <div className="shrink-0 pb-3" id="register-banners-wrapper">
+            {errorMsg && (
+              <div 
+                id="register-error-banner"
+                className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 dark:text-red-400 text-xs flex items-start gap-2.5 animate-shake"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            }
-          />
-
-          {/* Live Password Strength Meter */}
-          {password && (
-            <PasswordStrengthMeter password={password} />
-          )}
-
-          {/* Confirm Password */}
-          <Input 
-            id="register-confirm-password"
-            label="Confirm Password"
-            type={showConfirmPassword ? 'text' : 'password'}
-            placeholder="Re-enter security password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            onBlur={() => handleBlur('confirmPassword')}
-            error={confirmPasswordError}
-            disabled={isPending}
-            leftElement={<Lock className="w-4 h-4" />}
-            rightElement={
-              <button
-                type="button"
-                id="register-toggle-confirm-password"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="hover:text-white transition-colors focus:outline-none"
-                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-              >
-                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            }
-          />
-
-          {/* Country Selection */}
-          <div className="w-full flex flex-col gap-1.5" id="register-country-container">
-            <label htmlFor="register-country" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Country of Residence
-            </label>
-            <div className="relative flex items-center w-full" id="register-country-wrapper">
-              <div className="absolute left-3 text-muted-foreground flex items-center justify-center">
-                <Globe className="w-4 h-4" />
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
+                <div>
+                  <span className="font-bold">Error: </span>
+                  {errorMsg}
+                </div>
               </div>
-              <select
-                id="register-country"
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                disabled={isPending}
-                className="w-full bg-card border border-border text-sm font-sans rounded-lg py-2.5 pl-10 pr-3.5 text-foreground transition-all focus:outline-none focus:ring-2 focus:ring-cinema-amber-500 focus:border-transparent cursor-pointer"
+            )}
+
+            {successMsg && (
+              <div 
+                id="register-success-banner"
+                className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-start gap-2.5"
               >
-                {COUNTRIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
+                <CheckCircle className="w-4 h-4 mt-0.5 shrink-0 text-emerald-500" />
+                <div>
+                  <span className="font-bold">Registered: </span>
+                  {successMsg}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Scrollable Form Input Fields */}
+        <div 
+          className="flex-1 overflow-y-auto scrollbar-ephemeral pl-5 pr-3 py-2 min-h-[140px] max-h-[300px]" 
+          id="register-inputs-scroll-container"
+        >
+          <form onSubmit={handleRegister} className="space-y-4" id="register-form">
+            {/* First & Last Name */}
+            <div className="grid grid-cols-2 gap-3" id="register-full-name-row">
+              <Input 
+                id="register-firstname"
+                label="First Name"
+                type="text"
+                placeholder="e.g. Eleanor"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                onBlur={() => handleBlur('firstName')}
+                error={firstNameError}
+                disabled={isPending}
+                leftElement={<User className="w-4 h-4" />}
+              />
+              <Input 
+                id="register-lastname"
+                label="Last Name"
+                type="text"
+                placeholder="e.g. Vance"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                onBlur={() => handleBlur('lastName')}
+                error={lastNameError}
+                disabled={isPending}
+                leftElement={<User className="w-4 h-4" />}
+              />
             </div>
-          </div>
 
-          {/* Agreements Checkboxes */}
-          <div className="space-y-3.5 pt-2" id="register-agreements">
-            <label className="flex items-start gap-2.5 text-xs text-[#94a3b8] cursor-pointer select-none" id="agree-terms-label">
-              <input 
-                id="register-agree-terms"
-                type="checkbox"
-                checked={agreeTerms}
-                onChange={(e) => setAgreeTerms(e.target.checked)}
-                className="rounded border-[#1e293b] bg-slate-900 text-cinema-amber-500 focus:ring-cinema-amber-500/50 w-4 h-4 cursor-pointer mt-0.5"
-              />
-              <span>
-                I agree to the{' '}
-                <a href="/terms" target="_blank" rel="noreferrer" className="text-cinema-amber-500 hover:underline">
-                  Terms of Service
-                </a>{' '}
-                and accept responsibility for my content.
-              </span>
-            </label>
+            {/* Optional Display Name */}
+            <Input 
+              id="register-displayname"
+              label="Display Name (Optional)"
+              type="text"
+              placeholder="e.g. Ellie (defaults to First Name)"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              disabled={isPending}
+              leftElement={<Sparkles className="w-4 h-4" />}
+            />
 
-            <label className="flex items-start gap-2.5 text-xs text-[#94a3b8] cursor-pointer select-none" id="agree-privacy-label">
-              <input 
-                id="register-agree-privacy"
-                type="checkbox"
-                checked={agreePrivacy}
-                onChange={(e) => setAgreePrivacy(e.target.checked)}
-                className="rounded border-[#1e293b] bg-slate-900 text-cinema-amber-500 focus:ring-cinema-amber-500/50 w-4 h-4 cursor-pointer mt-0.5"
-              />
-              <span>
-                I agree to the{' '}
-                <a href="/privacy" target="_blank" rel="noreferrer" className="text-cinema-amber-500 hover:underline">
-                  Privacy Policy
-                </a>{' '}
-                and consent to secure data encryption rules.
-              </span>
-            </label>
-          </div>
+            {/* Email Address */}
+            <Input 
+              id="register-email"
+              label="Email Address"
+              type="email"
+              placeholder="e.g. biographer@reellegacy.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => handleBlur('email')}
+              error={emailError}
+              disabled={isPending}
+              leftElement={<Mail className="w-4 h-4" />}
+            />
 
+            {/* Password */}
+            <Input 
+              id="register-password"
+              label="Security Password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Choose a strong password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => handleBlur('password')}
+              error={passwordError}
+              disabled={isPending}
+              leftElement={<Lock className="w-4 h-4" />}
+              rightElement={
+                <button
+                  type="button"
+                  id="register-toggle-password"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="hover:text-foreground transition-colors focus:outline-none"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              }
+            />
+
+            {/* Live Password Strength Meter */}
+            {password && (
+              <PasswordStrengthMeter password={password} />
+            )}
+
+            {/* Confirm Password */}
+            <Input 
+              id="register-confirm-password"
+              label="Confirm Password"
+              type={showConfirmPassword ? 'text' : 'password'}
+              placeholder="Re-enter security password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              onBlur={() => handleBlur('confirmPassword')}
+              error={confirmPasswordError}
+              disabled={isPending}
+              leftElement={<Lock className="w-4 h-4" />}
+              rightElement={
+                <button
+                  type="button"
+                  id="register-toggle-confirm-password"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="hover:text-foreground transition-colors focus:outline-none"
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              }
+            />
+
+            {/* Country Selection */}
+            <div className="w-full flex flex-col gap-1.5" id="register-country-container">
+              <label htmlFor="register-country" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Country of Residence
+              </label>
+              <div className="relative flex items-center w-full" id="register-country-wrapper">
+                <div className="absolute left-3 text-muted-foreground flex items-center justify-center">
+                  <Globe className="w-4 h-4" />
+                </div>
+                <select
+                  id="register-country"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  disabled={isPending}
+                  className="w-full bg-card border border-border text-sm font-sans rounded-lg py-2.5 pl-10 pr-3.5 text-foreground transition-all focus:outline-none focus:ring-2 focus:ring-cinema-amber-500 focus:border-transparent cursor-pointer"
+                >
+                  {COUNTRIES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Agreements Checkboxes */}
+            <div className="space-y-3.5 pt-2" id="register-agreements">
+              <label className="flex items-start gap-2.5 text-xs text-muted-foreground cursor-pointer select-none" id="agree-terms-label">
+                <input 
+                  id="register-agree-terms"
+                  type="checkbox"
+                  checked={agreeTerms}
+                  onChange={(e) => setAgreeTerms(e.target.checked)}
+                  className="rounded border-border bg-card text-cinema-amber-500 focus:ring-cinema-amber-500/50 w-4 h-4 cursor-pointer mt-0.5"
+                />
+                <span>
+                  I agree to the{' '}
+                  <a href="/terms" target="_blank" rel="noreferrer" className="text-cinema-amber-500 hover:underline">
+                    Terms of Service
+                  </a>{' '}
+                  and accept responsibility for my content.
+                </span>
+              </label>
+
+              <label className="flex items-start gap-2.5 text-xs text-muted-foreground cursor-pointer select-none" id="agree-privacy-label">
+                <input 
+                  id="register-agree-privacy"
+                  type="checkbox"
+                  checked={agreePrivacy}
+                  onChange={(e) => setAgreePrivacy(e.target.checked)}
+                  className="rounded border-border bg-card text-cinema-amber-500 focus:ring-cinema-amber-500/50 w-4 h-4 cursor-pointer mt-0.5"
+                />
+                <span>
+                  I agree to the{' '}
+                  <a href="/privacy" target="_blank" rel="noreferrer" className="text-cinema-amber-500 hover:underline">
+                    Privacy Policy
+                  </a>{' '}
+                  and consent to secure data encryption rules.
+                </span>
+              </label>
+            </div>
+          </form>
+        </div>
+
+        {/* FIXED Footer Actions Container */}
+        <div className="shrink-0 pt-4 space-y-4" id="register-footer-fixed">
           {/* Create Button */}
           <Button 
             id="register-submit"
             type="submit"
+            form="register-form"
             variant="primary"
-            className="w-full py-3 rounded-xl font-bold transition-all relative overflow-hidden bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 rounded-xl font-bold transition-all relative overflow-hidden bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             disabled={!isFormValid || isPending}
           >
             {isPending ? (
@@ -362,19 +375,51 @@ export function Register() {
               'Create Free Workspace'
             )}
           </Button>
-        </form>
 
-        {/* Login Redirect Link */}
-        <div className="text-center pt-2 text-xs text-[#64748b]" id="register-login-redirect">
-          Already have an archive account?{' '}
-          <Link 
-            id="register-sign-in-btn"
-            to="/login" 
-            className="text-cinema-amber-500 hover:text-cinema-amber-400 hover:underline font-semibold transition-colors"
-          >
-            Sign In
-          </Link>
+          {/* Divider */}
+          <div className="relative flex py-1.5 items-center" id="register-divider">
+            <div className="flex-grow border-t border-border/60"></div>
+            <span className="flex-shrink mx-4 text-[10px] text-muted-foreground font-mono uppercase tracking-widest">
+              or sign up with
+            </span>
+            <div className="flex-grow border-t border-border/60"></div>
+          </div>
+
+          {/* Social Buttons */}
+          <div className="grid grid-cols-2 gap-3" id="register-socials">
+            <button 
+              type="button" 
+              id="social-register-google"
+              className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-border hover:bg-muted/40 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all active:scale-[0.97] cursor-pointer"
+              onClick={() => showToast('info', 'Google OAuth Integration', 'Under development. Production redirect placeholder.')}
+            >
+              <Chrome className="w-4 h-4" />
+              <span>Google</span>
+            </button>
+            <button 
+              type="button" 
+              id="social-register-linkedin"
+              className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-border hover:bg-muted/40 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all active:scale-[0.97] cursor-pointer"
+              onClick={() => showToast('info', 'LinkedIn OAuth Integration', 'Under development. LinkedIn Professional login placeholder.')}
+            >
+              <Linkedin className="w-4 h-4" />
+              <span>LinkedIn</span>
+            </button>
+          </div>
+
+          {/* Login Redirect Link */}
+          <div className="text-center pt-2 text-xs text-muted-foreground" id="register-login-redirect">
+            Already have an archive account?{' '}
+            <Link 
+              id="register-sign-in-btn"
+              to="/login" 
+              className="text-cinema-amber-500 hover:text-cinema-amber-400 hover:underline font-semibold transition-colors"
+            >
+              Sign In
+            </Link>
+          </div>
         </div>
+
       </div>
     </AuthLayout>
   );

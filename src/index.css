@@ -205,19 +205,52 @@
     @apply bg-background text-foreground;
   }
 
-  /* Custom subtle scrollbar */
+  /* Hide the browser's default scrollbar to prevent transition glitches */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    display: none !important;
   }
-  ::-webkit-scrollbar-track {
-    @apply bg-transparent;
+  html, body {
+    -ms-overflow-style: none !important;  /* IE and Edge */
+    scrollbar-width: none !important;  /* Firefox */
   }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-muted/60 rounded-full transition-colors;
+
+  /* Ephemeral Scrollbar Class for nested scrollable elements */
+  .scrollbar-ephemeral {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
   }
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted;
+
+  .scrollbar-ephemeral.is-scrolling,
+  .scrollbar-ephemeral:hover,
+  .scrollbar-ephemeral:active,
+  .scrollbar-ephemeral:focus-within {
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(245, 158, 11, 0.6) transparent !important;
+  }
+
+  .scrollbar-ephemeral::-webkit-scrollbar {
+    width: 3px !important;
+    height: 3px !important;
+    display: block !important;
+  }
+
+  .scrollbar-ephemeral::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
+
+  .scrollbar-ephemeral::-webkit-scrollbar-thumb {
+    background: transparent !important;
+    border-radius: 9999px !important;
+    box-shadow: none !important;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease !important;
+  }
+
+  .scrollbar-ephemeral.is-scrolling::-webkit-scrollbar-thumb,
+  .scrollbar-ephemeral:hover::-webkit-scrollbar-thumb,
+  .scrollbar-ephemeral:active::-webkit-scrollbar-thumb,
+  .scrollbar-ephemeral:focus-within::-webkit-scrollbar-thumb {
+    background: #f59e0b !important;
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.6) !important;
   }
 }
 
@@ -265,4 +298,72 @@
     clip-path: circle(var(--theme-ripple-radius, 100%) at var(--theme-ripple-x, 50%) var(--theme-ripple-y, 50%));
   }
 }
+
+/* Accessibility & Scaling overrides */
+.theme-high-contrast {
+  --background: #ffffff !important;
+  --foreground: #000000 !important;
+  --card: #ffffff !important;
+  --card-foreground: #000000 !important;
+  --border: #000000 !important;
+  --muted-foreground: #222222 !important;
+}
+
+.theme-high-contrast.dark {
+  --background: #000000 !important;
+  --foreground: #ffffff !important;
+  --card: #000000 !important;
+  --card-foreground: #ffffff !important;
+  --border: #ffffff !important;
+  --muted-foreground: #dddddd !important;
+}
+
+/* Font scale selectors */
+.font-scale-small {
+  font-size: 0.875rem !important; /* 14px */
+}
+.font-scale-medium {
+  font-size: 1rem !important; /* 16px */
+}
+.font-scale-large {
+  font-size: 1.125rem !important; /* 18px */
+}
+.font-scale-xlarge {
+  font-size: 1.25rem !important; /* 20px */
+}
+
+/* Reduced motion */
+.theme-reduced-motion *,
+.theme-reduced-motion ::before,
+.theme-reduced-motion ::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Compact mode / density selectors */
+.compact-mode .p-6 {
+  padding: 0.75rem !important;
+}
+.compact-mode .p-8 {
+  padding: 1rem !important;
+}
+.compact-mode .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.75rem !important;
+}
+
+/* Custom Auth Page Backgrounds to match user's requested OKLCH values in light mode only */
+html:not(.dark) .bg-auth-welcome {
+  background-color: oklch(0.984 0.003 247.858) !important;
+}
+html:not(.dark) .bg-auth-form {
+  background-color: oklch(1 0 0) !important;
+}
+html:not(.dark) .bg-auth-pillar-card {
+  background-color: oklch(0.984 0.003 247.858) !important;
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.08), 0 4px 12px -2px rgba(0, 0, 0, 0.03) !important;
+  border-color: rgba(0, 0, 0, 0.04) !important;
+}
+
 

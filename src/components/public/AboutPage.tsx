@@ -32,10 +32,10 @@ export function AboutPage({ setCurrentPage, onOpenAuth }: AboutPageProps) {
   };
 
   const corporateStats = [
-    { label: 'Archived Memoirs', value: '14,200+' },
-    { label: 'Factual Accuracy', value: '100%' },
-    { label: 'Documentary Hours Rendered', value: '8,500+' },
-    { label: 'IdeaCodex Laboratories Sprints', value: 'Phase 0' }
+    { label: 'Archived Memoirs', value: '0' },
+    { label: 'Factual Accuracy', value: '0%' },
+    { label: 'Documentary Hours Rendered', value: '0' },
+    { label: 'ReelLegacy launch', value: 'Phase 0' }
   ];
 
   return (
@@ -44,9 +44,6 @@ export function AboutPage({ setCurrentPage, onOpenAuth }: AboutPageProps) {
         
         {/* Page Header */}
         <div className="text-center max-w-3xl mx-auto space-y-4 mb-16" id="about-header">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-cinema-amber-500/10 text-cinema-amber-600 dark:text-cinema-amber-400 border border-cinema-amber-500/20">
-            <Building className="w-3.5 h-3.5" /> IdeaCodex Labs Present
-          </span>
           <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground">
             Our Mission & Philosophy
           </h1>
@@ -62,7 +59,7 @@ export function AboutPage({ setCurrentPage, onOpenAuth }: AboutPageProps) {
               <Target className="w-5 h-5" />
             </div>
             <h3 className="font-display text-base font-bold text-foreground">Our Mission</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <p className="text-xs text-muted-foreground leading-relaxed text-justify">
               To bridge the gap between traditional biography writing and high-fidelity modern filmmaking. We make legacy preservation accessible, factually pristine, and deeply moving for everyone.
             </p>
           </div>
@@ -72,7 +69,7 @@ export function AboutPage({ setCurrentPage, onOpenAuth }: AboutPageProps) {
               <Eye className="w-5 h-5" />
             </div>
             <h3 className="font-display text-base font-bold text-foreground">Our Vision</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <p className="text-xs text-muted-foreground leading-relaxed text-justify">
               A world where no personal breakthrough, ancestral migration, or career milestone is lost to history. We envision every family and team maintaining an enduring, interactive digital documentary museum.
             </p>
           </div>
@@ -82,7 +79,7 @@ export function AboutPage({ setCurrentPage, onOpenAuth }: AboutPageProps) {
               <Heart className="w-5 h-5" />
             </div>
             <h3 className="font-display text-base font-bold text-foreground">Our Philosophy</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <p className="text-xs text-muted-foreground leading-relaxed text-justify">
               Story First. The technology must quietly disappear behind the narrative. We value absolute factual fidelity above all else, ensuring we never invent, simulate, or exaggerate personal memories.
             </p>
           </div>
@@ -97,10 +94,10 @@ export function AboutPage({ setCurrentPage, onOpenAuth }: AboutPageProps) {
             <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
               The Story Behind the Product
             </h2>
-            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed text-justify">
               ReelLegacy was born from a simple realization at IdeaCodex Labs: while we possess incredible tools to track our code, optimize our databases, and generate our synthetic graphics, the human archives of our families and organizations are scattered, fragile, and expiring.
             </p>
-            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed text-justify">
               Our founders wanted to preserve the cassette tapes of their grandparents talking about wartime migrations and farm lives in the early 20th century. Traditional transcription tools stripped out the emotional inflections, and static scrapbooks lacked the dynamic pacing of cinema. We designed ReelLegacy as a modular studio that brings the standards of professional documentary filmmaking directly to personal archiving.
             </p>
           </div>
@@ -111,20 +108,35 @@ export function AboutPage({ setCurrentPage, onOpenAuth }: AboutPageProps) {
               <h4 className="font-display text-sm font-bold text-foreground uppercase tracking-wide">
                 Our Architectural Grounding
               </h4>
-              <p className="text-xs text-muted-foreground leading-relaxed">
+              <p className="text-xs text-muted-foreground leading-relaxed text-justify">
                 By integrating structured timelines with our proprietary AI Storyteller, we allow the system to cross-reference multiple historical documents simultaneously, ensuring zero factual hallucinatory errors.
               </p>
               {/* Visual mini-timeline */}
-              <div className="border-l-2 border-cinema-amber-500/30 pl-4 space-y-3 pt-2">
+              <div className="max-h-40 overflow-y-auto pr-2 space-y-4 pt-2 scrollbar-thin border-l-2 border-cinema-amber-500/30 pl-4">
                 <div className="relative">
                   <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-cinema-amber-500" />
                   <span className="font-mono text-[9px] text-cinema-amber-600 dark:text-cinema-amber-400 font-bold block">JULY 2024</span>
-                  <p className="text-[11px] font-semibold text-foreground">IdeaCodex Sprints launch Phase 0</p>
+                  <p className="text-[11px] font-semibold text-foreground text-justify">ReelLegacy Conceptual Design & Architecture</p>
+                </div>
+                <div className="relative">
+                  <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-cinema-amber-500" />
+                  <span className="font-mono text-[9px] text-cinema-amber-600 dark:text-cinema-amber-400 font-bold block">OCTOBER 2024</span>
+                  <p className="text-[11px] font-semibold text-foreground text-justify">Multi-decade Timeline Engine Completed</p>
+                </div>
+                <div className="relative">
+                  <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-cinema-amber-500" />
+                  <span className="font-mono text-[9px] text-cinema-amber-600 dark:text-cinema-amber-400 font-bold block">JANUARY 2025</span>
+                  <p className="text-[11px] font-semibold text-foreground text-justify">ReelLegacy Private Alpha & Transcription Studio</p>
+                </div>
+                <div className="relative">
+                  <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-cinema-amber-500" />
+                  <span className="font-mono text-[9px] text-cinema-amber-600 dark:text-cinema-amber-400 font-bold block">MAY 2025</span>
+                  <p className="text-[11px] font-semibold text-foreground text-justify">Narration Synthesis & Ken Burns Renderer Alpha</p>
                 </div>
                 <div className="relative">
                   <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-muted-foreground" />
-                  <span className="font-mono text-[9px] text-muted-foreground font-bold block">JANUARY 2025</span>
-                  <p className="text-[11px] font-semibold text-foreground/80">CareerCanvas cross-linking completed</p>
+                  <span className="font-mono text-[9px] text-muted-foreground font-bold block">JANUARY 2026</span>
+                  <p className="text-[11px] font-semibold text-foreground/80 text-justify">Public Beta Release & CareerCanvas Sync</p>
                 </div>
               </div>
             </div>

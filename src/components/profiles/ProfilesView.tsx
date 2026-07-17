@@ -35,6 +35,7 @@ import { INITIAL_PROFILES, ExtendedLegacyProfile } from './mockData';
 import { ProfileWizard } from './ProfileWizard';
 import { ProfileDetails } from './ProfileDetails';
 import { ProfileEdit } from './ProfileEdit';
+import { persistenceService, ActivityService } from '../../storage';
 
 export function ProfilesView() {
   const { showToast } = useToast();
@@ -42,20 +43,20 @@ export function ProfilesView() {
   // App States
   const [profiles, setProfiles] = useState<ExtendedLegacyProfile[]>(() => {
     // Check if we have cached profiles in localStorage
-    const cached = localStorage.getItem('rl_legacy_profiles');
+    const cached = localStorage.getItem('rl_profiles');
     if (cached) {
       try {
         return JSON.parse(cached);
       } catch (e) {
-        return INITIAL_PROFILES;
+        return [];
       }
     }
-    return INITIAL_PROFILES;
+    return [];
   });
 
   const saveToLocal = (newProfiles: ExtendedLegacyProfile[]) => {
     setProfiles(newProfiles);
-    localStorage.setItem('rl_legacy_profiles', JSON.stringify(newProfiles));
+    persistenceService.profiles.saveAll(newProfiles as any);
   };
 
   // Sub-navigation states
@@ -170,6 +171,11 @@ export function ProfilesView() {
   const handleCreateWizardSave = (newProfile: ExtendedLegacyProfile) => {
     const updated = [newProfile, ...profiles];
     saveToLocal(updated);
+    ActivityService.logActivity(
+      'Legacy Profile Created',
+      `Legacy profile for ${newProfile.firstName} ${newProfile.lastName} has been successfully registered.`,
+      'bg-emerald-500'
+    ).catch(err => console.warn('Failed to log profile creation activity', err));
     setActiveSubView('catalog');
   };
 

@@ -17,7 +17,6 @@ import { LandingPage } from './components/public/LandingPage';
 import { FeaturesPage } from './components/public/FeaturesPage';
 import { StoryTypesPage } from './components/public/StoryTypesPage';
 import { AboutPage } from './components/public/AboutPage';
-import { HelpCenterPage } from './components/public/HelpCenterPage';
 import { ContactPage } from './components/public/ContactPage';
 import { FAQPage } from './components/public/FAQPage';
 import { PrivacyPage } from './components/public/PrivacyPage';
@@ -25,6 +24,7 @@ import { TermsPage } from './components/public/TermsPage';
 import { AuthModal } from './components/public/AuthModal';
 import { NotFound } from './components/public/NotFound';
 import { ToastContainer } from './components/ui/ToastContainer';
+import { EphemeralScrollbar } from './components/public/EphemeralScrollbar';
 
 // Authentication Module Imports
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -42,6 +42,7 @@ import { NotificationsView } from './components/supporting/NotificationsView';
 import { GlobalSearchView } from './components/supporting/GlobalSearchView';
 import { HelpCenterView } from './components/supporting/HelpCenterView';
 import { SettingsView } from './components/supporting/SettingsView';
+import { MigrationService } from './storage';
 
 // Custom UI Primitives
 import { Button } from './components/ui/Button';
@@ -242,6 +243,9 @@ function PublicLayoutContent({
         onSuccess={handleAuthSuccess}
       />
 
+      {/* Floating Gold Scrollbar */}
+      <EphemeralScrollbar />
+
       {/* Public toast container rendering */}
       <ToastContainer />
     </div>
@@ -266,8 +270,6 @@ function RenderPublicPage({
       return <StoryTypesPage onOpenAuth={onOpenAuth} />;
     case 'about':
       return <AboutPage setCurrentPage={setCurrentPage} onOpenAuth={onOpenAuth} />;
-    case 'help':
-      return <HelpCenterPage setCurrentPage={setCurrentPage} onOpenAuth={onOpenAuth} />;
     case 'contact':
       return <ContactPage setCurrentPage={setCurrentPage} />;
     case 'faq':
@@ -299,6 +301,18 @@ function AppContent() {
 
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    MigrationService.checkAndMigrate();
+    
+    // Load and apply settings on mount
+    import('./storage').then(({ SettingsService }) => {
+      SettingsService.getSettings().then(settings => {
+        SettingsService.applyTheme(settings.theme);
+        SettingsService.applyAccessibility(settings);
+      });
+    });
+  }, []);
 
   const handleOpenAuth = (tab: 'login' | 'register') => {
     navigate(tab === 'login' ? '/login' : '/register');

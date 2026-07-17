@@ -27,6 +27,7 @@ import {
   Award,
   GraduationCap,
   Gift,
+  UploadCloud,
   Palette,
   Wand2,
   Smile,
@@ -61,12 +62,20 @@ import {
   Filter,
   RefreshCw,
   CornerDownRight,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Archive,
+  RotateCcw,
+  ArrowUp,
+  ArrowDown,
+  Star,
+  ListFilter
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { EmptyState } from '../ui/EmptyState';
 import { useToast } from '../../context/ToastContext';
 import { ExtendedStory } from './mockStoriesData';
+import { TimelineService, persistenceService, MediaService, DocumentService, DocumentSchema, ImportSchema, ImportService, LegacyProfileSchema, StorySchema } from '../../storage';
 
 interface StoryWorkspaceProps {
   story: ExtendedStory;
@@ -192,194 +201,184 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   ]);
   const [factInput, setFactInput] = useState<string>('');
 
-  // 5. TIMELINE EVENTS STATE (Mocked with richness)
-  const [timelineEvents, setTimelineEvents] = useState<LocalTimelineEvent[]>(() => {
-    const cached = localStorage.getItem(`rl_timeline_${initialStory.id}`);
-    if (cached) {
-      try { return JSON.parse(cached); } catch (e) {}
-    }
-    return [
-      {
-        id: 'evt-1',
-        year: '1944',
-        title: 'Born in Portland, Maine',
-        description: 'Elizabeth Vance is born to schoolteacher parents Arthur and Martha Miller during the peak of autumn colors.',
-        category: 'Childhood',
-        importance: 'High',
-        location: 'Mercy Hospital, Portland, ME',
-        associatedMediaIds: ['med-1'],
-        associatedPeopleIds: ['per-1', 'per-2']
-      },
-      {
-        id: 'evt-2',
-        year: '1962',
-        title: 'Matriculated at Mount Holyoke College',
-        description: 'Enrolls with a double major in Historical Literature and Art History. Begins watercolor work in her free time.',
-        category: 'Education',
-        importance: 'Medium',
-        location: 'South Hadley, MA',
-        associatedMediaIds: ['med-2'],
-        associatedPeopleIds: []
-      },
-      {
-        id: 'evt-3',
-        year: '1966',
-        title: 'Married Philip Vance & Relocated',
-        description: 'Vows exchanged in Portland, followed by relocation to Salem, MA for Philip’s first architectural residency.',
-        category: 'Family',
-        importance: 'High',
-        location: 'St. John’s Chapel, Portland, ME',
-        associatedMediaIds: ['med-3'],
-        associatedPeopleIds: ['per-3']
-      },
-      {
-        id: 'evt-4',
-        year: '1974',
-        title: 'Founded the Salem Literacy Center',
-        description: 'Converts a former bakery building into a volunteer-led classroom library. Secures municipal endowment support.',
-        category: 'Career',
-        importance: 'High',
-        location: 'Salem, MA',
-        associatedMediaIds: ['med-4'],
-        associatedPeopleIds: ['per-4']
-      },
-      {
-        id: 'evt-5',
-        year: '1982',
-        title: 'Birth of Son Robert Vance',
-        description: 'Expands the family household. Continues administrative work at the center part-time.',
-        category: 'Family',
-        importance: 'Medium',
-        location: 'Salem General Hospital',
-        associatedMediaIds: ['med-5'],
-        associatedPeopleIds: ['per-3', 'per-5']
-      },
-      {
-        id: 'evt-6',
-        year: '2008',
-        title: 'Massachusetts Educational Service Medal',
-        description: 'Formally honored at the State House by the Governor for thirty-four years of continuous civic service.',
-        category: 'Milestone',
-        importance: 'High',
-        location: 'Boston State House',
-        associatedMediaIds: ['med-6'],
-        associatedPeopleIds: ['per-3', 'per-5']
-      }
-    ];
+  // 5. TIMELINE EVENTS STATE (User-created only, persists in storage repository)
+  const [timelineEvents, setTimelineEvents] = useState<LocalTimelineEvent[]>([]);
+  const [timelineStats, setTimelineStats] = useState({
+    total: 0,
+    milestones: 0,
+    yearsCovered: 'No events',
+    recentlyUpdated: [] as any[],
+    draft: 0,
+    archived: 0
   });
+
+  // Search, Filters and Sort order states
+  const [timelineSearchQuery, setTimelineSearchQuery] = useState<string>('');
+  const [timelineCategoryFilter, setTimelineCategoryFilter] = useState<string>('All');
+  const [timelineStatusFilter, setTimelineStatusFilter] = useState<string>('Active');
+  const [timelineSortOrder, setTimelineSortOrder] = useState<'asc' | 'desc' | 'title' | 'importance'>('asc');
+  const [timelineViewMode, setTimelineViewMode] = useState<'chrono' | 'group-year' | 'group-decade' | 'milestones'>('chrono');
+
+  const handleRefreshTimeline = async () => {
+    try {
+      const events = await persistenceService.timeline.getByStoryId(initialStory.id);
+      
+      const mapped: LocalTimelineEvent[] = events.map(evt => ({
+        id: evt.id,
+        year: evt.year,
+        title: evt.title,
+        description: evt.description,
+        category: (evt.category || 'Milestone') as any,
+        importance: (evt.importance || 'Medium') as any,
+        location: evt.location || '',
+        associatedMediaIds: evt.mediaIds || [],
+        associatedPeopleIds: evt.peopleInvolved || [],
+        status: evt.status || 'Active'
+      }));
+      
+      setTimelineEvents(mapped);
+      
+      const stats = await TimelineService.getStatistics(undefined, initialStory.id);
+      setTimelineStats({
+        total: stats.total,
+        milestones: stats.milestones,
+        yearsCovered: stats.yearsCovered,
+        recentlyUpdated: stats.recentlyUpdated,
+        draft: stats.draft,
+        archived: stats.archived
+      });
+    } catch (err) {
+      console.error('Failed to refresh timeline events', err);
+    }
+  };
+
+  useEffect(() => {
+    handleRefreshTimeline();
+  }, [initialStory.id]);
 
   // Modal State for Timeline actions
   const [isTimelineModalOpen, setIsTimelineModalOpen] = useState(false);
   const [timelineModalMode, setTimelineModalMode] = useState<'create' | 'edit'>('create');
   const [activeTimelineEvent, setActiveTimelineEvent] = useState<Partial<LocalTimelineEvent>>({});
 
-  // 6. MEDIA ITEMS STATE
-  const [mediaItems, setMediaItems] = useState<LocalMediaItem[]>(() => {
-    const cached = localStorage.getItem(`rl_media_${initialStory.id}`);
-    if (cached) {
-      try { return JSON.parse(cached); } catch (e) {}
+  const filteredAndSortedEvents = useMemo(() => {
+    let list = [...timelineEvents];
+
+    // Search filter
+    if (timelineSearchQuery.trim()) {
+      const q = timelineSearchQuery.toLowerCase().trim();
+      list = list.filter(evt =>
+        evt.title.toLowerCase().includes(q) ||
+        evt.description.toLowerCase().includes(q) ||
+        (evt.location && evt.location.toLowerCase().includes(q))
+      );
     }
-    return [
-      {
-        id: 'med-1',
-        type: 'image',
-        category: 'Photo',
-        title: 'Elizabeth in Crib, 1944',
-        size: '1.4 MB',
-        uploadDate: '2026-06-12',
-        status: 'Ready',
-        tags: ['Infancy', 'Black & White', 'Maine'],
-        url: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80',
-        linkedEvents: ['evt-1'],
-        linkedChapters: ['ch-w1'],
-        favorite: true
-      },
-      {
-        id: 'med-2',
-        type: 'image',
-        category: 'Photo',
-        title: 'Mount Holyoke Campus Portrait, 1965',
-        size: '2.8 MB',
-        uploadDate: '2026-06-15',
-        status: 'Ready',
-        tags: ['College', 'Youth', 'Vocal Guide'],
-        url: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=400&q=80',
-        linkedEvents: ['evt-2'],
-        linkedChapters: ['ch-w1'],
-        favorite: false
-      },
-      {
-        id: 'med-3',
-        type: 'image',
-        category: 'Photo',
-        title: 'Wedding vows on Portland Cliffs',
-        size: '4.1 MB',
-        uploadDate: '2026-06-15',
-        status: 'Ready',
-        tags: ['Wedding', 'Vance Couple', 'Maine'],
-        url: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=400&q=80',
-        linkedEvents: ['evt-3'],
-        linkedChapters: ['ch-w2'],
-        favorite: true
-      },
-      {
-        id: 'med-4',
-        type: 'document',
-        category: 'Letter',
-        title: 'Salem Center Founding Charter',
-        size: '12.4 MB',
-        uploadDate: '2026-06-18',
-        status: 'Ready',
-        tags: ['Civic', 'Charter', 'Scan'],
-        url: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=400&q=80',
-        linkedEvents: ['evt-4'],
-        linkedChapters: ['ch-w2'],
-        favorite: false
-      },
-      {
-        id: 'med-5',
-        type: 'image',
-        category: 'Photo',
-        title: 'Robert age 2 in Sandbox',
-        size: '1.9 MB',
-        uploadDate: '2026-06-20',
-        status: 'Ready',
-        tags: ['Robert', 'Childhood', 'Salem House'],
-        url: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80',
-        linkedEvents: ['evt-5'],
-        linkedChapters: ['ch-w2'],
-        favorite: false
-      },
-      {
-        id: 'med-6',
-        type: 'image',
-        category: 'Photo',
-        title: 'Elizabeth and State Medal award',
-        size: '3.6 MB',
-        uploadDate: '2026-06-22',
-        status: 'Ready',
-        tags: ['Honor', 'Award Ceremony', 'Boston'],
-        url: 'https://images.unsplash.com/photo-1496171367470-9ed9a91ea931?auto=format&fit=crop&w=400&q=80',
-        linkedEvents: ['evt-6'],
-        linkedChapters: ['ch-w3'],
-        favorite: true
-      },
-      {
-        id: 'med-7',
-        type: 'video',
-        category: 'Clip',
-        title: 'Cape Cod Watercolor session video',
-        size: '48.9 MB',
-        uploadDate: '2026-06-25',
-        status: 'Ready',
-        tags: ['Art', 'Cape Cod', 'Home Movie'],
-        url: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=400&q=80',
-        linkedEvents: [],
-        linkedChapters: ['ch-w3'],
-        favorite: false
+
+    // Category filter
+    if (timelineCategoryFilter !== 'All') {
+      list = list.filter(evt => evt.category === timelineCategoryFilter);
+    }
+
+    // Status filter
+    if (timelineStatusFilter === 'Active') {
+      list = list.filter(evt => evt.status !== 'Archived');
+    } else if (timelineStatusFilter === 'Draft') {
+      list = list.filter(evt => evt.status === 'Draft');
+    } else if (timelineStatusFilter === 'Archived') {
+      list = list.filter(evt => evt.status === 'Archived');
+    }
+
+    // Sort
+    list.sort((a, b) => {
+      if (timelineSortOrder === 'title') {
+        return a.title.localeCompare(b.title);
       }
-    ];
-  });
+      if (timelineSortOrder === 'importance') {
+        const priority = { High: 3, Medium: 2, Low: 1 };
+        const pA = priority[a.importance || 'Medium'] || 2;
+        const pB = priority[b.importance || 'Medium'] || 2;
+        return pB - pA;
+      }
+      const yearA = parseInt(a.year) || 0;
+      const yearB = parseInt(b.year) || 0;
+      if (timelineSortOrder === 'desc') {
+        return yearB - yearA;
+      }
+      return yearA - yearB;
+    });
+
+    return list;
+  }, [timelineEvents, timelineSearchQuery, timelineCategoryFilter, timelineStatusFilter, timelineSortOrder]);
+
+  const eventsToRender = useMemo(() => {
+    let list = [...filteredAndSortedEvents];
+    if (timelineViewMode === 'milestones') {
+      list = list.filter(evt => evt.category === 'Milestone' || evt.importance === 'High');
+    }
+    return list;
+  }, [filteredAndSortedEvents, timelineViewMode]);
+
+  const groupedByYear = useMemo(() => {
+    const groups: { [year: string]: LocalTimelineEvent[] } = {};
+    eventsToRender.forEach(evt => {
+      const yr = evt.year || 'Unknown';
+      if (!groups[yr]) groups[yr] = [];
+      groups[yr].push(evt);
+    });
+    return groups;
+  }, [eventsToRender]);
+
+  const groupedByDecade = useMemo(() => {
+    const groups: { [decade: string]: LocalTimelineEvent[] } = {};
+    eventsToRender.forEach(evt => {
+      const yr = parseInt(evt.year);
+      let decade = 'Unknown Period';
+      if (!isNaN(yr)) {
+        const floorDecade = Math.floor(yr / 10) * 10;
+        decade = `${floorDecade}s`;
+      }
+      if (!groups[decade]) groups[decade] = [];
+      groups[decade].push(evt);
+    });
+    return groups;
+  }, [eventsToRender]);
+
+  // 6. MEDIA ITEMS STATE
+  const [mediaItems, setMediaItems] = useState<LocalMediaItem[]>([]);
+
+  const handleRefreshMedia = async () => {
+    try {
+      const allAssets = await persistenceService.media.getAll();
+      const storyAssets = allAssets.filter((a: any) => a.linkedStoryId === initialStory.id);
+      
+      const mapped = storyAssets.map(asset => ({
+        id: asset.id,
+        type: asset.type,
+        category: (asset.category === 'Family Photo' || asset.category === 'Portrait' || asset.category === 'Childhood') ? 'Photo' :
+                  asset.category === 'Home Video' ? 'Clip' :
+                  asset.category === 'Voice Recording' ? 'Oral Record' :
+                  asset.category === 'Letter' ? 'Letter' :
+                  asset.category === 'Certificate' ? 'Certificate' : 'Official' as const,
+        title: asset.name,
+        size: asset.size,
+        uploadDate: asset.uploadDate,
+        status: asset.status === 'Needs Metadata' ? 'Needs Scanning' : asset.status === 'Flagged' ? 'Flagged' : 'Ready' as const,
+        tags: asset.tags || [],
+        url: asset.thumbnailUrl || 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80',
+        duration: asset.duration,
+        linkedEvents: asset.linkedEvents || [],
+        linkedChapters: asset.linkedChapters || [],
+        favorite: !!asset.favorite
+      }));
+      setMediaItems(mapped);
+    } catch (err) {
+      console.error('Failed to load workspace media:', err);
+    }
+  };
+
+  useEffect(() => {
+    handleRefreshMedia();
+  }, [initialStory.id]);
 
   const [mediaFilter, setMediaFilter] = useState<'All' | 'image' | 'video' | 'audio' | 'document'>('All');
   const [mediaSearchQuery, setMediaSearchQuery] = useState<string>('');
@@ -448,6 +447,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   const [peopleSearchQuery, setPeopleSearchQuery] = useState<string>('');
 
   // 8. CAREER HISTORY STATE
+  const [careerSubTab, setCareerSubTab] = useState<'employment' | 'imports'>('imports');
   const [careerHistory, setCareerHistory] = useState<LocalCareerEntry[]>([
     {
       id: 'car-1',
@@ -486,64 +486,404 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   ]);
 
   // 9. DOCUMENTS CATALOGUE STATE
-  const [documents, setDocuments] = useState<LocalDocument[]>([
-    {
-      id: 'doc-1',
-      title: 'Massachusetts Lifetime Educational Service Medal',
-      category: 'Certificate',
-      citationPrefix: 'State Archival Record Vol 4',
-      dateStr: '2008-05-14',
-      fileSize: '4.2 MB',
-      isScanned: true,
-      notes: 'State House formal certificate verifying civic contributions.',
-      tags: ['Civic Award', 'Salem Center']
-    },
-    {
-      id: 'doc-2',
-      title: 'Curriculum Vitae: Elizabeth Vance',
-      category: 'Resume',
-      citationPrefix: 'Personal Dossier',
-      dateStr: '2011-09-01',
-      fileSize: '1.1 MB',
-      isScanned: false,
-      notes: 'Full comprehensive listing of classrooms, publications, and state grants.',
-      tags: ['Employment', 'CV']
-    },
-    {
-      id: 'doc-3',
-      title: 'Letter of Endorsement from Salem Mayor',
-      category: 'Letter',
-      citationPrefix: 'Vance Correspondence file 8',
-      dateStr: '1974-03-22',
-      fileSize: '2.5 MB',
-      isScanned: true,
-      notes: 'Formal support enabling rent-free zoning for the central facility.',
-      tags: ['Zoning', 'Political Support']
-    },
-    {
-      id: 'doc-4',
-      title: 'Watercolors Exhibit Catalogue Profile',
-      category: 'Article',
-      citationPrefix: 'Barnstable Library Press',
-      dateStr: '2016-08-10',
-      fileSize: '8.7 MB',
-      isScanned: true,
-      notes: 'Review of the "Spindrift and Dunes" solo Cape Cod art exhibit.',
-      tags: ['Cape Cod Exhibit', 'Watercolor Art']
-    }
-  ]);
-
+  const [documents, setDocuments] = useState<DocumentSchema[]>([]);
   const [documentSearchQuery, setDocumentSearchQuery] = useState<string>('');
   const [documentFilter, setDocumentFilter] = useState<string>('All');
+  const [documentSortBy, setDocumentSortBy] = useState<'recently-uploaded' | 'name' | 'size' | 'type'>('recently-uploaded');
+  const [showArchivedDocs, setShowArchivedDocs] = useState<boolean>(false);
+
+  const [previewDoc, setPreviewDoc] = useState<DocumentSchema | null>(null);
+  const [isEditingDoc, setIsEditingDoc] = useState<boolean>(false);
+  const [editDisplayName, setEditDisplayName] = useState<string>('');
+  const [editDocumentType, setEditDocumentType] = useState<string>('');
+  const [editDescription, setEditDescription] = useState<string>('');
+  const [editTags, setEditTags] = useState<string>('');
+
+  const handleOpenDocPreview = (doc: DocumentSchema) => {
+    setPreviewDoc(doc);
+    setIsEditingDoc(false);
+    setEditDisplayName(doc.displayName);
+    setEditDocumentType(doc.documentType);
+    setEditDescription(doc.description || '');
+    setEditTags((doc.tags || []).join(', '));
+  };
+
+  const handleSaveDocMetadata = async () => {
+    if (!previewDoc) return;
+    try {
+      const parsedTags = editTags.split(',').map(t => t.trim()).filter(Boolean);
+      await DocumentService.updateDocument(previewDoc.id, {
+        displayName: editDisplayName,
+        documentType: editDocumentType,
+        description: editDescription,
+        tags: parsedTags
+      });
+      showToast('success', 'Metadata Updated', 'The document credentials have been saved.');
+      await handleRefreshDocuments();
+      const updated = await persistenceService.documents.getById(previewDoc.id);
+      if (updated) {
+        setPreviewDoc(updated);
+        if (selectedInspectorItem.type === 'document' && selectedInspectorItem.id === previewDoc.id) {
+          setSelectedInspectorItem({ type: 'document', id: previewDoc.id, data: updated });
+        }
+      }
+      setIsEditingDoc(false);
+    } catch (err: any) {
+      showToast('error', 'Update Failed', err.message);
+    }
+  };
+
+  const [isDraggingDoc, setIsDraggingDoc] = useState<boolean>(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingDoc(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDraggingDoc(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingDoc(false);
+    
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    setSaveStatus('Saving...');
+    const fileList = Array.from(files) as File[];
+    for (const file of fileList) {
+      try {
+        await DocumentService.processUpload(file, {
+          profileId: initialStory.associatedProfileId || 'profile-default',
+          storyId: initialStory.id,
+          ownerId: 'user-1',
+          categories: ['Archival']
+        });
+        showToast('success', 'Document Cataloged', `"${file.name}" integrated in database.`);
+      } catch (err: any) {
+        showToast('error', 'Upload Blocked', `"${file.name}": ${err.message}`);
+      }
+    }
+    await handleRefreshDocuments();
+    setSaveStatus('Saved');
+  };
+
+  const handleRefreshDocuments = async () => {
+    try {
+      const profileId = initialStory.associatedProfileId || 'profile-default';
+
+      // Let's retrieve all documents for this profile using filter
+      let results = await persistenceService.documents.filter({
+        profileId,
+        archived: showArchivedDocs,
+        favorite: documentFilter === 'Favorites' ? true : undefined,
+        documentType: (documentFilter !== 'All' && documentFilter !== 'Favorites' && documentFilter !== 'Archived') ? documentFilter : undefined
+      });
+
+      // Apply query search locally
+      if (documentSearchQuery) {
+        const query = documentSearchQuery.toLowerCase().trim();
+        results = results.filter(doc =>
+          doc.displayName.toLowerCase().includes(query) ||
+          doc.originalFilename.toLowerCase().includes(query) ||
+          (doc.description && doc.description.toLowerCase().includes(query)) ||
+          doc.tags.some(t => t.toLowerCase().includes(query)) ||
+          doc.categories.some(c => c.toLowerCase().includes(query))
+        );
+      }
+
+      // Sort
+      results = await persistenceService.documents.sort(documentSortBy, results);
+
+      setDocuments(results);
+    } catch (err) {
+      console.error('Failed to load documents:', err);
+    }
+  };
+
+  useEffect(() => {
+    handleRefreshDocuments();
+  }, [initialStory.associatedProfileId, initialStory.id, documentFilter, documentSortBy, showArchivedDocs, documentSearchQuery]);
+
+  const handleToggleFavoriteDocument = async (id: string, fav: boolean) => {
+    try {
+      await DocumentService.favoriteDocument(id, fav);
+      showToast('success', fav ? 'Added to Favorites' : 'Removed from Favorites');
+      await handleRefreshDocuments();
+    } catch (err: any) {
+      showToast('error', 'Action Failed', err.message);
+    }
+  };
+
+  const handleArchiveDocument = async (id: string) => {
+    try {
+      await DocumentService.archiveDocument(id);
+      showToast('success', 'Document Archived', 'The file has been moved to the digital archive.');
+      await handleRefreshDocuments();
+    } catch (err: any) {
+      showToast('error', 'Archive Failed', err.message);
+    }
+  };
+
+  const handleRestoreDocument = async (id: string) => {
+    try {
+      await DocumentService.restoreDocument(id);
+      showToast('success', 'Document Restored', 'The file is now active.');
+      await handleRefreshDocuments();
+    } catch (err: any) {
+      showToast('error', 'Restore Failed', err.message);
+    }
+  };
+
+  const handleDeleteDocument = async (id: string) => {
+    if (window.confirm('Are you absolutely sure you want to permanently delete this document? This cannot be undone.')) {
+      try {
+        await DocumentService.deleteDocument(id);
+        showToast('success', 'Document Purged', 'File permanently deleted.');
+        if (selectedInspectorItem.type === 'document' && selectedInspectorItem.id === id) {
+          setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
+        }
+        await handleRefreshDocuments();
+      } catch (err: any) {
+        showToast('error', 'Delete Failed', err.message);
+      }
+    }
+  };
+
+  const handleRenameDocument = async (id: string, newName: string) => {
+    try {
+      await DocumentService.renameDocument(id, newName);
+      showToast('success', 'Document Renamed');
+      await handleRefreshDocuments();
+    } catch (err: any) {
+      showToast('error', 'Rename Failed', err.message);
+    }
+  };
+
+  const documentsFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleOpenDocumentUpload = () => {
+    documentsFileInputRef.current?.click();
+  };
+
+  const handleDocumentFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setSaveStatus('Saving...');
+    const fileList = Array.from(files) as File[];
+    for (const file of fileList) {
+      try {
+        await DocumentService.processUpload(file, {
+          profileId: initialStory.associatedProfileId || 'profile-default',
+          storyId: initialStory.id,
+          ownerId: 'user-1',
+          categories: ['Archival']
+        });
+        showToast('success', 'Document Cataloged', `"${file.name}" integrated in database.`);
+      } catch (err: any) {
+        showToast('error', 'Upload Blocked', `"${file.name}": ${err.message}`);
+      }
+    }
+    await handleRefreshDocuments();
+    setSaveStatus('Saved');
+  };
+
+  // ==========================================
+  // 10. RESUME & BIOGRAPHY IMPORTS STATE & LOGIC
+  // ==========================================
+  const [imports, setImports] = useState<ImportSchema[]>([]);
+  const [profilesList, setProfilesList] = useState<LegacyProfileSchema[]>([]);
+  const [storiesList, setStoriesList] = useState<StorySchema[]>([]);
+  const [importSearchQuery, setImportSearchQuery] = useState<string>('');
+  const [importFilter, setImportFilter] = useState<string>('All');
+  const [importSortBy, setImportSortBy] = useState<'recently-imported' | 'name' | 'size' | 'type'>('recently-imported');
+  const [showArchivedImports, setShowArchivedImports] = useState<boolean>(false);
+
+  const [previewImport, setPreviewImport] = useState<ImportSchema | null>(null);
+  const [isEditingImport, setIsEditingImport] = useState<boolean>(false);
+  const [editImportName, setEditImportName] = useState<string>('');
+  const [editImportType, setEditImportType] = useState<string>('');
+  const [editImportProfileId, setEditImportProfileId] = useState<string>('');
+  const [editImportStoryId, setEditImportStoryId] = useState<string>('');
+  const [editImportDesc, setEditImportDesc] = useState<string>('');
+  const [editImportTags, setEditImportTags] = useState<string>('');
+
+  const [isDraggingImport, setIsDraggingImport] = useState<boolean>(false);
+  const importsFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleRefreshImports = async () => {
+    try {
+      const pList = await persistenceService.profiles.getAll();
+      const sList = await persistenceService.stories.getAll();
+      setProfilesList(pList);
+      setStoriesList(sList);
+
+      const profileId = initialStory.associatedProfileId || 'profile-default';
+
+      let results = await persistenceService.imports.filter({
+        archived: showArchivedImports,
+        favorite: importFilter === 'Favorites' ? true : undefined,
+        importType: (importFilter !== 'All' && importFilter !== 'Favorites' && importFilter !== 'Archived') ? importFilter : undefined
+      });
+
+      results = results.filter(imp => imp.profileId === profileId);
+
+      if (importSearchQuery) {
+        const query = importSearchQuery.toLowerCase().trim();
+        results = results.filter(imp =>
+          imp.displayName.toLowerCase().includes(query) ||
+          imp.originalFilename.toLowerCase().includes(query) ||
+          (imp.description && imp.description.toLowerCase().includes(query)) ||
+          imp.tags.some(t => t.toLowerCase().includes(query)) ||
+          imp.categories.some(c => c.toLowerCase().includes(query))
+        );
+      }
+
+      results = await persistenceService.imports.sort(importSortBy, results);
+      setImports(results);
+    } catch (err) {
+      console.error('Failed to load imports:', err);
+    }
+  };
+
+  useEffect(() => {
+    handleRefreshImports();
+  }, [initialStory.associatedProfileId, initialStory.id, importFilter, importSortBy, showArchivedImports, importSearchQuery]);
+
+  const handleToggleFavoriteImport = async (id: string, fav: boolean) => {
+    try {
+      await ImportService.favoriteImport(id, fav);
+      showToast('success', fav ? 'Pinned as Highlight' : 'Unpinned from Highlights');
+      await handleRefreshImports();
+    } catch (err: any) {
+      showToast('error', 'Action Failed', err.message);
+    }
+  };
+
+  const handleArchiveImport = async (id: string) => {
+    try {
+      await ImportService.archiveImport(id);
+      showToast('success', 'Import Record Archived', 'The file has been deposited in the archive vault.');
+      await handleRefreshImports();
+    } catch (err: any) {
+      showToast('error', 'Archive Failed', err.message);
+    }
+  };
+
+  const handleRestoreImport = async (id: string) => {
+    try {
+      await ImportService.restoreImport(id);
+      showToast('success', 'Import Record Restored', 'The file is now active in the ledger workspace.');
+      await handleRefreshImports();
+    } catch (err: any) {
+      showToast('error', 'Restore Failed', err.message);
+    }
+  };
+
+  const handleDeleteImport = async (id: string) => {
+    if (window.confirm('Are you absolutely sure you want to permanently delete this import record? This will purge all associated base64 local storage data and cannot be undone.')) {
+      try {
+        await ImportService.deleteImport(id);
+        showToast('success', 'Import Permanently Deleted', 'Record and storage footprints successfully cleared.');
+        if (previewImport && previewImport.id === id) {
+          setPreviewImport(null);
+        }
+        await handleRefreshImports();
+      } catch (err: any) {
+        showToast('error', 'Delete Failed', err.message);
+      }
+    }
+  };
+
+  const handleOpenImportPreview = (imp: ImportSchema) => {
+    setPreviewImport(imp);
+    setIsEditingImport(false);
+    setEditImportName(imp.displayName);
+    setEditImportType(imp.importType);
+    setEditImportProfileId(imp.profileId);
+    setEditImportStoryId(imp.storyId || '');
+    setEditImportDesc(imp.description || '');
+    setEditImportTags((imp.tags || []).join(', '));
+  };
+
+  const handleSaveImportMetadata = async () => {
+    if (!previewImport) return;
+    try {
+      const parsedTags = editImportTags.split(',').map(t => t.trim()).filter(Boolean);
+      await ImportService.updateImport(previewImport.id, {
+        displayName: editImportName,
+        importType: editImportType,
+        profileId: editImportProfileId,
+        storyId: editImportStoryId || undefined,
+        description: editImportDesc,
+        tags: parsedTags
+      });
+      showToast('success', 'Import Credentials Adjusted', 'Metas and associations successfully synchronized.');
+      await handleRefreshImports();
+      const updated = await persistenceService.imports.getById(previewImport.id);
+      if (updated) {
+        setPreviewImport(updated);
+      }
+    } catch (err: any) {
+      showToast('error', 'Update Failed', err.message);
+    }
+  };
+
+  const handleOpenImportUpload = () => {
+    importsFileInputRef.current?.click();
+  };
+
+  const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setSaveStatus('Saving...');
+    const fileList = Array.from(files) as File[];
+    for (const file of fileList) {
+      try {
+        await ImportService.processUpload(file, {
+          profileId: initialStory.associatedProfileId || 'profile-default',
+          storyId: initialStory.id,
+          ownerId: 'user-1'
+        });
+        showToast('success', 'Source File Indexed', `"${file.name}" integrated in database.`);
+      } catch (err: any) {
+        showToast('error', 'Upload Blocked', `"${file.name}": ${err.message}`);
+      }
+    }
+    await handleRefreshImports();
+    setSaveStatus('Saved');
+  };
+
+  const handleImportDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingImport(false);
+    
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    setSaveStatus('Saving...');
+    const fileList = Array.from(files) as File[];
+    for (const file of fileList) {
+      try {
+        await ImportService.processUpload(file, {
+          profileId: initialStory.associatedProfileId || 'profile-default',
+          storyId: initialStory.id,
+          ownerId: 'user-1'
+        });
+        showToast('success', 'Source File Indexed', `"${file.name}" integrated in database.`);
+      } catch (err: any) {
+        showToast('error', 'Upload Blocked', `"${file.name}": ${err.message}`);
+      }
+    }
+    await handleRefreshImports();
+    setSaveStatus('Saved');
+  };
 
   // Sync to database triggers (Local persistence fallback)
-  useEffect(() => {
-    localStorage.setItem(`rl_timeline_${initialStory.id}`, JSON.stringify(timelineEvents));
-  }, [timelineEvents, initialStory.id]);
-
-  useEffect(() => {
-    localStorage.setItem(`rl_media_${initialStory.id}`, JSON.stringify(mediaItems));
-  }, [mediaItems, initialStory.id]);
 
   useEffect(() => {
     localStorage.setItem(`rl_people_${initialStory.id}`, JSON.stringify(people));
@@ -627,7 +967,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
       setActiveTimelineEvent({ ...evt });
     } else {
       setActiveTimelineEvent({
-        id: `evt-${Date.now()}`,
+        id: '',
         year: '',
         title: '',
         description: '',
@@ -640,51 +980,112 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
     setIsTimelineModalOpen(true);
   };
 
-  const handleSaveTimelineEvent = () => {
+  const handleSaveTimelineEvent = async () => {
     if (!activeTimelineEvent.year || !activeTimelineEvent.title || !activeTimelineEvent.description) {
       showToast('warning', 'Missing Details', 'Year, title, and description are required milestones.');
       return;
     }
 
-    if (timelineModalMode === 'create') {
-      const newList = [...timelineEvents, activeTimelineEvent as LocalTimelineEvent].sort(
-        (a, b) => parseInt(a.year) - parseInt(b.year)
-      );
-      setTimelineEvents(newList);
-      showToast('success', 'Event Created', `"${activeTimelineEvent.title}" added chronologically.`);
-    } else {
-      const newList = timelineEvents.map(e => e.id === activeTimelineEvent.id ? (activeTimelineEvent as LocalTimelineEvent) : e).sort(
-        (a, b) => parseInt(a.year) - parseInt(b.year)
-      );
-      setTimelineEvents(newList);
-      showToast('success', 'Event Updated', `"${activeTimelineEvent.title}" edits preserved.`);
+    try {
+      if (timelineModalMode === 'create') {
+        await TimelineService.createEvent({
+          profileId: initialStory.associatedProfileId || 'profile-default',
+          storyId: initialStory.id,
+          year: activeTimelineEvent.year,
+          title: activeTimelineEvent.title,
+          description: activeTimelineEvent.description,
+          category: activeTimelineEvent.category || 'Milestone',
+          location: activeTimelineEvent.location || '',
+          importance: activeTimelineEvent.importance || 'Medium',
+          mediaIds: activeTimelineEvent.associatedMediaIds || [],
+          peopleInvolved: activeTimelineEvent.associatedPeopleIds || [],
+          status: 'Active',
+          milestone: activeTimelineEvent.category === 'Milestone' || activeTimelineEvent.importance === 'High'
+        });
+        showToast('success', 'Event Created', `"${activeTimelineEvent.title}" added chronologically.`);
+      } else {
+        await TimelineService.updateEvent(activeTimelineEvent.id!, {
+          year: activeTimelineEvent.year,
+          title: activeTimelineEvent.title,
+          description: activeTimelineEvent.description,
+          category: activeTimelineEvent.category,
+          location: activeTimelineEvent.location,
+          importance: activeTimelineEvent.importance,
+          mediaIds: activeTimelineEvent.associatedMediaIds,
+          peopleInvolved: activeTimelineEvent.associatedPeopleIds
+        });
+        showToast('success', 'Event Updated', `"${activeTimelineEvent.title}" edits preserved.`);
+      }
+      await handleRefreshTimeline();
+      setIsTimelineModalOpen(false);
+    } catch (err: any) {
+      showToast('error', 'Operation Failed', err.message || 'Unable to save timeline event.');
     }
-    setSaveStatus('Unsaved Changes');
-    setIsTimelineModalOpen(false);
   };
 
-  const handleDeleteTimelineEvent = (id: string) => {
+  const handleDeleteTimelineEvent = async (id: string) => {
     if (confirm('Permanently remove this chronological event from the story ledger?')) {
-      const filtered = timelineEvents.filter(e => e.id !== id);
-      setTimelineEvents(filtered);
-      showToast('error', 'Event Deleted', 'Chronology point pruned.');
-      setSaveStatus('Unsaved Changes');
-      if (selectedInspectorItem.type === 'timeline' && selectedInspectorItem.id === id) {
-        setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
+      try {
+        await TimelineService.deleteEvent(id);
+        await handleRefreshTimeline();
+        showToast('error', 'Event Deleted', 'Chronology point pruned.');
+        if (selectedInspectorItem.type === 'timeline' && selectedInspectorItem.id === id) {
+          setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
+        }
+      } catch (err: any) {
+        showToast('error', 'Delete Failed', err.message);
       }
     }
   };
 
-  const handleDuplicateTimelineEvent = (evt: LocalTimelineEvent) => {
-    const copy: LocalTimelineEvent = {
-      ...evt,
-      id: `evt-copy-${Date.now()}`,
-      title: `${evt.title} (Copy)`
-    };
-    const newList = [...timelineEvents, copy].sort((a, b) => parseInt(a.year) - parseInt(b.year));
-    setTimelineEvents(newList);
-    showToast('success', 'Event Duplicated', 'Cloned milestone added.');
-    setSaveStatus('Unsaved Changes');
+  const handleDuplicateTimelineEvent = async (evt: LocalTimelineEvent) => {
+    try {
+      await TimelineService.duplicateEvent(evt.id);
+      await handleRefreshTimeline();
+      showToast('success', 'Event Duplicated', 'Cloned milestone added.');
+    } catch (err: any) {
+      showToast('error', 'Duplication Failed', err.message);
+    }
+  };
+
+  const handleReorderTimelineEvent = async (id: string, direction: 'up' | 'down') => {
+    try {
+      await TimelineService.reorderEvent(id, direction);
+      await handleRefreshTimeline();
+      showToast('success', 'Order Updated', `Chronology sequence shifted ${direction}.`);
+    } catch (err: any) {
+      showToast('error', 'Reorder Failed', err.message);
+    }
+  };
+
+  const handleArchiveTimelineEvent = async (id: string) => {
+    try {
+      await TimelineService.archiveEvent(id);
+      await handleRefreshTimeline();
+      showToast('success', 'Event Archived', 'Event moved to chronology archive.');
+    } catch (err: any) {
+      showToast('error', 'Archive Failed', err.message);
+    }
+  };
+
+  const handleRestoreTimelineEvent = async (id: string) => {
+    try {
+      await TimelineService.restoreEvent(id);
+      await handleRefreshTimeline();
+      showToast('success', 'Event Restored', 'Event restored to active chronology list.');
+    } catch (err: any) {
+      showToast('error', 'Restore Failed', err.message);
+    }
+  };
+
+  const handleToggleMilestoneEvent = async (id: string, currentMilestone: boolean) => {
+    try {
+      await TimelineService.markMilestone(id, !currentMilestone);
+      await handleRefreshTimeline();
+      showToast('success', !currentMilestone ? 'Marked Milestone' : 'Unmarked Milestone', 'Milestone priority state saved.');
+    } catch (err: any) {
+      showToast('error', 'Toggle Failed', err.message);
+    }
   };
 
   // BIOGRAPHY KEY FACTS HANDLERS
@@ -704,40 +1105,91 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   };
 
   // MEDIA ACTIONS
-  const handleToggleFavoriteMedia = (id: string) => {
-    const updated = mediaItems.map(m => m.id === id ? { ...m, favorite: !m.favorite } : m);
-    setMediaItems(updated);
+  const handleToggleFavoriteMedia = async (id: string) => {
     const item = mediaItems.find(m => m.id === id);
-    if (item) {
+    if (!item) return;
+    try {
+      await MediaService.favoriteMedia(id, !item.favorite);
+      await handleRefreshMedia();
       showToast(
         'success',
         !item.favorite ? 'Added to Favorites' : 'Removed from Favorites',
         `"${item.title}" favorited status updated.`
       );
+      setSaveStatus('Unsaved Changes');
+    } catch (err: any) {
+      showToast('error', 'Action Failed', err.message);
     }
-    setSaveStatus('Unsaved Changes');
   };
 
-  const handleDeleteMedia = (id: string) => {
+  const handleDeleteMedia = async (id: string) => {
     if (confirm('Permanently disconnect and delete this media file?')) {
-      setMediaItems(mediaItems.filter(m => m.id !== id));
-      showToast('error', 'Media Disconnected', 'Scanned image files unlinked.');
-      setSaveStatus('Unsaved Changes');
-      if (selectedInspectorItem.type === 'media' && selectedInspectorItem.id === id) {
-        setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
+      try {
+        await MediaService.deleteMedia(id);
+        await handleRefreshMedia();
+        showToast('error', 'Media Disconnected', 'Scanned image files unlinked.');
+        setSaveStatus('Unsaved Changes');
+        if (selectedInspectorItem.type === 'media' && selectedInspectorItem.id === id) {
+          setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
+        }
+      } catch (err: any) {
+        showToast('error', 'Delete Failed', err.message);
       }
     }
   };
 
-  const handleRenameMedia = (id: string) => {
+  const handleRenameMedia = async (id: string) => {
     const item = mediaItems.find(m => m.id === id);
     if (!item) return;
     const newTitle = prompt('Enter new file metadata title:', item.title);
     if (newTitle && newTitle.trim()) {
-      setMediaItems(mediaItems.map(m => m.id === id ? { ...m, title: newTitle.trim() } : m));
-      showToast('success', 'File Renamed');
-      setSaveStatus('Unsaved Changes');
+      try {
+        await MediaService.renameMedia(id, newTitle.trim());
+        await handleRefreshMedia();
+        showToast('success', 'File Renamed');
+        setSaveStatus('Unsaved Changes');
+      } catch (err: any) {
+        showToast('error', 'Rename Failed', err.message);
+      }
     }
+  };
+
+  const workspaceFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleOpenWorkspaceUpload = () => {
+    workspaceFileInputRef.current?.click();
+  };
+
+  const handleWorkspaceFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    setSaveStatus('Saving...');
+    const fileList = Array.from(files) as File[];
+    for (const file of fileList) {
+      try {
+        if (file.size > 50 * 1024 * 1024) {
+          showToast('error', 'Upload Blocked', `"${file.name}" exceeds 50MB storage limit.`);
+          continue;
+        }
+        if (file.size === 0) {
+          showToast('error', 'Upload Blocked', `"${file.name}" is an empty 0-byte file.`);
+          continue;
+        }
+
+        await MediaService.processUpload(file, {
+          profileId: initialStory.associatedProfileId || 'profile-default',
+          storyId: initialStory.id,
+          category: file.type.startsWith('image/') ? 'Portrait' : 'Family Photo',
+          description: `Uploaded for Story Workspace: ${file.name}`
+        });
+        showToast('success', 'Asset Scanned', `"${file.name}" successfully integrated.`);
+      } catch (err: any) {
+        showToast('error', 'Upload Failed', `"${file.name}": ${err.message}`);
+      }
+    }
+    await handleRefreshMedia();
+    setSaveStatus('Saved');
   };
 
   // DYNAMIC COMPUTATIONS & STATS
@@ -785,13 +1237,56 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
 
   const filteredDocuments = useMemo(() => {
     return documents.filter(doc => {
-      const matchesSearch = doc.title.toLowerCase().includes(documentSearchQuery.toLowerCase()) ||
-        doc.notes.toLowerCase().includes(documentSearchQuery.toLowerCase()) ||
+      const matchesSearch = doc.displayName.toLowerCase().includes(documentSearchQuery.toLowerCase()) ||
+        doc.description.toLowerCase().includes(documentSearchQuery.toLowerCase()) ||
         doc.tags.some(t => t.toLowerCase().includes(documentSearchQuery.toLowerCase()));
-      const matchesFilter = documentFilter === 'All' || doc.category === documentFilter;
+      const matchesFilter = documentFilter === 'All' || documentFilter === 'Favorites' || doc.documentType === documentFilter;
       return matchesSearch && matchesFilter;
     });
   }, [documents, documentSearchQuery, documentFilter]);
+
+  const filteredImports = useMemo(() => {
+    let result = imports.filter(item => {
+      // Archive filter
+      const matchesArchive = showArchivedImports ? item.archived === true : item.archived === false;
+      
+      // Category filter
+      let matchesFilter = true;
+      if (importFilter === 'Favorites') {
+        matchesFilter = item.favorite === true;
+      } else if (importFilter !== 'All') {
+        matchesFilter = item.importType === importFilter;
+      }
+      
+      // Search query
+      const matchesSearch = !importSearchQuery ||
+        item.displayName.toLowerCase().includes(importSearchQuery.toLowerCase()) ||
+        item.description.toLowerCase().includes(importSearchQuery.toLowerCase()) ||
+        item.originalFilename.toLowerCase().includes(importSearchQuery.toLowerCase()) ||
+        item.tags.some(t => t.toLowerCase().includes(importSearchQuery.toLowerCase()));
+        
+      return matchesArchive && matchesFilter && matchesSearch;
+    });
+
+    // Sorting
+    return [...result].sort((a, b) => {
+      if (importSortBy === 'name') {
+        return a.displayName.localeCompare(b.displayName);
+      } else if (importSortBy === 'size') {
+        const parseSize = (sz: string) => {
+          const val = parseFloat(sz);
+          if (sz.toUpperCase().includes('MB')) return val * 1024 * 1024;
+          if (sz.toUpperCase().includes('KB')) return val * 1024;
+          return val;
+        };
+        return parseSize(b.fileSize) - parseSize(a.fileSize);
+      } else if (importSortBy === 'type') {
+        return a.importType.localeCompare(b.importType);
+      } else {
+        return new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime();
+      }
+    });
+  }, [imports, importFilter, importSearchQuery, importSortBy, showArchivedImports]);
 
   return (
     <div className="h-full flex flex-col bg-background text-foreground overflow-hidden font-sans border border-border rounded-2xl shadow-xl" id="story-studio-workspace-container">
@@ -1431,107 +1926,497 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 </div>
 
                 {/* Timeline density, search, filters toolbar */}
-                <div className="p-4 bg-card border border-border rounded-2xl flex flex-wrap gap-4 items-center justify-between" id="timeline-toolbar">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-mono font-bold bg-muted text-muted-foreground uppercase px-2 py-0.5 rounded border border-border">
-                      {timelineEvents.length} Sequential Events
-                    </span>
-                    <span className="text-xs text-muted-foreground font-semibold">Decade Span: 1944 – 2011</span>
+                <div className="p-5 bg-card border border-border rounded-2xl space-y-4" id="timeline-toolbar">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-[10px] font-mono font-bold bg-muted text-muted-foreground uppercase px-2 py-0.5 rounded border border-border">
+                        {timelineEvents.length} Total Events
+                      </span>
+                      <span className="text-xs text-muted-foreground font-semibold">Decade Span: {timelineStats.yearsCovered}</span>
+                    </div>
+
+                    {/* View Modes Selector tabs */}
+                    <div className="flex flex-wrap items-center gap-1.5 p-1 bg-muted/60 border border-border/80 rounded-xl">
+                      {[
+                        { id: 'chrono', label: 'Chronological', icon: Calendar },
+                        { id: 'group-year', label: 'By Year', icon: ListFilter },
+                        { id: 'group-decade', label: 'By Decade', icon: Layers },
+                        { id: 'milestones', label: 'Milestones Only', icon: Star }
+                      ].map(mode => {
+                        const ModeIcon = mode.icon;
+                        return (
+                          <button
+                            key={mode.id}
+                            onClick={() => setTimelineViewMode(mode.id as any)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                              timelineViewMode === mode.id
+                                ? 'bg-card text-foreground border-border shadow-xs'
+                                : 'text-muted-foreground border-transparent hover:text-foreground'
+                            }`}
+                          >
+                            <ModeIcon className="w-3.5 h-3.5" />
+                            <span>{mode.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  {/* Filter elements */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground hidden sm:inline font-bold">Chronology Sort:</span>
-                    <select
-                      id="timeline-sort-select"
-                      className="h-8 px-2 bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none rounded-lg cursor-pointer"
-                      defaultValue="asc"
-                    >
-                      <option value="asc">Ascending (Oldest First)</option>
-                      <option value="desc">Descending (Newest First)</option>
-                    </select>
-                  </div>
-                </div>
+                  {/* Search, Filter, Sort Inputs Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/50" />
+                      <input
+                        type="text"
+                        value={timelineSearchQuery}
+                        onChange={(e) => setTimelineSearchQuery(e.target.value)}
+                        placeholder="Search title, description..."
+                        className="w-full h-9 pl-9 pr-3 bg-muted/50 border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 rounded-lg placeholder:text-muted-foreground/50"
+                      />
+                    </div>
 
-                {/* Timeline cards chronological flow */}
-                <div className="relative border-l-2 border-border pl-6 ml-4 space-y-8" id="timeline-flow-list">
-                  {timelineEvents.map((evt) => {
-                    const isSelected = selectedInspectorItem.type === 'timeline' && selectedInspectorItem.id === evt.id;
-                    return (
-                      <div
-                        key={evt.id}
-                        id={`timeline-node-${evt.id}`}
-                        onClick={() => setSelectedInspectorItem({ type: 'timeline', id: evt.id, data: evt })}
-                        className={`group relative p-5 bg-card border rounded-2xl cursor-pointer transition-all hover:shadow-md ${
-                          isSelected 
-                            ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03] ring-1 ring-cinema-amber-500' 
-                            : 'border-border hover:border-muted-foreground/30'
-                        }`}
+                    <div>
+                      <select
+                        value={timelineCategoryFilter}
+                        onChange={(e) => setTimelineCategoryFilter(e.target.value)}
+                        className="w-full h-9 px-3 bg-muted/50 border border-border text-foreground text-xs font-semibold focus:outline-none rounded-lg cursor-pointer"
                       >
-                        {/* Chronology timeline node circular dot */}
-                        <div className={`absolute -left-[31px] top-7 w-4 h-4 rounded-full border-2 transition-all ${
-                          isSelected ? 'bg-cinema-amber-500 border-background scale-110' : 'bg-background border-border group-hover:border-muted-foreground/50'
-                        }`} />
+                        <option value="All">All Categories</option>
+                        <option value="Birth">Birth</option>
+                        <option value="Childhood">Childhood</option>
+                        <option value="Education">Education</option>
+                        <option value="Graduation">Graduation</option>
+                        <option value="Employment">Employment</option>
+                        <option value="Promotion">Promotion</option>
+                        <option value="Marriage">Marriage</option>
+                        <option value="Family">Family</option>
+                        <option value="Achievement">Achievement</option>
+                        <option value="Award">Award</option>
+                        <option value="Travel">Travel</option>
+                        <option value="Relocation">Relocation</option>
+                        <option value="Milestone">Milestone</option>
+                        <option value="Retirement">Retirement</option>
+                        <option value="Custom Event">Custom Event</option>
+                      </select>
+                    </div>
 
-                        {/* Event details */}
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2.5">
-                              <span className="text-sm font-black font-mono text-cinema-amber-600 dark:text-cinema-amber-400">
-                                {evt.year}
-                              </span>
-                              <span className="text-[10px] font-mono font-bold uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
-                                {evt.category}
-                              </span>
-                              <span className={`text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded ${
-                                evt.importance === 'High' 
-                                  ? 'bg-red-500/10 text-red-400 border border-red-500/15'
-                                  : 'bg-muted text-muted-foreground border border-border/80'
-                              }`}>
-                                {evt.importance} Priority
-                              </span>
-                            </div>
+                    <div>
+                      <select
+                        value={timelineStatusFilter}
+                        onChange={(e) => setTimelineStatusFilter(e.target.value)}
+                        className="w-full h-9 px-3 bg-muted/50 border border-border text-foreground text-xs font-semibold focus:outline-none rounded-lg cursor-pointer"
+                      >
+                        <option value="Active">Active Events</option>
+                        <option value="Draft">Drafts Only</option>
+                        <option value="Archived">Archived Only</option>
+                      </select>
+                    </div>
 
-                            <h4 className="text-xs font-black text-foreground">{evt.title}</h4>
-                            <p className="text-[11px] text-muted-foreground leading-relaxed font-semibold max-w-2xl">{evt.description}</p>
-                            
-                            {evt.location && (
-                              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono pt-1">
-                                <MapPin className="w-3 h-3 text-muted-foreground" />
-                                <span>{evt.location}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Quick Edit/Delete action bar */}
-                          <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 bg-muted/40 p-1 rounded-lg border border-border opacity-60 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleOpenTimelineModal('edit', evt); }}
-                              className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                              title="Edit event"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleDuplicateTimelineEvent(evt); }}
-                              className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                              title="Duplicate"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleDeleteTimelineEvent(evt.id); }}
-                              className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
-                              title="Delete event"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                    <div>
+                      <select
+                        value={timelineSortOrder}
+                        onChange={(e) => setTimelineSortOrder(e.target.value as any)}
+                        className="w-full h-9 px-3 bg-muted/50 border border-border text-foreground text-xs font-semibold focus:outline-none rounded-lg cursor-pointer"
+                      >
+                        <option value="asc">Sort: Oldest First</option>
+                        <option value="desc">Sort: Newest First</option>
+                        <option value="title">Sort: Alphabetical</option>
+                        <option value="importance">Sort: High Priority First</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Timeline empty state check */}
+                {eventsToRender.length === 0 ? (
+                  <EmptyState
+                    id="timeline-empty-state"
+                    title="No Timeline Events Found"
+                    description="This biographical story's chronology is empty or no events match your filter options. Create your first timeline event, log an elegant life milestone, or try adjusting your search/filters."
+                    primaryActionLabel="Create First Event"
+                    onPrimaryAction={() => handleOpenTimelineModal('create')}
+                    secondaryActionLabel="Learn About Timelines"
+                    onSecondaryAction={() => showToast('info', 'Guided Entry Help', 'Timelines structure chronological highlights such as Birth, Education, Marriage or Community Service to create a cohesive narrative.')}
+                  />
+                ) : (
+                  <div>
+                    {/* Render standard chronological list */}
+                    {(timelineViewMode === 'chrono' || timelineViewMode === 'milestones') && (
+                      <div className="relative border-l-2 border-border pl-6 ml-4 space-y-8" id="timeline-flow-list">
+                        {eventsToRender.map((evt) => {
+                          const isSelected = selectedInspectorItem.type === 'timeline' && selectedInspectorItem.id === evt.id;
+                          const isArchived = evt.status === 'Archived';
+                          const isMilestone = evt.category === 'Milestone' || evt.importance === 'High' || evt.status === 'Milestone';
+                          return (
+                            <div
+                              key={evt.id}
+                              id={`timeline-node-${evt.id}`}
+                              onClick={() => setSelectedInspectorItem({ type: 'timeline', id: evt.id, data: evt })}
+                              className={`group relative p-5 bg-card border rounded-2xl cursor-pointer transition-all hover:shadow-md ${
+                                isSelected 
+                                  ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03] ring-1 ring-cinema-amber-500' 
+                                  : isArchived
+                                    ? 'border-border/60 opacity-60 bg-muted/20'
+                                    : 'border-border hover:border-muted-foreground/30'
+                              }`}
+                            >
+                              <div className={`absolute -left-[31px] top-7 w-4 h-4 rounded-full border-2 transition-all ${
+                                isSelected ? 'bg-cinema-amber-500 border-background scale-110' : 'bg-background border-border group-hover:border-muted-foreground/50'
+                              }`} />
+
+                              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                <div className="space-y-1.5 flex-grow">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-black font-mono text-cinema-amber-600 dark:text-cinema-amber-400">
+                                      {evt.year}
+                                    </span>
+                                    <span className="text-[10px] font-mono font-bold uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
+                                      {evt.category}
+                                    </span>
+                                    <span className={`text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded ${
+                                      evt.importance === 'High' 
+                                        ? 'bg-red-500/10 text-red-400 border border-red-500/15'
+                                        : 'bg-muted text-muted-foreground border border-border/80'
+                                    }`}>
+                                      {evt.importance} Priority
+                                    </span>
+                                    {isArchived && (
+                                      <span className="text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/15">
+                                        Archived
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <h4 className="text-xs font-black text-foreground flex items-center gap-1.5">
+                                    {evt.title}
+                                    {isMilestone && <Star className="w-3.5 h-3.5 text-cinema-amber-500 fill-cinema-amber-500" />}
+                                  </h4>
+                                  <p className="text-[11px] text-muted-foreground leading-relaxed font-semibold max-w-2xl">{evt.description}</p>
+                                  
+                                  {evt.location && (
+                                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono pt-1">
+                                      <MapPin className="w-3 h-3 text-muted-foreground" />
+                                      <span>{evt.location}</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 bg-muted/40 p-1 rounded-lg border border-border opacity-60 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'up'); }}
+                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                    title="Move Up"
+                                  >
+                                    <ArrowUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'down'); }}
+                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                    title="Move Down"
+                                  >
+                                    <ArrowDown className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleToggleMilestoneEvent(evt.id, isMilestone); }}
+                                    className={`p-1 rounded cursor-pointer ${isMilestone ? 'text-cinema-amber-500 hover:text-cinema-amber-600' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
+                                    title={isMilestone ? 'Unmark Milestone' : 'Mark Milestone'}
+                                  >
+                                    <Star className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleOpenTimelineModal('edit', evt); }}
+                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                    title="Edit event"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDuplicateTimelineEvent(evt); }}
+                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                    title="Duplicate"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); isArchived ? handleRestoreTimelineEvent(evt.id) : handleArchiveTimelineEvent(evt.id); }}
+                                    className={`p-1 rounded cursor-pointer ${isArchived ? 'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
+                                    title={isArchived ? 'Restore' : 'Archive'}
+                                  >
+                                    {isArchived ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteTimelineEvent(evt.id); }}
+                                    className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
+                                    title="Delete event"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Render grouped by Year list */}
+                    {timelineViewMode === 'group-year' && (
+                      <div className="space-y-8" id="timeline-flow-list-year">
+                        {Object.keys(groupedByYear).sort((a,b) => {
+                          const numA = parseInt(a) || 0;
+                          const numB = parseInt(b) || 0;
+                          return timelineSortOrder === 'desc' ? numB - numA : numA - numB;
+                        }).map(year => (
+                          <div key={year} className="space-y-4">
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-black font-mono text-cinema-amber-500 bg-cinema-amber-500/10 px-3 py-1 rounded-lg border border-cinema-amber-500/25">
+                                Year {year}
+                              </span>
+                              <div className="h-px bg-border flex-grow" />
+                            </div>
+                            <div className="relative border-l-2 border-border pl-6 ml-4 space-y-6">
+                              {groupedByYear[year].map(evt => {
+                                const isSelected = selectedInspectorItem.type === 'timeline' && selectedInspectorItem.id === evt.id;
+                                const isArchived = evt.status === 'Archived';
+                                const isMilestone = evt.category === 'Milestone' || evt.importance === 'High' || evt.status === 'Milestone';
+                                return (
+                                  <div
+                                    key={evt.id}
+                                    onClick={() => setSelectedInspectorItem({ type: 'timeline', id: evt.id, data: evt })}
+                                    className={`group relative p-5 bg-card border rounded-2xl cursor-pointer transition-all hover:shadow-md ${
+                                      isSelected 
+                                        ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03] ring-1 ring-cinema-amber-500' 
+                                        : isArchived
+                                          ? 'border-border/60 opacity-60 bg-muted/20'
+                                          : 'border-border hover:border-muted-foreground/30'
+                                    }`}
+                                  >
+                                    <div className={`absolute -left-[31px] top-7 w-4 h-4 rounded-full border-2 transition-all ${
+                                      isSelected ? 'bg-cinema-amber-500 border-background scale-110' : 'bg-background border-border group-hover:border-muted-foreground/50'
+                                    }`} />
+                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                      <div className="space-y-1.5 flex-grow">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="text-[10px] font-mono font-bold uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
+                                            {evt.category}
+                                          </span>
+                                          <span className={`text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded ${
+                                            evt.importance === 'High' 
+                                              ? 'bg-red-500/10 text-red-400 border border-red-500/15'
+                                              : 'bg-muted text-muted-foreground border border-border/80'
+                                          }`}>
+                                            {evt.importance} Priority
+                                          </span>
+                                          {isArchived && (
+                                            <span className="text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/15">
+                                              Archived
+                                            </span>
+                                          )}
+                                        </div>
+                                        <h4 className="text-xs font-black text-foreground flex items-center gap-1.5">
+                                          {evt.title}
+                                          {isMilestone && <Star className="w-3.5 h-3.5 text-cinema-amber-500 fill-cinema-amber-500" />}
+                                        </h4>
+                                        <p className="text-[11px] text-muted-foreground leading-relaxed font-semibold max-w-2xl">{evt.description}</p>
+                                        {evt.location && (
+                                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono pt-1">
+                                            <MapPin className="w-3 h-3 text-muted-foreground" />
+                                            <span>{evt.location}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 bg-muted/40 p-1 rounded-lg border border-border opacity-60 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'up'); }}
+                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                          title="Move Up"
+                                        >
+                                          <ArrowUp className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'down'); }}
+                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                          title="Move Down"
+                                        >
+                                          <ArrowDown className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleToggleMilestoneEvent(evt.id, isMilestone); }}
+                                          className={`p-1 rounded cursor-pointer ${isMilestone ? 'text-cinema-amber-500 hover:text-cinema-amber-600' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
+                                          title={isMilestone ? 'Unmark Milestone' : 'Mark Milestone'}
+                                        >
+                                          <Star className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleOpenTimelineModal('edit', evt); }}
+                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                          title="Edit event"
+                                        >
+                                          <Edit2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleDuplicateTimelineEvent(evt); }}
+                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                          title="Duplicate"
+                                        >
+                                          <Copy className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); isArchived ? handleRestoreTimelineEvent(evt.id) : handleArchiveTimelineEvent(evt.id); }}
+                                          className={`p-1 rounded cursor-pointer ${isArchived ? 'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
+                                          title={isArchived ? 'Restore' : 'Archive'}
+                                        >
+                                          {isArchived ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleDeleteTimelineEvent(evt.id); }}
+                                          className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
+                                          title="Delete event"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Render grouped by Decade list */}
+                    {timelineViewMode === 'group-decade' && (
+                      <div className="space-y-8" id="timeline-flow-list-decade">
+                        {Object.keys(groupedByDecade).sort((a,b) => {
+                          const numA = parseInt(a) || 0;
+                          const numB = parseInt(b) || 0;
+                          return timelineSortOrder === 'desc' ? numB - numA : numA - numB;
+                        }).map(decade => (
+                          <div key={decade} className="space-y-4">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs font-black uppercase tracking-wider font-mono text-cinema-amber-400 bg-muted border border-border px-3 py-1 rounded-lg">
+                                The {decade} Decade
+                              </span>
+                              <div className="h-px bg-border flex-grow" />
+                            </div>
+                            <div className="relative border-l-2 border-border pl-6 ml-4 space-y-6">
+                              {groupedByDecade[decade].map(evt => {
+                                const isSelected = selectedInspectorItem.type === 'timeline' && selectedInspectorItem.id === evt.id;
+                                const isArchived = evt.status === 'Archived';
+                                const isMilestone = evt.category === 'Milestone' || evt.importance === 'High' || evt.status === 'Milestone';
+                                return (
+                                  <div
+                                    key={evt.id}
+                                    onClick={() => setSelectedInspectorItem({ type: 'timeline', id: evt.id, data: evt })}
+                                    className={`group relative p-5 bg-card border rounded-2xl cursor-pointer transition-all hover:shadow-md ${
+                                      isSelected 
+                                        ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03] ring-1 ring-cinema-amber-500' 
+                                        : isArchived
+                                          ? 'border-border/60 opacity-60 bg-muted/20'
+                                          : 'border-border hover:border-muted-foreground/30'
+                                    }`}
+                                  >
+                                    <div className={`absolute -left-[31px] top-7 w-4 h-4 rounded-full border-2 transition-all ${
+                                      isSelected ? 'bg-cinema-amber-500 border-background scale-110' : 'bg-background border-border group-hover:border-muted-foreground/50'
+                                    }`} />
+                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                      <div className="space-y-1.5 flex-grow">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="text-sm font-black font-mono text-cinema-amber-600 dark:text-cinema-amber-400">
+                                            {evt.year}
+                                          </span>
+                                          <span className="text-[10px] font-mono font-bold uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
+                                            {evt.category}
+                                          </span>
+                                          <span className={`text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded ${
+                                            evt.importance === 'High' 
+                                              ? 'bg-red-500/10 text-red-400 border border-red-500/15'
+                                              : 'bg-muted text-muted-foreground border border-border/80'
+                                          }`}>
+                                            {evt.importance} Priority
+                                          </span>
+                                          {isArchived && (
+                                            <span className="text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/15">
+                                              Archived
+                                            </span>
+                                          )}
+                                        </div>
+                                        <h4 className="text-xs font-black text-foreground flex items-center gap-1.5">
+                                          {evt.title}
+                                          {isMilestone && <Star className="w-3.5 h-3.5 text-cinema-amber-500 fill-cinema-amber-500" />}
+                                        </h4>
+                                        <p className="text-[11px] text-muted-foreground leading-relaxed font-semibold max-w-2xl">{evt.description}</p>
+                                        {evt.location && (
+                                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono pt-1">
+                                            <MapPin className="w-3 h-3 text-muted-foreground" />
+                                            <span>{evt.location}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 bg-muted/40 p-1 rounded-lg border border-border opacity-60 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'up'); }}
+                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                          title="Move Up"
+                                        >
+                                          <ArrowUp className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'down'); }}
+                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                          title="Move Down"
+                                        >
+                                          <ArrowDown className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleToggleMilestoneEvent(evt.id, isMilestone); }}
+                                          className={`p-1 rounded cursor-pointer ${isMilestone ? 'text-cinema-amber-500 hover:text-cinema-amber-600' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
+                                          title={isMilestone ? 'Unmark Milestone' : 'Mark Milestone'}
+                                        >
+                                          <Star className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleOpenTimelineModal('edit', evt); }}
+                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                          title="Edit event"
+                                        >
+                                          <Edit2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleDuplicateTimelineEvent(evt); }}
+                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
+                                          title="Duplicate"
+                                        >
+                                          <Copy className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); isArchived ? handleRestoreTimelineEvent(evt.id) : handleArchiveTimelineEvent(evt.id); }}
+                                          className={`p-1 rounded cursor-pointer ${isArchived ? 'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
+                                          title={isArchived ? 'Restore' : 'Archive'}
+                                        >
+                                          {isArchived ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleDeleteTimelineEvent(evt.id); }}
+                                          className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
+                                          title="Delete event"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -1555,115 +2440,144 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                     </p>
                   </div>
 
-                  <div className="p-1.5 bg-muted rounded-xl border border-border flex items-center gap-1 shrink-0 self-start sm:self-auto">
-                    {[
-                      { id: 'All', label: 'All Files' },
-                      { id: 'image', label: 'Photos' },
-                      { id: 'video', label: 'Videos' },
-                      { id: 'document', label: 'Letters' }
-                    ].map(tab => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setMediaFilter(tab.id as any)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          mediaFilter === tab.id 
-                            ? 'bg-card text-foreground border border-border shadow-xs' 
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-3 self-start sm:self-auto">
+                    <input
+                      type="file"
+                      ref={workspaceFileInputRef}
+                      className="hidden"
+                      multiple
+                      onChange={handleWorkspaceFileChange}
+                      accept="image/*,video/*,audio/*,application/pdf"
+                    />
+                    <button
+                      onClick={handleOpenWorkspaceUpload}
+                      className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-400 text-black font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer uppercase tracking-wider"
+                    >
+                      <Plus className="w-4 h-4 stroke-[2.5]" /> Upload Asset
+                    </button>
+
+                    <div className="p-1.5 bg-muted rounded-xl border border-border flex items-center gap-1 shrink-0">
+                      {[
+                        { id: 'All', label: 'All Files' },
+                        { id: 'image', label: 'Photos' },
+                        { id: 'video', label: 'Videos' },
+                        { id: 'document', label: 'Letters' }
+                      ].map(tab => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setMediaFilter(tab.id as any)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            mediaFilter === tab.id 
+                              ? 'bg-card text-foreground border border-border shadow-xs' 
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
                 {/* Grid container of files */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5" id="media-asset-grid">
-                  {filteredMedia.map((media) => {
-                    const isSelected = selectedInspectorItem.type === 'media' && selectedInspectorItem.id === media.id;
-                    return (
-                      <div
-                        key={media.id}
-                        id={`media-card-${media.id}`}
-                        onClick={() => setSelectedInspectorItem({ type: 'media', id: media.id, data: media })}
-                        className={`group border rounded-2xl overflow-hidden bg-card cursor-pointer flex flex-col justify-between relative shadow-sm hover:shadow-md transition-all h-[240px] ${
-                          isSelected 
-                            ? 'border-cinema-amber-500 ring-1 ring-cinema-amber-500' 
-                            : 'border-border hover:border-muted-foreground/30'
-                        }`}
-                      >
-                        {/* Media Cover Preview */}
-                        <div className="h-28 w-full relative overflow-hidden bg-muted">
-                          <img
-                            src={media.url}
-                            alt=""
-                            className="w-full h-full object-cover grayscale-15 group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                            referrerPolicy="no-referrer"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                          
-                          {/* File Type badge */}
-                          <span className="absolute top-2.5 left-2.5 inline-flex items-center text-[8px] font-mono font-bold bg-black/60 text-cinema-amber-400 border border-cinema-amber-500/20 px-1.5 py-0.5 rounded-md uppercase">
-                            {media.category}
-                          </span>
+                {filteredMedia.length === 0 ? (
+                  <div className="py-12 border border-dashed border-border rounded-2xl flex items-center justify-center bg-card/25" id="media-empty-placeholder">
+                    <EmptyState
+                      type="media"
+                      title="No Archival Media Found"
+                      description="To construct your legacy story's visual timeline, upload scanned files, photographs, or official letters."
+                      primaryActionLabel="Upload First Asset"
+                      onPrimaryAction={handleOpenWorkspaceUpload}
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5" id="media-asset-grid">
+                    {filteredMedia.map((media) => {
+                      const isSelected = selectedInspectorItem.type === 'media' && selectedInspectorItem.id === media.id;
+                      return (
+                        <div
+                          key={media.id}
+                          id={`media-card-${media.id}`}
+                          onClick={() => setSelectedInspectorItem({ type: 'media', id: media.id, data: media })}
+                          className={`group border rounded-2xl overflow-hidden bg-card cursor-pointer flex flex-col justify-between relative shadow-sm hover:shadow-md transition-all h-[240px] ${
+                            isSelected 
+                              ? 'border-cinema-amber-500 ring-1 ring-cinema-amber-500' 
+                              : 'border-border hover:border-muted-foreground/30'
+                          }`}
+                        >
+                          {/* Media Cover Preview */}
+                          <div className="h-28 w-full relative overflow-hidden bg-muted">
+                            <img
+                              src={media.url}
+                              alt=""
+                              className="w-full h-full object-cover grayscale-15 group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+                            
+                            {/* File Type badge */}
+                            <span className="absolute top-2.5 left-2.5 inline-flex items-center text-[8px] font-mono font-bold bg-black/60 text-cinema-amber-400 border border-cinema-amber-500/20 px-1.5 py-0.5 rounded-md uppercase">
+                              {media.category}
+                            </span>
 
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleToggleFavoriteMedia(media.id); }}
-                            className={`absolute top-2.5 right-2.5 p-1 rounded bg-black/40 border border-white/5 cursor-pointer hover:bg-black/65 transition-colors ${
-                              media.favorite ? 'text-cinema-amber-500' : 'text-white/55 hover:text-white'
-                            }`}
-                          >
-                            <Bookmark className="w-3.5 h-3.5 stroke-[2.5]" />
-                          </button>
-                        </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleToggleFavoriteMedia(media.id); }}
+                              className={`absolute top-2.5 right-2.5 p-1 rounded bg-black/40 border border-white/5 cursor-pointer hover:bg-black/65 transition-colors ${
+                                media.favorite ? 'text-cinema-amber-500' : 'text-white/55 hover:text-white'
+                              }`}
+                            >
+                              <Bookmark className="w-3.5 h-3.5 stroke-[2.5]" />
+                            </button>
+                          </div>
 
-                        {/* Title & Metadata Details */}
-                        <div className="p-4 flex-grow flex flex-col justify-between">
-                          <div>
-                            <h4 className="text-xs font-black text-foreground truncate max-w-[200px]" title={media.title}>
-                              {media.title}
-                            </h4>
-                            <div className="flex items-center gap-1.5 font-mono text-[9px] text-muted-foreground mt-0.5 font-bold uppercase">
-                              <span>Size: {media.size}</span>
-                              <span>•</span>
-                              <span>Scanned: {media.uploadDate}</span>
+                          {/* Title & Metadata Details */}
+                          <div className="p-4 flex-grow flex flex-col justify-between">
+                            <div>
+                              <h4 className="text-xs font-black text-foreground truncate max-w-[200px]" title={media.title}>
+                                {media.title}
+                              </h4>
+                              <div className="flex items-center gap-1.5 font-mono text-[9px] text-muted-foreground mt-0.5 font-bold uppercase">
+                                <span>Size: {media.size}</span>
+                                <span>•</span>
+                                <span>Scanned: {media.uploadDate}</span>
+                              </div>
+                            </div>
+
+                            {/* Tags row */}
+                            <div className="flex flex-wrap gap-1 pt-1.5 max-h-12 overflow-hidden">
+                              {media.tags.map((tg, idx) => (
+                                <span key={idx} className="text-[9px] font-mono font-bold text-muted-foreground bg-muted border border-border px-1.5 py-0.2 rounded">
+                                  #{tg}
+                                </span>
+                              ))}
                             </div>
                           </div>
 
-                          {/* Tags row */}
-                          <div className="flex flex-wrap gap-1 pt-1.5 max-h-12 overflow-hidden">
-                            {media.tags.map((tg, idx) => (
-                              <span key={idx} className="text-[9px] font-mono font-bold text-muted-foreground bg-muted border border-border px-1.5 py-0.2 rounded">
-                                #{tg}
-                              </span>
-                            ))}
+                          {/* Actions footer */}
+                          <div className="px-4 py-2.5 bg-muted/30 border-t border-border flex items-center justify-between text-[10px] font-mono text-muted-foreground font-bold shrink-0">
+                            <span>{media.linkedEvents.length} Linked Milestones</span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRenameMedia(media.id); }}
+                                className="p-1 hover:text-foreground hover:bg-muted rounded"
+                                title="Rename metadata"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteMedia(media.id); }}
+                                className="p-1 hover:text-red-500 hover:bg-red-500/10 rounded"
+                                title="Delete file"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
                         </div>
-
-                        {/* Actions footer */}
-                        <div className="px-4 py-2.5 bg-muted/30 border-t border-border flex items-center justify-between text-[10px] font-mono text-muted-foreground font-bold shrink-0">
-                          <span>{media.linkedEvents.length} Linked Milestones</span>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleRenameMedia(media.id); }}
-                              className="p-1 hover:text-foreground hover:bg-muted rounded"
-                              title="Rename metadata"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleDeleteMedia(media.id); }}
-                              className="p-1 hover:text-red-500 hover:bg-red-500/10 rounded"
-                              title="Delete file"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -1755,97 +2669,358 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6"
+                className="p-6 md:p-8 space-y-6 relative"
                 id="pane-career"
+                onDragOver={(e) => { e.preventDefault(); setIsDraggingImport(true); }}
+                onDragLeave={() => setIsDraggingImport(false)}
+                onDrop={handleImportDrop}
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                {/* Hidden File Input */}
+                <input
+                  type="file"
+                  ref={importsFileInputRef}
+                  onChange={handleImportFileChange}
+                  className="hidden"
+                  multiple
+                  accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
+                />
+
+                {/* Drag and Drop Hover Overlay */}
+                {isDraggingImport && (
+                  <div className="absolute inset-4 z-40 bg-background/95 backdrop-blur-xs border-2 border-dashed border-cinema-amber-500 rounded-2xl flex flex-col items-center justify-center space-y-4 pointer-events-none animate-fade-in">
+                    <div className="w-16 h-16 rounded-full bg-cinema-amber-500/10 flex items-center justify-center text-cinema-amber-500">
+                      <FileText className="w-8 h-8 animate-bounce" />
+                    </div>
+                    <div className="text-center">
+                      <h4 className="font-bold text-foreground text-sm uppercase">Drop your files here</h4>
+                      <p className="text-xs text-muted-foreground mt-1">Accepts PDFs, CVs, Memoirs & Notes up to 50MB</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Header Row */}
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                   <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                      <Briefcase className="w-4 h-4 text-cinema-amber-500" /> Career Retrospective & Employment Ledger
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                        <Briefcase className="w-4 h-4 text-cinema-amber-500" /> Career Retrospective & Credentials Sandbox
+                      </h3>
+                      <span className="text-[10px] font-mono font-bold bg-cinema-amber-500/15 text-cinema-amber-500 px-1.5 py-0.5 rounded border border-cinema-amber-500/20 uppercase">
+                        {imports.length} Sources Loaded
+                      </span>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Log corporate foundations, promotions, and pedagogical work. Prepared for future smart resume parsing.
+                      Log corporate history manually or import credentials (Resumes, CVs, Biographies, memoirs, and diaries) to organize local timeline points.
                     </p>
                   </div>
-                </div>
 
-                <div className="p-4 bg-indigo-950/20 border border-indigo-500/20 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
-                  <div className="space-y-0.5">
-                    <strong className="font-bold text-indigo-400 block uppercase tracking-wider text-[10px]">Resume Import Sandbox Placeholder</strong>
-                    <p className="text-indigo-300/80 font-semibold">Bulk upload PDFs or Word documents to auto-populate employment dates and key skills.</p>
-                  </div>
-                  <Button
-                    id="btn-fake-import-resume"
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => showToast('info', 'Resume Parser', 'Resume import engine will compile in the next development stage.')}
-                    className="border border-indigo-500/30 hover:bg-indigo-500/5 text-indigo-400 text-xs py-2 px-3 h-auto shrink-0 self-start sm:self-auto"
-                  >
-                    Import Resume PDF
-                  </Button>
-                </div>
-
-                <div className="space-y-6" id="career-timeline">
-                  {careerHistory.map((job) => {
-                    const isSelected = selectedInspectorItem.type === 'career' && selectedInspectorItem.id === job.id;
-                    return (
-                      <div
-                        key={job.id}
-                        onClick={() => setSelectedInspectorItem({ type: 'career', id: job.id, data: job })}
-                        className={`p-5 bg-card border rounded-2xl cursor-pointer hover:shadow-md transition-all space-y-3 ${
-                          isSelected 
-                            ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03]' 
-                            : 'border-border hover:border-muted-foreground/30'
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto">
+                    {/* Switcher Tabs */}
+                    <div className="p-1.5 bg-muted rounded-xl border border-border flex items-center gap-1">
+                      <button
+                        onClick={() => setCareerSubTab('imports')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          careerSubTab === 'imports'
+                            ? 'bg-card text-foreground border border-border shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground'
                         }`}
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 text-xs">
-                          <div>
-                            <span className="font-mono text-cinema-amber-600 dark:text-cinema-amber-400 font-bold block">{job.years}</span>
-                            <h4 className="text-sm font-black text-foreground mt-0.5">{job.position}</h4>
-                            <span className="text-muted-foreground font-semibold flex items-center gap-1">
-                              <Building className="w-3.5 h-3.5 text-muted-foreground" /> {job.company} — {job.location}
-                            </span>
-                          </div>
-                          {job.promotions && (
-                            <span className="text-[10px] font-mono font-bold uppercase bg-muted border border-border text-muted-foreground px-2 py-0.5 rounded-md self-start">
-                              {job.promotions}
-                            </span>
+                        <FileText className="w-3.5 h-3.5" />
+                        Source Imports ({imports.length})
+                      </button>
+                      <button
+                        onClick={() => setCareerSubTab('employment')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          careerSubTab === 'employment'
+                            ? 'bg-card text-foreground border border-border shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <Building className="w-3.5 h-3.5" />
+                        Employment Ledger ({careerHistory.length})
+                      </button>
+                    </div>
+
+                    {careerSubTab === 'imports' && (
+                      <button
+                        onClick={handleOpenImportUpload}
+                        className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-600 active:scale-98 text-slate-950 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm h-[38px]"
+                      >
+                        <Plus className="w-4 h-4 stroke-[3]" />
+                        Upload Source
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sub Tab: IMPORTS WORKSPACE */}
+                {careerSubTab === 'imports' && (
+                  <div className="space-y-6">
+                    {/* Drag & Drop prompt zone */}
+                    <div
+                      onClick={handleOpenImportUpload}
+                      className="border-2 border-dashed border-border hover:border-cinema-amber-500/50 bg-card hover:bg-muted/10 p-8 rounded-2xl cursor-pointer text-center space-y-3 transition-all"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-cinema-amber-500/10 flex items-center justify-center text-cinema-amber-500 mx-auto">
+                        <UploadCloud className="w-6 h-6" />
+                      </div>
+                      <div className="max-w-md mx-auto space-y-1">
+                        <h4 className="text-sm font-black text-foreground uppercase tracking-wide">
+                          Drag & drop source files here
+                        </h4>
+                        <p className="text-xs text-muted-foreground font-semibold leading-relaxed">
+                          Bulk drop PDFs, CV documents, text biography drafts, or scanned images. Your files are processed entirely in the browser and saved locally.
+                        </p>
+                      </div>
+                      <div className="flex justify-center gap-2 text-[10px] font-mono text-muted-foreground font-bold">
+                        <span className="bg-muted px-2 py-0.5 rounded border border-border/60">PDF</span>
+                        <span className="bg-muted px-2 py-0.5 rounded border border-border/60">TXT</span>
+                        <span className="bg-muted px-2 py-0.5 rounded border border-border/60">IMAGE</span>
+                        <span className="bg-muted px-2 py-0.5 rounded border border-border/60">DOCX</span>
+                      </div>
+                    </div>
+
+                    {/* Filter and Search controls */}
+                    <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-muted/40 p-3 rounded-2xl border border-border/80">
+                      <div className="flex flex-wrap items-center gap-1 w-full lg:w-auto">
+                        {['All', 'Resume / CV', 'Biography', 'Memoir', 'Personal Notes', 'Favorites'].map(cat => (
+                          <button
+                            key={cat}
+                            onClick={() => setImportFilter(cat)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              importFilter === cat 
+                                ? 'bg-card text-foreground border border-border shadow-xs' 
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            {cat === 'All' ? 'All Formats' : cat}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+                        {/* Search Input */}
+                        <div className="relative w-full sm:w-64">
+                          <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+                          <input
+                            type="text"
+                            placeholder="Search imports..."
+                            value={importSearchQuery}
+                            onChange={(e) => setImportSearchQuery(e.target.value)}
+                            className="w-full bg-card border border-border rounded-xl pl-9 pr-8 py-1.5 text-xs focus:outline-none focus:border-cinema-amber-500 font-medium"
+                          />
+                          {importSearchQuery && (
+                            <button
+                              onClick={() => setImportSearchQuery('')}
+                              className="absolute right-2 top-2 p-0.5 hover:bg-muted rounded-full text-muted-foreground hover:text-foreground cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
                           )}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-2 border-t border-border/50">
-                          <div className="space-y-2">
-                            <span className="font-bold uppercase tracking-wider text-[10px] text-muted-foreground font-mono">Daily Responsibilities</span>
-                            <ul className="list-disc list-inside space-y-1 text-muted-foreground leading-relaxed font-semibold">
-                              {job.responsibilities.map((resp, idx) => (
-                                <li key={idx} className="truncate max-w-[340px]">{resp}</li>
-                              ))}
-                            </ul>
-                          </div>
+                        {/* Sort Dropdown */}
+                        <select
+                          value={importSortBy}
+                          onChange={(e: any) => setImportSortBy(e.target.value)}
+                          className="bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-cinema-amber-500 font-bold text-foreground cursor-pointer"
+                        >
+                          <option value="recently-uploaded">Recently Added</option>
+                          <option value="name">Sort by Name</option>
+                          <option value="size">Sort by Size</option>
+                          <option value="type">Sort by Type</option>
+                        </select>
 
-                          <div className="space-y-2">
-                            <span className="font-bold uppercase tracking-wider text-[10px] text-muted-foreground font-mono">Major Achievements</span>
-                            <ul className="list-disc list-inside space-y-1 text-muted-foreground leading-relaxed font-semibold">
-                              {job.achievements.map((ach, idx) => (
-                                <li key={idx} className="truncate max-w-[340px] text-foreground/80">{ach}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-
-                        {/* Skills tag set */}
-                        <div className="flex flex-wrap items-center gap-1.5 pt-2 text-xs">
-                          <span className="text-muted-foreground font-bold font-mono text-[9px] uppercase">Validated Skills:</span>
-                          {job.skillsUsed.map((sk, idx) => (
-                            <span key={idx} className="text-[9px] font-mono font-bold bg-muted text-muted-foreground border border-border/80 px-2 py-0.5 rounded">
-                              {sk}
-                            </span>
-                          ))}
-                        </div>
+                        {/* Archive Toggle */}
+                        <button
+                          onClick={() => setShowArchivedImports(!showArchivedImports)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer h-[32px] shrink-0 ${
+                            showArchivedImports
+                              ? 'bg-red-500/10 border-red-500/25 text-red-500'
+                              : 'bg-card border-border hover:bg-muted text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                          {showArchivedImports ? 'Archived Vault' : 'Show Vault'}
+                        </button>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+
+                    {/* Ledger / Cards List */}
+                    {filteredImports.length === 0 ? (
+                      <div className="text-center py-12 border border-border/80 rounded-2xl bg-muted/20">
+                        <FileText className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+                        <h4 className="text-sm font-black text-foreground uppercase tracking-wide">No Sources Found</h4>
+                        <p className="text-xs text-muted-foreground font-semibold mt-1">
+                          {importSearchQuery ? 'No imports matched your active filter or search query.' : 'No uploaded resume or biography sources found.'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {filteredImports.map((item) => {
+                          const isSelected = selectedInspectorItem.type === 'import' && selectedInspectorItem.id === item.id;
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => setSelectedInspectorItem({ type: 'import', id: item.id, data: item })}
+                              className={`p-4 bg-card border rounded-2xl cursor-pointer hover:shadow-md transition-all flex flex-col justify-between space-y-4 ${
+                                isSelected
+                                  ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03]'
+                                  : 'border-border hover:border-muted-foreground/30'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-start gap-3 min-w-0">
+                                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                                    <FileText className="w-5 h-5" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <h4 className="text-sm font-bold text-foreground truncate uppercase tracking-tight" title={item.displayName}>
+                                      {item.displayName}
+                                    </h4>
+                                    <p className="text-[10px] text-muted-foreground font-semibold truncate" title={item.originalFilename}>
+                                      {item.originalFilename}
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[9px] font-mono font-bold uppercase">
+                                      <span className="bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                                        {item.importType}
+                                      </span>
+                                      <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-1.5 py-0.5 rounded">
+                                        {item.importStatus}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleFavoriteImport(item.id, !item.favorite);
+                                  }}
+                                  className={`p-1 hover:bg-muted rounded-full transition-colors ${
+                                    item.favorite ? 'text-cinema-amber-500' : 'text-muted-foreground/40 hover:text-foreground'
+                                  }`}
+                                  title={item.favorite ? 'Unfavorite' : 'Favorite'}
+                                >
+                                  ★
+                                </button>
+                              </div>
+
+                              {item.description && (
+                                <p className="text-xs text-muted-foreground leading-relaxed font-semibold line-clamp-2">
+                                  {item.description}
+                                </p>
+                              )}
+
+                              <div className="flex items-center justify-between pt-3 border-t border-border/60 text-[10px] font-mono text-muted-foreground font-bold">
+                                <span>{item.fileSize} • {new Date(item.uploadDate).toLocaleDateString()}</span>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenImportPreview(item);
+                                    }}
+                                    className="p-1 hover:text-foreground hover:bg-muted rounded"
+                                    title="View & Edit Metadata"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      item.archived ? handleRestoreImport(item.id) : handleArchiveImport(item.id);
+                                    }}
+                                    className="p-1 hover:text-foreground hover:bg-muted rounded"
+                                    title={item.archived ? 'Restore' : 'Archive to Vault'}
+                                  >
+                                    <Archive className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteImport(item.id);
+                                    }}
+                                    className="p-1 hover:text-red-500 hover:bg-red-500/10 rounded"
+                                    title="Permanently Delete"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Sub Tab: MANUAL RETROSPECTIVE TIMELINE */}
+                {careerSubTab === 'employment' && (
+                  <div className="space-y-6 animate-fade-in">
+                    <div className="space-y-6" id="career-timeline">
+                      {careerHistory.map((job) => {
+                        const isSelected = selectedInspectorItem.type === 'career' && selectedInspectorItem.id === job.id;
+                        return (
+                          <div
+                            key={job.id}
+                            onClick={() => setSelectedInspectorItem({ type: 'career', id: job.id, data: job })}
+                            className={`p-5 bg-card border rounded-2xl cursor-pointer hover:shadow-md transition-all space-y-3 ${
+                              isSelected 
+                                ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03]' 
+                                : 'border-border hover:border-muted-foreground/30'
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 text-xs">
+                              <div>
+                                <span className="font-mono text-cinema-amber-600 dark:text-cinema-amber-400 font-bold block">{job.years}</span>
+                                <h4 className="text-sm font-black text-foreground mt-0.5">{job.position}</h4>
+                                <span className="text-muted-foreground font-semibold flex items-center gap-1">
+                                  <Building className="w-3.5 h-3.5 text-muted-foreground" /> {job.company} — {job.location}
+                                </span>
+                              </div>
+                              {job.promotions && (
+                                <span className="text-[10px] font-mono font-bold uppercase bg-muted border border-border text-muted-foreground px-2 py-0.5 rounded-md self-start">
+                                  {job.promotions}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-2 border-t border-border/50">
+                              <div className="space-y-2">
+                                <span className="font-bold uppercase tracking-wider text-[10px] text-muted-foreground font-mono">Daily Responsibilities</span>
+                                <ul className="list-disc list-inside space-y-1 text-muted-foreground leading-relaxed font-semibold">
+                                  {job.responsibilities.map((resp, idx) => (
+                                    <li key={idx} className="truncate max-w-[340px]">{resp}</li>
+                                  ))}
+                                </ul>
+                              </div>
+
+                              <div className="space-y-2">
+                                <span className="font-bold uppercase tracking-wider text-[10px] text-muted-foreground font-mono">Major Achievements</span>
+                                <ul className="list-disc list-inside space-y-1 text-muted-foreground leading-relaxed font-semibold">
+                                  {job.achievements.map((ach, idx) => (
+                                    <li key={idx} className="truncate max-w-[340px] text-foreground/80">{ach}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+
+                            {/* Skills tag set */}
+                            <div className="flex flex-wrap items-center gap-1.5 pt-2 text-xs">
+                              <span className="text-muted-foreground font-bold font-mono text-[9px] uppercase">Validated Skills:</span>
+                              {job.skillsUsed.map((sk, idx) => (
+                                <span key={idx} className="text-[9px] font-mono font-bold bg-muted text-muted-foreground border border-border/80 px-2 py-0.5 rounded">
+                                  {sk}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -1856,21 +3031,81 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6"
+                className="p-6 md:p-8 space-y-6 relative"
                 id="pane-documents"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                {/* Hidden File Input */}
+                <input
+                  type="file"
+                  ref={documentsFileInputRef}
+                  onChange={handleDocumentFileChange}
+                  className="hidden"
+                  multiple
+                  accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
+                />
+
+                {/* Drag and Drop Hover Overlay */}
+                {isDraggingDoc && (
+                  <div className="absolute inset-4 z-40 bg-background/95 backdrop-blur-xs border-2 border-dashed border-cinema-amber-500 rounded-2xl flex flex-col items-center justify-center space-y-4 pointer-events-none animate-fade-in">
+                    <div className="w-16 h-16 rounded-full bg-cinema-amber-500/10 flex items-center justify-center text-cinema-amber-500">
+                      <FileText className="w-8 h-8 animate-bounce" />
+                    </div>
+                    <div className="text-center">
+                      <h4 className="font-bold text-foreground text-sm uppercase">Drop your files here</h4>
+                      <p className="text-xs text-muted-foreground mt-1">Accepts PDF, DOC, TXT, and Images (up to 50MB)</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Header Row */}
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                   <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider">
-                      Supporting Documents Ledger
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider">
+                        Supporting Documents Ledger
+                      </h3>
+                      <span className="text-[10px] font-mono font-bold bg-cinema-amber-500/15 text-cinema-amber-500 px-1.5 py-0.5 rounded border border-cinema-amber-500/20">
+                        {documents.length} PERSISTED
+                      </span>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Organize scanned letters, diplomas, military records, and physical archives.
+                      Organize scanned letters, diplomas, military records, and physical archives using local storage. Drag & drop files directly onto this panel.
                     </p>
                   </div>
 
-                  <div className="p-1.5 bg-muted rounded-xl border border-border flex items-center gap-1 shrink-0 self-start sm:self-auto">
-                    {['All', 'Certificate', 'Letter', 'Resume', 'Article'].map(cat => (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Upload Trigger */}
+                    <button
+                      onClick={handleOpenDocumentUpload}
+                      className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-600 active:scale-98 text-slate-950 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                    >
+                      <Plus className="w-4 h-4 stroke-[3]" />
+                      Upload Document
+                    </button>
+
+                    {/* Archive toggle */}
+                    <button
+                      onClick={() => setShowArchivedDocs(!showArchivedDocs)}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+                        showArchivedDocs
+                          ? 'bg-red-500/10 border-red-500/25 text-red-500'
+                          : 'bg-card border-border hover:bg-muted text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                      {showArchivedDocs ? 'Viewing Archived' : 'Show Archived'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter / Search Controls bar */}
+                <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-muted/40 p-3 rounded-2xl border border-border/80">
+                  {/* Category Selection Tabs */}
+                  <div className="flex flex-wrap items-center gap-1 w-full lg:w-auto">
+                    {['All', 'Certificate', 'Letter', 'Resume', 'Article', 'Favorites'].map(cat => (
                       <button
                         key={cat}
                         onClick={() => setDocumentFilter(cat)}
@@ -1884,66 +3119,431 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                       </button>
                     ))}
                   </div>
-                </div>
 
-                {/* Table of documents */}
-                <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm" id="documents-table-wrapper">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse" id="documents-ledger-table">
-                      <thead>
-                        <tr className="border-b border-border bg-muted/40 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          <th className="p-4">Document Title</th>
-                          <th className="p-4">Category</th>
-                          <th className="p-4">Citations Prefix</th>
-                          <th className="p-4">Size</th>
-                          <th className="p-4">Scan State</th>
-                          <th className="p-4 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredDocuments.map((doc) => {
-                          const isSelected = selectedInspectorItem.type === 'document' && selectedInspectorItem.id === doc.id;
-                          return (
-                            <tr
-                              key={doc.id}
-                              onClick={() => setSelectedInspectorItem({ type: 'document', id: doc.id, data: doc })}
-                              className={`border-b border-border/60 text-xs hover:bg-muted/30 cursor-pointer transition-colors ${
-                                isSelected ? 'bg-cinema-amber-500/5' : ''
-                              }`}
-                            >
-                              <td className="p-4">
-                                <div className="flex items-center gap-2.5">
-                                  <FileText className="w-4 h-4 text-cinema-amber-500 shrink-0" />
-                                  <span className="font-bold text-foreground block truncate max-w-xs">{doc.title}</span>
-                                </div>
-                              </td>
-                              <td className="p-4">
-                                <span className="font-mono text-[9px] font-bold bg-muted text-muted-foreground border border-border px-1.5 py-0.5 rounded uppercase">
-                                  {doc.category}
-                                </span>
-                              </td>
-                              <td className="p-4 font-semibold text-muted-foreground">{doc.citationPrefix}</td>
-                              <td className="p-4 font-mono font-bold text-muted-foreground">{doc.fileSize}</td>
-                              <td className="p-4">
-                                <span className={`text-[9px] font-mono font-bold uppercase ${doc.isScanned ? 'text-emerald-500' : 'text-amber-500'}`}>
-                                  {doc.isScanned ? 'HIGH-RES SCAN' : 'DIGITAL ONLY'}
-                                </span>
-                              </td>
-                              <td className="p-4 text-right">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); showToast('info', 'File Viewer', `Pre-rendering preview for "${doc.title}"...`); }}
-                                  className="text-[10px] font-bold border border-border bg-card hover:bg-muted py-1 px-2.5 rounded-lg text-foreground transition-colors cursor-pointer"
-                                >
-                                  Preview File
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  {/* Search and Sort */}
+                  <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+                    {/* Search Input */}
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Search ledger..."
+                        value={documentSearchQuery}
+                        onChange={(e) => setDocumentSearchQuery(e.target.value)}
+                        className="w-full bg-card border border-border rounded-xl pl-9 pr-8 py-1.5 text-xs focus:outline-none focus:border-cinema-amber-500 font-medium"
+                      />
+                      {documentSearchQuery && (
+                        <button
+                          onClick={() => setDocumentSearchQuery('')}
+                          className="absolute right-2 top-2 p-0.5 hover:bg-muted rounded-full text-muted-foreground hover:text-foreground cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Sort Dropdown */}
+                    <select
+                      value={documentSortBy}
+                      onChange={(e: any) => setDocumentSortBy(e.target.value)}
+                      className="bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-cinema-amber-500 font-bold text-foreground cursor-pointer"
+                    >
+                      <option value="recently-uploaded">Recently Added</option>
+                      <option value="name">Sort by Name</option>
+                      <option value="size">Sort by Size</option>
+                      <option value="type">Sort by Type</option>
+                    </select>
                   </div>
                 </div>
+
+                {/* Table of documents / Empty state */}
+                {filteredDocuments.length === 0 ? (
+                  <div className="py-16 border border-dashed border-border rounded-2xl flex flex-col items-center justify-center bg-card/25 text-center p-6" id="documents-empty-placeholder">
+                    <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center text-muted-foreground border border-border/80 mb-4 shadow-xs">
+                      <FileText className="w-6 h-6 text-muted-foreground/80" />
+                    </div>
+                    <h3 className="font-display font-black text-foreground uppercase tracking-wider text-sm">
+                      No matching credentials
+                    </h3>
+                    <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
+                      {documentSearchQuery || documentFilter !== 'All' || showArchivedDocs
+                        ? 'No documents found matching the search criteria or active filters.'
+                        : 'Your digital document repository is currently empty. Upload physical awards, certificates, or letters of endorsement to establish secure proof.'}
+                    </p>
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        onClick={handleOpenDocumentUpload}
+                        className="px-3 py-1.5 bg-muted hover:bg-muted/80 text-foreground border border-border font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                      >
+                        Select Files
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm" id="documents-table-wrapper">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse" id="documents-ledger-table">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/40 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            <th className="p-4">Document Title</th>
+                            <th className="p-4">Category</th>
+                            <th className="p-4">Description</th>
+                            <th className="p-4">Size</th>
+                            <th className="p-4">Tags</th>
+                            <th className="p-4">Added On</th>
+                            <th className="p-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredDocuments.map((doc) => {
+                            const isSelected = selectedInspectorItem.type === 'document' && selectedInspectorItem.id === doc.id;
+                            const sizeKb = doc.fileSize ? (doc.fileSize / 1024).toFixed(1) : '0';
+                            return (
+                              <tr
+                                key={doc.id}
+                                onClick={() => setSelectedInspectorItem({ type: 'document', id: doc.id, data: doc })}
+                                className={`border-b border-border/60 text-xs hover:bg-muted/30 cursor-pointer transition-colors ${
+                                  isSelected ? 'bg-cinema-amber-500/5' : ''
+                                }`}
+                              >
+                                <td className="p-4">
+                                  <div className="flex items-center gap-2.5">
+                                    <FileText className="w-4 h-4 text-cinema-amber-500 shrink-0" />
+                                    <div className="font-bold text-foreground block truncate max-w-xs">{doc.displayName}</div>
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <span className="font-mono text-[9px] font-bold bg-muted text-muted-foreground border border-border px-1.5 py-0.5 rounded uppercase">
+                                    {doc.documentType}
+                                  </span>
+                                </td>
+                                <td className="p-4 text-muted-foreground font-semibold truncate max-w-xs">
+                                  {doc.description || 'No description provided.'}
+                                </td>
+                                <td className="p-4 font-mono font-bold text-muted-foreground">{sizeKb} KB</td>
+                                <td className="p-4">
+                                  <div className="flex flex-wrap gap-1 max-w-[150px]">
+                                    {doc.tags?.slice(0, 2).map((t, i) => (
+                                      <span key={i} className="text-[9px] font-semibold bg-muted/60 text-muted-foreground px-1 py-0.5 rounded">
+                                        #{t}
+                                      </span>
+                                    ))}
+                                    {(doc.tags?.length || 0) > 2 && (
+                                      <span className="text-[9px] font-bold text-muted-foreground">
+                                        +{doc.tags.length - 2}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-4 text-muted-foreground font-mono">{new Date(doc.uploadDate).toLocaleDateString()}</td>
+                                <td className="p-4 text-right">
+                                  <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                    {/* Favorite Action */}
+                                    <button
+                                      onClick={() => handleToggleFavoriteDocument(doc.id, !doc.favorite)}
+                                      className={`p-1.5 rounded-lg border border-border bg-card cursor-pointer hover:bg-muted transition-colors ${
+                                        doc.favorite ? 'text-cinema-amber-500' : 'text-muted-foreground hover:text-foreground'
+                                      }`}
+                                      title={doc.favorite ? 'Remove from favorites' : 'Mark as favorite'}
+                                    >
+                                      ★
+                                    </button>
+
+                                    {/* Open Preview Modal Action */}
+                                    <button
+                                      onClick={() => handleOpenDocPreview(doc)}
+                                      className="text-[10px] font-bold border border-border bg-card hover:bg-muted py-1 px-2.5 rounded-lg text-foreground transition-colors cursor-pointer flex items-center gap-1"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                      Explore
+                                    </button>
+
+                                    {/* Delete Action */}
+                                    <button
+                                      onClick={() => handleDeleteDocument(doc.id)}
+                                      className="p-1.5 rounded-lg border border-red-500/10 hover:border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-500 cursor-pointer transition-colors"
+                                      title="Delete file permanently"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* DYNAMIC METADATA PREVIEW & EDIT DIALOG OVERLAY */}
+                <AnimatePresence>
+                  {previewDoc && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xs animate-fade-in">
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                        className="bg-background border border-border rounded-3xl overflow-hidden max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl"
+                      >
+                        {/* Modal Header */}
+                        <div className="p-5 border-b border-border bg-card flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-cinema-amber-500/10 border border-cinema-amber-500/20 flex items-center justify-center text-cinema-amber-500">
+                              <FileText className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-foreground text-sm uppercase tracking-wide">
+                                {isEditingDoc ? 'Credentials Metadata Editor' : 'Heritage Document Explorer'}
+                              </h4>
+                              <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                                Registry Ref: {previewDoc.id} • v{previewDoc.version}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setPreviewDoc(null)}
+                            className="p-1.5 bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground rounded-full transition-colors cursor-pointer"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Modal Body Container */}
+                        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                          
+                          {/* Left Column: Visual Scanned Preview */}
+                          <div className="space-y-4">
+                            <span className="text-[10px] font-mono font-bold text-muted-foreground uppercase block">
+                              Active Document Scan Frame
+                            </span>
+                            <div className="border border-border/80 rounded-2xl bg-muted/40 aspect-4/3 w-full relative overflow-hidden flex items-center justify-center p-3">
+                              {previewDoc.localStorageReference ? (
+                                previewDoc.mimeType.startsWith('image/') ? (
+                                  <img
+                                    src={previewDoc.localStorageReference}
+                                    alt={previewDoc.displayName}
+                                    className="w-full h-full object-contain max-h-[300px] rounded"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <iframe
+                                    src={previewDoc.localStorageReference}
+                                    title={previewDoc.displayName}
+                                    className="w-full h-full border-0 min-h-[280px] bg-white rounded"
+                                  />
+                                )
+                              ) : (
+                                <div className="text-center p-6">
+                                  <FileText className="w-12 h-12 text-muted-foreground/50 mx-auto mb-2" />
+                                  <span className="text-xs text-muted-foreground font-semibold block">Preview Unavailable</span>
+                                  <span className="text-[10px] text-muted-foreground/80 font-medium">Please download file to view contents.</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Technical attributes badge panel */}
+                            <div className="bg-muted/35 p-3 rounded-2xl border border-border/60 grid grid-cols-2 gap-3 text-xs font-semibold">
+                              <div>
+                                <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">MIME TYPE</span>
+                                <span className="text-foreground font-mono block truncate">{previewDoc.mimeType}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">EXTENSION</span>
+                                <span className="text-foreground font-mono block uppercase">.{previewDoc.extension}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">ORIGINAL NAME</span>
+                                <span className="text-foreground block truncate" title={previewDoc.originalFilename}>{previewDoc.originalFilename}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">FILE SIZE</span>
+                                <span className="text-foreground font-mono block">{(previewDoc.fileSize / 1024).toFixed(2)} KB</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right Column: Metadata Detail Pane */}
+                          <div className="space-y-4 flex flex-col justify-between">
+                            {isEditingDoc ? (
+                              /* EDITING MODE FORM */
+                              <div className="space-y-4">
+                                <span className="text-[10px] font-mono font-bold text-cinema-amber-500 uppercase block">
+                                  EDITABLE DETAILS
+                                </span>
+                                
+                                <div className="space-y-1">
+                                  <label className="text-xs font-bold text-muted-foreground uppercase block">Document Display Title</label>
+                                  <input
+                                    type="text"
+                                    value={editDisplayName}
+                                    onChange={(e) => setEditDisplayName(e.target.value)}
+                                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cinema-amber-500 font-bold"
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-xs font-bold text-muted-foreground uppercase block">Classification Type</label>
+                                  <select
+                                    value={editDocumentType}
+                                    onChange={(e) => setEditDocumentType(e.target.value)}
+                                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cinema-amber-500 font-bold text-foreground cursor-pointer"
+                                  >
+                                    <option value="Certificate">Certificate</option>
+                                    <option value="Letter">Letter of Endorsement / Correspondence</option>
+                                    <option value="Resume">Resume / CV</option>
+                                    <option value="Article">Press Article / Catalogue</option>
+                                    <option value="Official">Official Record</option>
+                                  </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-xs font-bold text-muted-foreground uppercase block">Description & Notes</label>
+                                  <textarea
+                                    value={editDescription}
+                                    onChange={(e) => setEditDescription(e.target.value)}
+                                    rows={4}
+                                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cinema-amber-500 font-semibold text-muted-foreground leading-normal"
+                                    placeholder="Enter descriptive text, historical context, key names, or archival details..."
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-xs font-bold text-muted-foreground uppercase block">Tags (comma-separated)</label>
+                                  <input
+                                    type="text"
+                                    value={editTags}
+                                    onChange={(e) => setEditTags(e.target.value)}
+                                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cinema-amber-500 font-bold"
+                                    placeholder="Award, Salem, Military"
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              /* VIEW READ-ONLY MODE */
+                              <div className="space-y-5">
+                                <span className="text-[10px] font-mono font-bold text-muted-foreground uppercase block">
+                                  CREDENTIAL PROFILE
+                                </span>
+
+                                <div className="space-y-1">
+                                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Display Name</span>
+                                  <strong className="text-foreground text-base block font-display uppercase tracking-wide">
+                                    {previewDoc.displayName}
+                                  </strong>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Document Category</span>
+                                  <span className="text-foreground text-xs font-mono font-bold bg-muted border border-border px-2 py-1 rounded uppercase inline-block">
+                                    {previewDoc.documentType}
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Description & Historical Notes</span>
+                                  <p className="text-muted-foreground text-xs leading-relaxed font-semibold">
+                                    {previewDoc.description || 'No descriptive notes logged for this archival item.'}
+                                  </p>
+                                </div>
+
+                                {previewDoc.tags && previewDoc.tags.length > 0 && (
+                                  <div className="space-y-1.5">
+                                    <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Assigned Tags</span>
+                                    <div className="flex flex-wrap gap-1">
+                                      {previewDoc.tags.map((t, idx) => (
+                                        <span key={idx} className="text-[9px] font-mono bg-muted/80 px-2 py-0.5 rounded text-muted-foreground border border-border/40">
+                                          #{t}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-3 border-t border-border/60 pt-4 text-xs font-semibold">
+                                  <div>
+                                    <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">Uploaded Date</span>
+                                    <span className="text-foreground">{new Date(previewDoc.uploadDate).toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">Last Modified</span>
+                                    <span className="text-foreground">{new Date(previewDoc.lastModified).toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Modal Action Controls footer */}
+                            <div className="border-t border-border pt-4 flex items-center justify-between gap-3">
+                              {isEditingDoc ? (
+                                <>
+                                  <button
+                                    onClick={() => setIsEditingDoc(false)}
+                                    className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl transition-all cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={handleSaveDocMetadata}
+                                    className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                                  >
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                    Save Changes
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      onClick={() => handleToggleFavoriteDocument(previewDoc.id, !previewDoc.favorite)}
+                                      className={`p-2 rounded-xl border border-border bg-card cursor-pointer hover:bg-muted transition-colors text-xs font-bold ${
+                                        previewDoc.favorite ? 'text-cinema-amber-500 border-cinema-amber-500/25 bg-cinema-amber-500/5' : 'text-muted-foreground hover:text-foreground'
+                                      }`}
+                                      title="Toggle Favorite"
+                                    >
+                                      ★ {previewDoc.favorite ? 'Favorited' : 'Favorite'}
+                                    </button>
+
+                                    <a
+                                      href={previewDoc.localStorageReference}
+                                      download={previewDoc.originalFilename}
+                                      className="p-2 border border-border bg-card hover:bg-muted text-foreground hover:text-foreground rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                      title="Download Original File"
+                                    >
+                                      📥 Download
+                                    </a>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => setIsEditingDoc(true)}
+                                      className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground border border-border font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                      Edit Metadata
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        const pId = previewDoc.id;
+                                        setPreviewDoc(null);
+                                        handleDeleteDocument(pId);
+                                      }}
+                                      className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                                    >
+                                      Delete File
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             )}
 
@@ -2195,22 +3795,183 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                   <span className="text-[9px] font-mono font-bold bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20 uppercase">
                     Heritage Document
                   </span>
-                  <h4 className="font-bold text-foreground text-sm mt-2">{selectedInspectorItem.data.title}</h4>
-                  <span className="text-muted-foreground text-[10px] font-mono block mt-1 uppercase font-bold">
-                    Class: {selectedInspectorItem.data.category}
+                  <h4 className="font-bold text-foreground text-sm mt-2">{selectedInspectorItem.data.displayName}</h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    <span className="text-muted-foreground text-[10px] font-mono uppercase font-bold bg-muted px-1 rounded">
+                      Type: {selectedInspectorItem.data.documentType}
+                    </span>
+                    {selectedInspectorItem.data.favorite && (
+                      <span className="text-cinema-amber-500 text-[10px] font-mono uppercase font-bold bg-cinema-amber-500/10 px-1 rounded">
+                        ★ FAVORITE
+                      </span>
+                    )}
+                    {selectedInspectorItem.data.archived && (
+                      <span className="text-red-500 text-[10px] font-mono uppercase font-bold bg-red-500/10 px-1 rounded">
+                        Archived
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-3 space-y-2">
+                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Description</span>
+                  <p className="text-muted-foreground text-xs leading-normal font-medium">
+                    {selectedInspectorItem.data.description || 'No description provided.'}
+                  </p>
+                </div>
+
+                {selectedInspectorItem.data.tags && selectedInspectorItem.data.tags.length > 0 && (
+                  <div className="border-t border-border pt-3 space-y-1.5">
+                    <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Tags</span>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedInspectorItem.data.tags.map((t: string, i: number) => (
+                        <span key={i} className="text-[9px] font-mono bg-muted/80 px-1.5 py-0.5 rounded text-muted-foreground">
+                          #{t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="border-t border-border pt-3 grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-muted-foreground block font-bold uppercase text-[9px]">File Size</span>
+                    <strong className="text-foreground font-mono">{selectedInspectorItem.data.fileSize ? `${(selectedInspectorItem.data.fileSize / 1024).toFixed(1)} KB` : '0 KB'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block font-bold uppercase text-[9px]">Uploaded</span>
+                    <strong className="text-foreground font-mono">
+                      {new Date(selectedInspectorItem.data.uploadDate).toLocaleDateString()}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-4 space-y-2">
+                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Actions</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleToggleFavoriteDocument(selectedInspectorItem.data.id, !selectedInspectorItem.data.favorite)}
+                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
+                    >
+                      ★ {selectedInspectorItem.data.favorite ? 'Unfavorite' : 'Favorite'}
+                    </button>
+
+                    <a
+                      href={selectedInspectorItem.data.localStorageReference}
+                      download={selectedInspectorItem.data.originalFilename}
+                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
+                    >
+                      📥 Download
+                    </a>
+
+                    <button
+                      onClick={() => selectedInspectorItem.data.archived ? handleRestoreDocument(selectedInspectorItem.data.id) : handleArchiveDocument(selectedInspectorItem.data.id)}
+                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
+                    >
+                      📁 {selectedInspectorItem.data.archived ? 'Restore' : 'Archive'}
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteDocument(selectedInspectorItem.data.id)}
+                      className="p-2 text-xs font-bold border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10 rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1"
+                    >
+                      🗑 Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selectedInspectorItem.type === 'import' && (
+              <div className="space-y-4 animate-fade-in" id="inspector-import-body">
+                <div>
+                  <span className="text-[9px] font-mono font-bold bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20 uppercase">
+                    Credentials Source Import
                   </span>
+                  <h4 className="font-bold text-foreground text-sm mt-2">{selectedInspectorItem.data.displayName}</h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    <span className="text-muted-foreground text-[10px] font-mono uppercase font-bold bg-muted px-1 rounded">
+                      Type: {selectedInspectorItem.data.importType}
+                    </span>
+                    {selectedInspectorItem.data.favorite && (
+                      <span className="text-cinema-amber-500 text-[10px] font-mono uppercase font-bold bg-cinema-amber-500/10 px-1 rounded">
+                        ★ FAVORITE
+                      </span>
+                    )}
+                    {selectedInspectorItem.data.archived && (
+                      <span className="text-red-500 text-[10px] font-mono uppercase font-bold bg-red-500/10 px-1 rounded">
+                        Archived
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Citation Registry Prefix</span>
-                  <code className="text-foreground bg-muted p-1.5 rounded block text-[10px] font-mono border border-border">
-                    {selectedInspectorItem.data.citationPrefix}
-                  </code>
+                <div className="border-t border-border pt-3 space-y-2">
+                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Description</span>
+                  <p className="text-muted-foreground text-xs leading-normal font-medium">
+                    {selectedInspectorItem.data.description || 'No description provided.'}
+                  </p>
                 </div>
 
+                <div className="border-t border-border pt-3 space-y-2">
+                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Status & File Size</span>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] font-semibold text-foreground">
+                    <div>
+                      <span className="text-muted-foreground text-[10px] block">Status</span>
+                      <span>{selectedInspectorItem.data.importStatus}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-[10px] block">Size</span>
+                      <span className="font-mono">{selectedInspectorItem.data.fileSize}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedInspectorItem.data.tags && selectedInspectorItem.data.tags.length > 0 && (
+                  <div className="border-t border-border pt-3 space-y-1.5">
+                    <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Tags</span>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedInspectorItem.data.tags.map((t: string, i: number) => (
+                        <span key={i} className="text-[9px] font-mono bg-muted/80 px-1.5 py-0.5 rounded text-muted-foreground">
+                          #{t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Editorial Notes</span>
-                  <p className="text-muted-foreground leading-normal font-semibold">{selectedInspectorItem.data.notes}</p>
+                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Actions</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleToggleFavoriteImport(selectedInspectorItem.data.id, !selectedInspectorItem.data.favorite)}
+                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
+                    >
+                      ★ {selectedInspectorItem.data.favorite ? 'Unfavorite' : 'Favorite'}
+                    </button>
+
+                    <a
+                      href={selectedInspectorItem.data.localStorageReference}
+                      download={selectedInspectorItem.data.originalFilename}
+                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1 text-center"
+                    >
+                      📥 Download
+                    </a>
+
+                    <button
+                      onClick={() => selectedInspectorItem.data.archived ? handleRestoreImport(selectedInspectorItem.data.id) : handleArchiveImport(selectedInspectorItem.data.id)}
+                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
+                    >
+                      📁 {selectedInspectorItem.data.archived ? 'Restore' : 'Archive'}
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteImport(selectedInspectorItem.data.id)}
+                      className="p-2 text-xs font-bold border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10 rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1"
+                    >
+                      🗑 Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -2387,6 +4148,328 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
           </motion.div>
         </div>
       )}
+
+      {/* 5. RESUME & BIOGRAPHY IMPORT PREVIEW & EDIT DIALOG OVERLAY */}
+      <AnimatePresence>
+        {previewImport && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xs animate-fade-in" id="import-explorer-backdrop">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-background border border-border rounded-3xl overflow-hidden max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl"
+            >
+              {/* Modal Header */}
+              <div className="p-5 border-b border-border bg-card flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-cinema-amber-500/10 border border-cinema-amber-500/20 flex items-center justify-center text-cinema-amber-500">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-foreground text-sm uppercase tracking-wide">
+                      {isEditingImport ? 'Adjust Import Metadata' : 'Archival Import Explorer'}
+                    </h4>
+                    <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                      Registry Ref: {previewImport.id} • v{previewImport.version}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPreviewImport(null)}
+                  className="p-1.5 bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground rounded-full transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Modal Body Container */}
+              <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column: File Preview Screen */}
+                <div className="space-y-4">
+                  <span className="text-[10px] font-mono font-bold text-muted-foreground uppercase block">
+                    Source File Document Frame
+                  </span>
+                  <div className="border border-border/80 rounded-2xl bg-muted/40 aspect-4/3 w-full relative overflow-hidden flex items-center justify-center p-3">
+                    {previewImport.localStorageReference ? (
+                      previewImport.mimeType.startsWith('image/') ? (
+                        <img
+                          src={previewImport.localStorageReference}
+                          alt={previewImport.displayName}
+                          className="w-full h-full object-contain max-h-[300px] rounded"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <iframe
+                          src={previewImport.localStorageReference}
+                          title={previewImport.displayName}
+                          className="w-full h-full border-0 min-h-[280px] bg-white rounded"
+                        />
+                      )
+                    ) : (
+                      <div className="text-center p-6">
+                        <FileText className="w-12 h-12 text-muted-foreground/50 mx-auto mb-2" />
+                        <span className="text-xs text-muted-foreground font-semibold block">Preview Unavailable</span>
+                        <span className="text-[10px] text-muted-foreground/80 font-medium">Please download file to view contents.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Technical attributes badge panel */}
+                  <div className="bg-muted/35 p-3 rounded-2xl border border-border/60 grid grid-cols-2 gap-3 text-xs font-semibold">
+                    <div>
+                      <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">MIME TYPE</span>
+                      <span className="text-foreground font-mono block truncate">{previewImport.mimeType}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">EXTENSION</span>
+                      <span className="text-foreground font-mono block uppercase">.{previewImport.extension}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">ORIGINAL NAME</span>
+                      <span className="text-foreground block truncate" title={previewImport.originalFilename}>{previewImport.originalFilename}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">FILE SIZE</span>
+                      <span className="text-foreground font-mono block">{previewImport.fileSize}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Information & Metadata Controls */}
+                <div className="flex flex-col justify-between h-full space-y-4">
+                  {isEditingImport ? (
+                    <div className="space-y-4 flex-1">
+                      <span className="text-[10px] font-mono font-bold text-muted-foreground uppercase block">
+                        Edit Record Credentials
+                      </span>
+
+                      {/* Display Name */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Display Name *</label>
+                        <input
+                          type="text"
+                          value={editImportName}
+                          onChange={(e) => setEditImportName(e.target.value)}
+                          className="w-full h-10 px-3.5 bg-muted border border-border rounded-xl focus:outline-none focus:border-cinema-amber-500 text-xs font-semibold text-foreground"
+                        />
+                      </div>
+
+                      {/* Import Type */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Import Type *</label>
+                        <select
+                          value={editImportType}
+                          onChange={(e) => setEditImportType(e.target.value)}
+                          className="w-full h-10 px-3 bg-muted border border-border rounded-xl focus:outline-none focus:border-cinema-amber-500 font-semibold cursor-pointer text-xs"
+                        >
+                          <option value="Resume / CV">Resume / CV</option>
+                          <option value="Biography">Biography</option>
+                          <option value="Autobiography">Autobiography</option>
+                          <option value="Memoir">Memoir</option>
+                          <option value="Obituary">Obituary</option>
+                          <option value="Personal Notes">Personal Notes</option>
+                          <option value="Interview Transcript">Interview Transcript</option>
+                          <option value="Journal">Journal</option>
+                          <option value="Letter Collection">Letter Collection</option>
+                          <option value="Custom Document">Custom Document</option>
+                        </select>
+                      </div>
+
+                      {/* Associated Legacy Profile */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase font-mono">Linked Legacy Profile *</label>
+                        <select
+                          value={editImportProfileId}
+                          onChange={(e) => setEditImportProfileId(e.target.value)}
+                          className="w-full h-10 px-3 bg-muted border border-border rounded-xl focus:outline-none focus:border-cinema-amber-500 font-semibold cursor-pointer text-xs"
+                        >
+                          {profilesList.map(profile => (
+                            <option key={profile.id} value={profile.id}>
+                              {profile.firstName} {profile.lastName} ({profile.birthYear} - {profile.deathYear || 'Present'})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Associated Story */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase font-mono">Associated Story</label>
+                        <select
+                          value={editImportStoryId}
+                          onChange={(e) => setEditImportStoryId(e.target.value)}
+                          className="w-full h-10 px-3 bg-muted border border-border rounded-xl focus:outline-none focus:border-cinema-amber-500 font-semibold cursor-pointer text-xs"
+                        >
+                          <option value="">No Story Linkage</option>
+                          {storiesList.map(story => (
+                            <option key={story.id} value={story.id}>
+                              {story.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Description */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Description & Summary</label>
+                        <textarea
+                          rows={3}
+                          value={editImportDesc}
+                          onChange={(e) => setEditImportDesc(e.target.value)}
+                          className="w-full p-3 bg-muted border border-border rounded-xl focus:outline-none focus:border-cinema-amber-500 text-xs font-semibold resize-none text-foreground"
+                          placeholder="Describe the content of this file, dates covered, and notes."
+                        />
+                      </div>
+
+                      {/* Tags */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Search Tags (Comma-separated)</label>
+                        <input
+                          type="text"
+                          value={editImportTags}
+                          onChange={(e) => setEditImportTags(e.target.value)}
+                          className="w-full h-10 px-3.5 bg-muted border border-border rounded-xl focus:outline-none focus:border-cinema-amber-500 text-xs font-semibold text-foreground"
+                          placeholder="professional, transcripts, awards, 1968"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 flex-1">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-mono font-bold text-muted-foreground uppercase block">Display Credentials Title</span>
+                        <h3 className="text-base font-black text-foreground uppercase tracking-wide">
+                          {previewImport.displayName}
+                        </h3>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                          📁 TYPE: {previewImport.importType}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 ml-2">
+                          ⚡ STATUS: {previewImport.importStatus}
+                        </span>
+                      </div>
+
+                      <div className="border-t border-border pt-3 space-y-2">
+                        <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Description & Summary</span>
+                        <p className="text-muted-foreground text-xs leading-normal font-medium">
+                          {previewImport.description || 'No descriptive summary provided.'}
+                        </p>
+                      </div>
+
+                      <div className="border-t border-border pt-3 space-y-2">
+                        <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Entity Linkages & Associations</span>
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div>
+                            <span className="text-muted-foreground block text-[9px] uppercase font-bold">Legacy Profile</span>
+                            <span className="text-foreground font-semibold">
+                              {profilesList.find(p => p.id === previewImport.profileId)?.firstName || 'Default Profile'}{' '}
+                              {profilesList.find(p => p.id === previewImport.profileId)?.lastName || ''}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground block text-[9px] uppercase font-bold">Linked Story</span>
+                            <span className="text-foreground font-semibold">
+                              {storiesList.find(s => s.id === previewImport.storyId)?.title || 'Unlinked'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {previewImport.tags && previewImport.tags.length > 0 && (
+                        <div className="border-t border-border pt-3 space-y-1.5">
+                          <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Associated Search Tags</span>
+                          <div className="flex flex-wrap gap-1">
+                            {previewImport.tags.map((t, idx) => (
+                              <span key={idx} className="text-[9px] font-mono bg-muted border border-border/80 px-2 py-0.5 rounded text-muted-foreground font-bold">
+                                #{t}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="border-t border-border pt-3 grid grid-cols-2 gap-3 text-xs font-semibold">
+                        <div>
+                          <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">INDEXED DATE</span>
+                          <span className="text-foreground">{new Date(previewImport.uploadDate).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">LAST SYNCHRONIZED</span>
+                          <span className="text-foreground">{new Date(previewImport.lastModified).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions buttons */}
+                  <div className="border-t border-border pt-4 flex flex-col gap-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleToggleFavoriteImport(previewImport.id, !previewImport.favorite)}
+                        className={`p-2.5 text-xs font-bold border rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1 ${
+                          previewImport.favorite
+                            ? 'text-cinema-amber-500 border-cinema-amber-500/25 bg-cinema-amber-500/5 hover:bg-cinema-amber-500/10'
+                            : 'border-border bg-card text-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        ★ {previewImport.favorite ? 'Unfavorite Highlight' : 'Pin as Highlight'}
+                      </button>
+
+                      <a
+                        href={previewImport.localStorageReference}
+                        download={previewImport.originalFilename}
+                        className="p-2.5 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1 text-center"
+                      >
+                        📥 Download Raw Source
+                      </a>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => {
+                          if (isEditingImport) {
+                            handleSaveImportMetadata();
+                            setIsEditingImport(false);
+                          } else {
+                            setIsEditingImport(true);
+                          }
+                        }}
+                        className="p-2.5 text-xs font-bold bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1.5 animate-pulse"
+                      >
+                        <Save className="w-4 h-4" />
+                        {isEditingImport ? 'Save Configuration' : 'Edit Metas & Linkage'}
+                      </button>
+
+                      {isEditingImport ? (
+                        <button
+                          onClick={() => setIsEditingImport(false)}
+                          className="p-2.5 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
+                        >
+                          Discard Edits
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => previewImport.archived ? handleRestoreImport(previewImport.id) : handleArchiveImport(previewImport.id)}
+                          className="p-2.5 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
+                        >
+                          📁 {previewImport.archived ? 'Activate Import' : 'Deposit to Vault'}
+                        </button>
+                      )}
+                    </div>
+
+                    {!isEditingImport && (
+                      <button
+                        onClick={() => handleDeleteImport(previewImport.id)}
+                        className="w-full p-2.5 text-xs font-bold border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10 rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1"
+                      >
+                        🗑 Permanently Purge & Clear Local Storage Data
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

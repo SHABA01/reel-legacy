@@ -55,6 +55,8 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { useToast } from '../../context/ToastContext';
 import { INITIAL_STORIES, ExtendedStory } from '../stories/mockStoriesData';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { persistenceService, MediaService } from '../../storage';
 
 // --- STAGE 8 DATA MODELS ---
 export interface MediaAsset {
@@ -92,6 +94,9 @@ export interface Collection {
 export function MediaLibrary() {
   const { showToast } = useToast();
 
+  // Delete approval modal state
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'single' | 'bulk' | 'collection' | null; name?: string } | null>(null);
+
   // --- 1. CORE LIBRARY STATES ---
   const [activeTab, setActiveTab] = useState<'all' | 'collections' | 'upload' | 'readiness'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -115,345 +120,27 @@ export function MediaLibrary() {
   const [isCreateCollectionOpen, setIsCreateCollectionOpen] = useState<boolean>(false);
   const [newCollectionData, setNewCollectionData] = useState({ name: '', description: '', cover: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=300&q=80' });
 
-  // --- 2. HIGH FIDELITY REALISTIC MOCK ASSETS ---
-  const [assets, setAssets] = useState<MediaAsset[]>([
-    {
-      id: 'asset-1',
-      name: 'elizabeth_childhood_portrait_1948.jpg',
-      type: 'image',
-      category: 'Childhood',
-      size: '2.4 MB',
-      bytes: 2516582,
-      resolution: '2400 x 3000 px',
-      uploadDate: '2026-06-01',
-      tags: ['Infancy', 'Black & White', 'Maine', 'Family Portrait'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: ['ev1'],
-      linkedChapters: ['ch1'],
-      favorite: true,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80',
-      description: 'Elizabeth Vance as a toddler on a wooden swing in the backyard of the Portland house, wearing a knitted cardigan.',
-      archived: false
-    },
-    {
-      id: 'asset-2',
-      name: 'wellesley_college_graduation_1957.jpg',
-      type: 'image',
-      category: 'Graduation',
-      size: '4.8 MB',
-      bytes: 5033164,
-      resolution: '3200 x 4000 px',
-      uploadDate: '2026-06-03',
-      tags: ['College', 'Diploma', 'Achievement', 'Portrait'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: ['ev2'],
-      linkedChapters: ['ch1'],
-      favorite: true,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
-      description: 'Official graduation portrait taken at Wellesley College campus following the English literature honors ceremony.',
-      archived: false
-    },
-    {
-      id: 'asset-3',
-      name: 'grandpa_bob_pacific_corps_1943.jpg',
-      type: 'image',
-      category: 'Portrait',
-      size: '1.8 MB',
-      bytes: 1887436,
-      resolution: '1800 x 2400 px',
-      uploadDate: '2026-06-05',
-      tags: ['Military', 'Uniform', 'World War II', 'Aviation'],
-      linkedStoryId: 'story-bob-military',
-      linkedStoryName: 'Bob Vance: Service and Blue Skies',
-      linkedEvents: [],
-      linkedChapters: ['ch1'],
-      favorite: false,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
-      description: 'Sergeant Robert Vance in official army aviation uniform during training deployment in San Diego.',
-      archived: false
-    },
-    {
-      id: 'asset-4',
-      name: 'wedding_portland_cliffs_1960.jpg',
-      type: 'image',
-      category: 'Wedding',
-      size: '6.1 MB',
-      bytes: 6396313,
-      resolution: '3600 x 4800 px',
-      uploadDate: '2026-06-08',
-      tags: ['Wedding', 'Couple', 'Ocean', 'Landscape'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: ['ev3'],
-      linkedChapters: ['ch2'],
-      favorite: true,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=400&q=80',
-      description: 'Elizabeth and Robert exchanging vows on the rocky coast cliffs of Portland, Maine, surrounded by small family gather.',
-      archived: false
-    },
-    {
-      id: 'asset-5',
-      name: 'salem_literacy_center_opening_1974.jpg',
-      type: 'image',
-      category: 'Career Photo',
-      size: '3.9 MB',
-      bytes: 4089446,
-      resolution: '2800 x 3600 px',
-      uploadDate: '2026-06-12',
-      tags: ['Salem', 'Teaching', 'Founding', 'Classroom'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: ['ev4'],
-      linkedChapters: ['ch3'],
-      favorite: false,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=400&q=80',
-      description: 'Elizabeth cutting the blue ribbon outside the Salem Literacy Center next to mayor Jenkins and community tutors.',
-      archived: false
-    },
-    {
-      id: 'asset-6',
-      name: 'home_movie_sandbox_robert_1984.mp4',
-      type: 'video',
-      category: 'Home Video',
-      size: '48.2 MB',
-      bytes: 50541363,
-      duration: '01:45',
-      uploadDate: '2026-06-15',
-      tags: ['Home Video', 'Son Robert', 'Salem House', 'Children'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: [],
-      linkedChapters: ['ch4'],
-      favorite: false,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80',
-      description: '8mm home film digitization of Robert playing in the sandy Salem backyard sandbox during late July.',
-      archived: false
-    },
-    {
-      id: 'asset-7',
-      name: 'boston_governor_ceremony_2008.mp4',
-      type: 'video',
-      category: 'Home Video',
-      size: '85.4 MB',
-      bytes: 89549619,
-      duration: '03:12',
-      uploadDate: '2026-06-18',
-      tags: ['Award', 'State House', 'Speech', 'Boston'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: [],
-      linkedChapters: ['ch5'],
-      favorite: false,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1496171367470-9ed9a91ea931?auto=format&fit=crop&w=400&q=80',
-      description: 'Handheld video of the Governor presenting Elizabeth with the Massachusetts Educational Service Medal.',
-      archived: false
-    },
-    {
-      id: 'asset-8',
-      name: 'elizabeth_cape_cod_watercolor_session.mp4',
-      type: 'video',
-      category: 'Home Video',
-      size: '124.7 MB',
-      bytes: 130752512,
-      duration: '04:30',
-      uploadDate: '2026-06-20',
-      tags: ['Artistry', 'Cape Cod', 'Retirement', 'Hobby'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: ['ev5'],
-      linkedChapters: ['ch4'],
-      favorite: true,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=400&q=80',
-      description: 'Digital video captured by Philip showing Elizabeth painting a wind-bent cedar tree at the Nauset beach Dunes.',
-      archived: false
-    },
-    {
-      id: 'asset-9',
-      name: 'oral_history_interview_track_02.mp3',
-      type: 'audio',
-      category: 'Voice Recording',
-      size: '14.2 MB',
-      bytes: 14889779,
-      duration: '12:15',
-      uploadDate: '2026-06-21',
-      tags: ['Interview', 'Audio Archive', 'Wellesley Memory', 'Oral History'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: ['ev2'],
-      linkedChapters: ['ch1'],
-      favorite: true,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1484755560695-a4c7402a50e9?auto=format&fit=crop&w=400&q=80',
-      description: 'Audio capture of Elizabeth explaining Wellesley academic life and early classroom inspirations in Boston.',
-      archived: false
-    },
-    {
-      id: 'asset-10',
-      name: 'ambient_cape_cod_beach_waves.wav',
-      type: 'audio',
-      category: 'Music File',
-      size: '8.4 MB',
-      bytes: 8808038,
-      duration: '05:00',
-      uploadDate: '2026-06-22',
-      tags: ['Audio Ambient', 'Nature Sound', 'Soundtrack Accent'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: [],
-      linkedChapters: ['ch4'],
-      favorite: false,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80',
-      description: 'High quality field wave recording of coast shore ambient sound used as low background audio layer.',
-      archived: false
-    },
-    {
-      id: 'asset-11',
-      name: 'educational_medal_parchment_2008.pdf',
-      type: 'document',
-      category: 'Certificate',
-      size: '3.1 MB',
-      bytes: 3250585,
-      uploadDate: '2026-06-23',
-      tags: ['Massachusetts', 'Certificate', 'State House', 'Civic Merit'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: [],
-      linkedChapters: ['ch5'],
-      favorite: false,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=400&q=80',
-      description: 'Scanned official state certificate from the Massachusetts General Court with Governor endorsement stamp.',
-      archived: false
-    },
-    {
-      id: 'asset-12',
-      name: 'elizabeth_vance_cv_2011.pdf',
-      type: 'document',
-      category: 'Resume',
-      size: '1.2 MB',
-      bytes: 1258291,
-      uploadDate: '2026-06-24',
-      tags: ['CV', 'Employment History', 'Dossier', 'Education Record'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: [],
-      linkedChapters: [],
-      favorite: false,
-      status: 'Needs Metadata',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=400&q=80',
-      description: 'Comprehensive 4-page curriculum vitae detailing her administrative tenures, board positions, and teaching awards.',
-      archived: false
-    },
-    {
-      id: 'asset-13',
-      name: 'salem_weekly_newspaper_clipping_1975.jpg',
-      type: 'image',
-      category: 'Newspaper Article',
-      size: '5.2 MB',
-      bytes: 5452595,
-      resolution: '4000 x 5200 px',
-      uploadDate: '2026-06-25',
-      tags: ['Salem Weekly', 'Clipping', 'Press', 'Public Recognition'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: ['ev4'],
-      linkedChapters: ['ch3'],
-      favorite: false,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=400&q=80',
-      description: 'Scanned news feature titled "A Library In Former Bakery Inspires Town Tutors" showing portrait of Vance.',
-      archived: false
-    },
-    {
-      id: 'asset-14',
-      name: 'boston_public_schools_tribute_letter.pdf',
-      type: 'document',
-      category: 'Letter',
-      size: '2.9 MB',
-      bytes: 3040870,
-      uploadDate: '2026-06-26',
-      tags: ['Letter', 'Tribute', 'Boston School Board', 'Archive Scan'],
-      linkedStoryId: 'story-elizabeth-legacy',
-      linkedStoryName: 'The Literary Legacy of Elizabeth Vance',
-      linkedEvents: [],
-      linkedChapters: [],
-      favorite: false,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80',
-      description: 'Letter written by superintendent thanking Elizabeth Vance for assisting with Salem Literacy Outreach framework.',
-      archived: false
-    },
-    {
-      id: 'asset-15',
-      name: 'grandfather_bob_drafting_schematic.pdf',
-      type: 'document',
-      category: 'Resume',
-      size: '14.8 MB',
-      bytes: 15518924,
-      uploadDate: '2026-06-27',
-      tags: ['Aviation Blueprint', 'Drafting', 'Vintage Biplanes'],
-      linkedStoryId: 'story-bob-military',
-      linkedStoryName: 'Bob Vance: Service and Blue Skies',
-      linkedEvents: [],
-      linkedChapters: [],
-      favorite: false,
-      status: 'Ready',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=400&q=80',
-      description: 'Hand-drawn drafting blueprint for the Boeing Stearman wingspan restoration detailing cable anchor tensions.',
-      archived: false
-    }
-  ]);
+  // --- 2. CORE LIBRARY PERSISTENT STATE ---
+  const [assets, setAssets] = useState<MediaAsset[]>([]);
 
-  // --- 3. COLLECTIONS STATE ---
-  const [collections, setCollections] = useState<Collection[]>([
-    {
-      id: 'col-1',
-      name: 'Wellesley & Boston College Era',
-      description: 'Photos, letters, and grade cards covering Elizabeth Vance’s collegiate decade from 1953 to 1960.',
-      coverImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80',
-      assetCount: 3,
-      lastUpdated: '2026-07-01',
-      tags: ['Academic', 'Early Era', 'Black & White']
-    },
-    {
-      id: 'col-2',
-      name: 'Nauset Beach & Coastal Watercolors',
-      description: 'High-res scans of watercolors painted on Cape Cod and home footage of live artwork sessions.',
-      coverImage: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=300&q=80',
-      assetCount: 2,
-      lastUpdated: '2026-07-05',
-      tags: ['Art Exhibition', 'Nauset Beach', 'Retirement']
-    },
-    {
-      id: 'col-3',
-      name: 'Salem Literacy Center Archives',
-      description: 'Newspaper clipping columns, municipality building charters, letters from town board, and volunteer cards.',
-      coverImage: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=300&q=80',
-      assetCount: 4,
-      lastUpdated: '2026-07-10',
-      tags: ['Foundry Years', 'Social Impact', 'Massachusetts']
-    },
-    {
-      id: 'col-4',
-      name: 'Grandpa Bob Military aviation set',
-      description: 'World War II training manuals, uniform snapshots, and mechanical drafting blueprints for biplane restoration.',
-      coverImage: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80',
-      assetCount: 2,
-      lastUpdated: '2026-07-12',
-      tags: ['Military', 'Vance Couple', 'Boeing Stearman']
+  // --- 3. COLLECTIONS PERSISTENT STATE ---
+  const [collections, setCollections] = useState<Collection[]>([]);
+
+  const handleRefreshLibrary = async () => {
+    try {
+      const allAssets = await persistenceService.media.getAll();
+      setAssets(allAssets as any);
+      
+      const allCols = await persistenceService.collections.getAll();
+      setCollections(allCols as any);
+    } catch (err) {
+      console.error('Failed to load library data:', err);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    handleRefreshLibrary();
+  }, []);
 
   // --- 4. UPLOAD QUEUE SIMULATOR STATE ---
   const [uploadQueue, setUploadQueue] = useState<Array<{
@@ -465,12 +152,85 @@ export function MediaLibrary() {
     speed?: string;
     error?: string;
     fileType: 'image' | 'video' | 'audio' | 'document';
-  }>>([
-    { id: 'uq-1', name: 'grandfather_farmhouse_highres.png', size: '5.4 MB', progress: 100, status: 'Complete', fileType: 'image' },
-    { id: 'uq-2', name: 'oral_history_interview_track_04.wav', size: '32.1 MB', progress: 42, status: 'Uploading', speed: '2.4 MB/s', fileType: 'audio' },
-    { id: 'uq-3', name: 'wellesley_grade_report_1955.pdf', size: '1.2 MB', progress: 0, status: 'Queued', fileType: 'document' },
-    { id: 'uq-4', name: 'duplicate_diploma_scan_v1.png', size: '2.8 MB', progress: 0, status: 'Failed', error: 'Duplicate File Detected (Asset 2)', fileType: 'image' }
-  ]);
+  }>>([]);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleOpenUploadDialog = () => {
+    fileInputRef.current?.click();
+  };
+
+  const uploadMultipleFiles = async (files: File[]) => {
+    for (const file of files) {
+      const uploadId = `uq-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
+      try {
+        if (file.size > 50 * 1024 * 1024) {
+          showToast('error', 'Upload Blocked', `"${file.name}" exceeds the 50MB storage limit.`);
+          continue;
+        }
+        if (file.size === 0) {
+          showToast('error', 'Upload Blocked', `"${file.name}" is an empty 0-byte file.`);
+          continue;
+        }
+
+        let fileType: 'image' | 'video' | 'audio' | 'document' = 'document';
+        if (file.type.startsWith('image/')) fileType = 'image';
+        else if (file.type.startsWith('video/')) fileType = 'video';
+        else if (file.type.startsWith('audio/')) fileType = 'audio';
+
+        // Add to simulated queue list
+        const newItem = {
+          id: uploadId,
+          name: file.name,
+          size: file.size >= 1024 * 1024 ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : `${(file.size / 1024).toFixed(1)} KB`,
+          progress: 10,
+          status: 'Uploading' as const,
+          speed: '1.2 MB/s',
+          fileType
+        };
+        setUploadQueue(prev => [newItem, ...prev]);
+
+        // Simulate local progress ticker for high-fidelity UI
+        for (let progress = 30; progress <= 90; progress += 30) {
+          await new Promise(resolve => setTimeout(resolve, 150));
+          setUploadQueue(prev => prev.map(item => item.id === uploadId ? { ...item, progress } : item));
+        }
+
+        // Real conversion and persistence using MediaService
+        await MediaService.processUpload(file, {
+          profileId: 'profile-1', // Default profile for global media library
+          category: file.type.startsWith('image/') ? 'Portrait' : 'Family Photo',
+          description: `Uploaded: ${file.name}`
+        });
+
+        // Update queue item status to Complete
+        setUploadQueue(prev => prev.map(item => item.id === uploadId ? { ...item, progress: 100, status: 'Complete', speed: undefined } : item));
+        showToast('success', 'Upload Complete', `"${file.name}" cataloged successfully.`);
+      } catch (err: any) {
+        setUploadQueue(prev => prev.map(item => item.id === uploadId ? { ...item, status: 'Failed', error: err.message || 'Duplicate file or validation issue.' } : item));
+        showToast('error', 'Upload Failed', `"${file.name}": ${err.message}`);
+      }
+    }
+    await handleRefreshLibrary();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    await uploadMultipleFiles(Array.from(files));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      await uploadMultipleFiles(Array.from(files));
+    }
+  };
 
   // --- 5. INTERACTIVE COMPUTATIONS & FILTERS ---
   const selectedAsset = useMemo(() => {
@@ -585,62 +345,99 @@ export function MediaLibrary() {
   }, [assets]);
 
   // --- 6. ACTIONS HANDLERS ---
-  const handleToggleFavorite = (id: string, e?: React.MouseEvent) => {
+  const handleToggleFavorite = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setAssets(prev => prev.map(a => a.id === id ? { ...a, favorite: !a.favorite } : a));
     const target = assets.find(a => a.id === id);
-    if (target) {
+    if (!target) return;
+    try {
+      await MediaService.favoriteMedia(id, !target.favorite);
+      await handleRefreshLibrary();
       showToast(
         'success',
         !target.favorite ? 'Asset Favorited' : 'Removed from Favorites',
         `"${target.name}" status updated in dynamic categories.`
       );
+    } catch (err: any) {
+      showToast('error', 'Toggle Favorite Failed', err.message);
     }
   };
 
   const handleDeleteAsset = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (confirm('Permanently delete this digital asset from the library database? This unlinks the asset from all chapters.')) {
-      setAssets(prev => prev.filter(a => a.id !== id));
-      setSelectedAssetId(prev => prev === id ? (assets.find(a => a.id !== id)?.id || null) : prev);
-      showToast('error', 'Asset Deleted', 'Asset removed from cloud index references.');
-    }
+    const asset = assets.find(a => a.id === id);
+    setDeleteTarget({ id, type: 'single', name: asset?.name });
   };
 
-  const handleRenameAsset = (id: string, e?: React.MouseEvent) => {
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      if (deleteTarget.type === 'single') {
+        await MediaService.deleteMedia(deleteTarget.id);
+        await handleRefreshLibrary();
+        showToast('error', 'Asset Deleted', `"${deleteTarget.name}" removed from library database.`);
+      } else if (deleteTarget.type === 'bulk') {
+        for (const id of selectedAssets) {
+          await MediaService.deleteMedia(id);
+        }
+        await handleRefreshLibrary();
+        setSelectedAssets([]);
+        showToast('error', 'Bulk Delete Completed', 'Selected items unlinked from library index.');
+      } else if (deleteTarget.type === 'collection') {
+        await persistenceService.collections.delete(deleteTarget.id);
+        const allCols = await persistenceService.collections.getAll();
+        setCollections(allCols as any);
+        showToast('error', 'Collection Deleted', `"${deleteTarget.name}" album pruned.`);
+      }
+    } catch (err: any) {
+      showToast('error', 'Delete Failed', err.message);
+    }
+
+    setDeleteTarget(null);
+  };
+
+  const handleRenameAsset = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const target = assets.find(a => a.id === id);
     if (!target) return;
     const newName = prompt('Enter new filename with extension:', target.name);
     if (newName && newName.trim()) {
-      setAssets(prev => prev.map(a => a.id === id ? { ...a, name: newName.trim() } : a));
-      showToast('success', 'Filename Saved', `Asset renamed to "${newName.trim()}".`);
+      try {
+        await MediaService.renameMedia(id, newName.trim());
+        await handleRefreshLibrary();
+        showToast('success', 'Filename Saved', `Asset renamed to "${newName.trim()}".`);
+      } catch (err: any) {
+        showToast('error', 'Rename Failed', err.message);
+      }
     }
   };
 
-  const handleBulkFavorite = () => {
+  const handleBulkFavorite = async () => {
     if (selectedAssets.length === 0) return;
-    setAssets(prev => prev.map(a => selectedAssets.includes(a.id) ? { ...a, favorite: true } : a));
-    showToast('success', 'Bulk Action Successful', `Marked ${selectedAssets.length} assets as favorites.`);
-    setSelectedAssets([]);
+    try {
+      for (const id of selectedAssets) {
+        await MediaService.favoriteMedia(id, true);
+      }
+      await handleRefreshLibrary();
+      showToast('success', 'Bulk Action Successful', `Marked ${selectedAssets.length} assets as favorites.`);
+      setSelectedAssets([]);
+    } catch (err: any) {
+      showToast('error', 'Bulk Favorite Failed', err.message);
+    }
   };
 
   const handleBulkDelete = () => {
     if (selectedAssets.length === 0) return;
-    if (confirm(`Permanently delete all ${selectedAssets.length} selected assets from the story ledger?`)) {
-      setAssets(prev => prev.filter(a => !selectedAssets.includes(a.id)));
-      setSelectedAssets([]);
-      showToast('error', 'Bulk Delete Completed', 'Selected items unlinked from library index.');
-    }
+    setDeleteTarget({ id: 'bulk', type: 'bulk', name: `${selectedAssets.length} selected assets` });
   };
 
-  const handleCreateCollection = (e: React.FormEvent) => {
+  const handleCreateCollection = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCollectionData.name.trim()) {
       showToast('warning', 'Missing Details', 'Collection name is a required field.');
       return;
     }
-    const newCol: Collection = {
+    const newCol = {
       id: `col-${Date.now()}`,
       name: newCollectionData.name,
       description: newCollectionData.description || 'No description supplied.',
@@ -649,17 +446,21 @@ export function MediaLibrary() {
       lastUpdated: new Date().toISOString().split('T')[0],
       tags: ['Custom Set']
     };
-    setCollections([...collections, newCol]);
-    setIsCreateCollectionOpen(false);
-    setNewCollectionData({ name: '', description: '', cover: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=300&q=80' });
-    showToast('success', 'Collection Created', `"${newCol.name}" added to Albums list.`);
+    try {
+      await persistenceService.collections.create(newCol as any);
+      const allCols = await persistenceService.collections.getAll();
+      setCollections(allCols as any);
+      setIsCreateCollectionOpen(false);
+      setNewCollectionData({ name: '', description: '', cover: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=300&q=80' });
+      showToast('success', 'Collection Created', `"${newCol.name}" added to Albums list.`);
+    } catch (err: any) {
+      showToast('error', 'Create Collection Failed', err.message);
+    }
   };
 
   const handleRemoveCollection = (id: string) => {
-    if (confirm('Permanently delete this collection? This will NOT delete the assets inside it.')) {
-      setCollections(collections.filter(c => c.id !== id));
-      showToast('error', 'Collection Deleted', 'Custom metadata album pruned.');
-    }
+    const col = collections.find(c => c.id === id);
+    setDeleteTarget({ id, type: 'collection', name: col?.name });
   };
 
   const handleToggleSelectAsset = (id: string, e: React.MouseEvent) => {
@@ -1329,17 +1130,19 @@ export function MediaLibrary() {
               </div>
 
               {/* DND Drag Zone Placeholder */}
+              <input
+                type="file"
+                multiple
+                ref={fileInputRef}
+                className="hidden"
+                onChange={handleFileChange}
+                accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              />
               <div 
                 id="upload-dropzone"
-                onClick={() => {
-                  // Simulate picking a file
-                  const mockFiles = [
-                    { id: `uq-${Date.now()}-1`, name: 'mother_watercolor_beach_nauset.jpg', size: '3.1 MB', progress: 0, status: 'Queued' as const, fileType: 'image' as const },
-                    { id: `uq-${Date.now()}-2`, name: 'grandma_journal_entry_1965.pdf', size: '12.4 MB', progress: 0, status: 'Queued' as const, fileType: 'document' as const }
-                  ];
-                  setUploadQueue(prev => [...prev, ...mockFiles]);
-                  showToast('success', 'Files Added to Queue', 'Digital asset queue initialized.');
-                }}
+                onClick={handleOpenUploadDialog}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
                 className="p-8 border-2 border-dashed border-border hover:border-cinema-amber-500/60 bg-card/40 rounded-2xl text-center space-y-4 cursor-pointer transition-all duration-300"
               >
                 <div className="w-12 h-12 rounded-full bg-cinema-amber-500/10 text-cinema-amber-500 flex items-center justify-center mx-auto border border-cinema-amber-500/20">
@@ -2072,6 +1875,25 @@ export function MediaLibrary() {
         )}
       </AnimatePresence>
 
+      <ConfirmationModal
+        isOpen={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        title={
+          deleteTarget?.type === 'single'
+            ? 'Delete Memoir Asset?'
+            : deleteTarget?.type === 'bulk'
+            ? 'Delete Selected Assets?'
+            : 'Delete Album Collection?'
+        }
+        message={
+          deleteTarget?.type === 'single'
+            ? `Are you sure you want to permanently delete "${deleteTarget?.name || ''}" from your vault? All chapter and timeline scene connections will be destroyed.`
+            : deleteTarget?.type === 'bulk'
+            ? `Are you sure you want to permanently delete all ${deleteTarget?.name || ''} from your vault? All chapter and timeline scene connections will be destroyed.`
+            : `Are you sure you want to permanently delete the collection "${deleteTarget?.name || ''}"? This deletes the album organization wrapper but will NOT delete any individual files within it.`
+        }
+      />
     </div>
   );
 }

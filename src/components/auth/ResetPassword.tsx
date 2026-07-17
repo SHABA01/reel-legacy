@@ -97,112 +97,126 @@ export function ResetPassword() {
       title="Forge a New Secret Key" 
       subtitle="Update your security password with robust, non-overlapping criteria to shield your biographic memoirs from unauthorized exposure."
     >
-      <div id="reset-password-container" className="space-y-6">
-        {/* Card Header */}
-        <div id="reset-password-header" className="space-y-1 text-left">
-          <h1 className="font-display text-2xl font-black tracking-tight text-white">
+      <div id="reset-password-container" className="flex-grow flex flex-col justify-between h-full overflow-hidden">
+        {/* Card Header - FIXED */}
+        <div id="reset-password-header" className="space-y-1 text-left pb-4 shrink-0">
+          <h1 className="font-display text-2xl font-black tracking-tight text-foreground">
             Reset Password
           </h1>
-          <p className="text-xs text-[#64748b]">
+          <p className="text-xs text-muted-foreground">
             Establish your fresh archive access secrets.
           </p>
         </div>
 
         {success ? (
-          <div className="text-center py-6 space-y-6 animate-fade-in" id="reset-password-success-view">
-            <div className="w-20 h-20 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-xl shadow-emerald-500/5">
-              <CheckCircle2 className="w-10 h-10 animate-bounce" />
+          <div className="flex-grow flex flex-col justify-between h-full overflow-hidden animate-fade-in" id="reset-password-success-view">
+            {/* Scrollable Success Area */}
+            <div className="flex-1 overflow-y-auto scrollbar-ephemeral pl-5 pr-3 py-2 min-h-[100px]" id="reset-password-success-scroll">
+              <div className="text-center py-4 space-y-6">
+                <div className="w-20 h-20 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-xl shadow-emerald-500/5 animate-scale-in">
+                  <CheckCircle2 className="w-10 h-10 animate-bounce" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="font-display text-xl font-bold text-foreground">Password Updated!</h2>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                    Your new security signature has been synchronized globally. You can now use it to restore your biographic session.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <h2 className="font-display text-xl font-bold text-white">Password Updated!</h2>
-              <p className="text-xs text-[#94a3b8] max-w-sm mx-auto leading-relaxed">
-                Your new security signature has been synchronized globally. You can now use it to restore your biographic session.
-              </p>
+
+            {/* FIXED Footer */}
+            <div className="shrink-0 pt-4" id="reset-password-success-footer">
+              <Link to="/login" className="block">
+                <Button 
+                  id="reset-success-login-btn"
+                  variant="primary"
+                  className="w-full py-3 bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 flex items-center justify-center gap-2 font-bold rounded-xl cursor-pointer"
+                >
+                  Sign In to Studio <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
             </div>
-            <Link to="/login" className="block">
-              <Button 
-                id="reset-success-login-btn"
-                variant="primary"
-                className="w-full py-3 bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 flex items-center justify-center gap-2 font-bold"
-              >
-                Sign In to Studio <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
           </div>
         ) : (
-          <div className="space-y-5" id="reset-password-form-view">
+          <div className="flex-grow flex flex-col justify-between h-full overflow-hidden" id="reset-password-form-view">
+            {/* Global States Announcement - FIXED */}
             {errorMsg && (
-              <div 
-                id="reset-password-error-banner"
-                className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start gap-2.5 animate-shake"
-              >
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
-                <div>
-                  <span className="font-bold">Error: </span>
-                  {errorMsg}
+              <div className="shrink-0 pb-3" id="reset-password-banners">
+                <div 
+                  id="reset-password-error-banner"
+                  className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 dark:text-red-400 text-xs flex items-start gap-2.5 animate-shake"
+                >
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
+                  <div>
+                    <span className="font-bold">Error: </span>
+                    {errorMsg}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Quick Simulation Help for sandbox environment */}
-            <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-850 text-[10px] text-[#475569] font-mono leading-relaxed" id="reset-password-simulation-helper">
-              <span className="text-cinema-amber-500 font-bold uppercase block mb-0.5 text-[9px]">Sandbox Simulation Guides:</span>
-              To test token error states, visit this page with query parameter strings:<br />
-              • <Link to="/reset-password?token=expired" className="text-cinema-amber-500 hover:underline">/reset-password?token=expired</Link><br />
-              • <Link to="/reset-password?token=invalid" className="text-cinema-amber-500 hover:underline">/reset-password?token=invalid</Link>
+            {/* Scrollable Fields Wrapper */}
+            <div 
+              className="flex-1 overflow-y-auto scrollbar-ephemeral pl-5 pr-3 py-2 min-h-[100px] max-h-[220px]" 
+              id="reset-password-inputs-scroll"
+            >
+              <form onSubmit={handleSubmit} className="space-y-4" id="reset-password-form">
+                {/* New Password */}
+                <Input 
+                  id="reset-password-new"
+                  label="New Password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Choose a robust password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onBlur={() => setPasswordTouched(true)}
+                  error={passwordError}
+                  disabled={isPending || token === 'expired' || token === 'invalid'}
+                  leftElement={<Lock className="w-4 h-4" />}
+                  autoFocus
+                />
+
+                {/* Strength Meter */}
+                {password && (
+                  <PasswordStrengthMeter password={password} />
+                )}
+
+                {/* Confirm Password */}
+                <Input 
+                  id="reset-password-confirm"
+                  label="Confirm Password"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Re-enter password for validation"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onBlur={() => setConfirmPasswordTouched(true)}
+                  error={confirmPasswordError}
+                  disabled={isPending || token === 'expired' || token === 'invalid'}
+                  leftElement={<Lock className="w-4 h-4" />}
+                  rightElement={
+                    <button
+                      type="button"
+                      id="reset-password-toggle-confirm"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="hover:text-foreground transition-colors focus:outline-none cursor-pointer"
+                      aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  }
+                />
+              </form>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4" id="reset-password-form">
-              {/* New Password */}
-              <Input 
-                id="reset-password-new"
-                label="New Password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Choose a robust password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onBlur={() => setPasswordTouched(true)}
-                error={passwordError}
-                disabled={isPending || token === 'expired' || token === 'invalid'}
-                leftElement={<Lock className="w-4 h-4" />}
-                autoFocus
-              />
-
-              {/* Strength Meter */}
-              {password && (
-                <PasswordStrengthMeter password={password} />
-              )}
-
-              {/* Confirm Password */}
-              <Input 
-                id="reset-password-confirm"
-                label="Confirm Password"
-                type={showConfirmPassword ? 'text' : 'password'}
-                placeholder="Re-enter password for validation"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                onBlur={() => setConfirmPasswordTouched(true)}
-                error={confirmPasswordError}
-                disabled={isPending || token === 'expired' || token === 'invalid'}
-                leftElement={<Lock className="w-4 h-4" />}
-                rightElement={
-                  <button
-                    type="button"
-                    id="reset-password-toggle-confirm"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="hover:text-white transition-colors focus:outline-none"
-                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                }
-              />
-
+            {/* FIXED Footer Actions Container */}
+            <div className="shrink-0 pt-4 space-y-4" id="reset-password-footer">
               <Button 
                 id="reset-password-submit"
                 type="submit"
+                form="reset-password-form"
                 variant="primary"
-                className="w-full py-3 rounded-xl font-bold transition-all relative overflow-hidden bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 rounded-xl font-bold transition-all relative overflow-hidden bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 disabled={!isFormValid || isPending}
               >
                 {isPending ? (
@@ -214,16 +228,16 @@ export function ResetPassword() {
                   'Forge New Password'
                 )}
               </Button>
-            </form>
 
-            <div className="text-center pt-2" id="reset-password-back">
-              <Link 
-                id="reset-password-back-login"
-                to="/login" 
-                className="inline-flex items-center gap-1.5 text-xs text-[#64748b] hover:text-white transition-colors"
-              >
-                Back to Login
-              </Link>
+              <div className="text-center pt-2" id="reset-password-back">
+                <Link 
+                  id="reset-password-back-login"
+                  to="/login" 
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  Back to Login
+                </Link>
+              </div>
             </div>
           </div>
         )}

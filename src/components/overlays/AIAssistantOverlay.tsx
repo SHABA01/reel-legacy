@@ -106,7 +106,7 @@ export function AIAssistantOverlay() {
         </div>
 
         {/* Chat Thread */}
-        <div ref={scrollRef} id="ai-chat-thread" className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div ref={scrollRef} id="ai-chat-thread" className="flex-1 overflow-y-auto scrollbar-ephemeral p-5 space-y-4">
           {messages.map((msg, idx) => (
             <div
               key={idx}

@@ -149,8 +149,8 @@ export function EmailVerification() {
               <AlertTriangle className="w-8 h-8 text-red-500" />
             </div>
             <div className="space-y-2">
-              <h2 className="font-display text-lg font-bold text-white">Verification Link Expired</h2>
-              <p className="text-xs text-[#94a3b8] max-w-xs mx-auto leading-relaxed">
+              <h2 className="font-display text-lg font-bold text-foreground">Verification Link Expired</h2>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
                 Security tokens expire after 24 hours. Request another verification link to unlock the studio.
               </p>
             </div>
@@ -164,7 +164,7 @@ export function EmailVerification() {
               >
                 {resending ? 'Requesting Link...' : 'Resend Verification Link'}
               </Button>
-              <Link to="/login" className="block text-xs text-[#64748b] hover:text-white transition-colors">
+              <Link to="/login" className="block text-xs text-muted-foreground hover:text-foreground transition-colors">
                 Return to Login
               </Link>
             </div>
@@ -178,8 +178,8 @@ export function EmailVerification() {
               <AlertTriangle className="w-8 h-8 text-red-500 animate-pulse" />
             </div>
             <div className="space-y-2">
-              <h2 className="font-display text-lg font-bold text-white">Invalid Verification Token</h2>
-              <p className="text-xs text-[#94a3b8] max-w-xs mx-auto leading-relaxed">
+              <h2 className="font-display text-lg font-bold text-foreground">Invalid Verification Token</h2>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
                 This verification signature is corrupted or has already been consumed. Please check the address or request a fresh token.
               </p>
             </div>
@@ -193,7 +193,7 @@ export function EmailVerification() {
               >
                 {resending ? 'Requesting Link...' : 'Resend Verification Link'}
               </Button>
-              <Link to="/login" className="block text-xs text-[#64748b] hover:text-white transition-colors">
+              <Link to="/login" className="block text-xs text-muted-foreground hover:text-foreground transition-colors">
                 Return to Login
               </Link>
             </div>
@@ -209,33 +209,23 @@ export function EmailVerification() {
                 <Mail className="w-10 h-10 animate-pulse text-cinema-amber-500" />
               </div>
               <div className="space-y-1">
-                <h1 className="font-display text-xl font-bold text-white">Check your Inbox</h1>
-                <p className="text-xs text-[#64748b]">
+                <h1 className="font-display text-xl font-bold text-foreground">Check your Inbox</h1>
+                <p className="text-xs text-muted-foreground">
                   A verification link is on its way to your account.
                 </p>
               </div>
             </div>
 
             {/* Verification message / Info Banner */}
-            <div className="p-4 rounded-xl bg-[#09111e] border border-[#1e293b]/50 text-xs text-[#94a3b8] leading-relaxed" id="verification-pending-banner">
+            <div className="p-4 rounded-xl bg-muted/40 border border-border/50 text-xs text-muted-foreground leading-relaxed animate-fade-in" id="verification-pending-banner">
               We have dispatched a time-sensitive verification email to{' '}
-              <span className="text-white font-bold block mt-1 font-mono tracking-wide">{user?.email || 'your email address'}</span>. 
+              <span className="text-foreground font-bold block mt-1 font-mono tracking-wide">{user?.email || 'your email address'}</span>. 
               Click the link inside to confirm ownership and authorize full cinematic rendering modules.
-            </div>
-
-            {/* Quick Simulation Help */}
-            <div className="p-3.5 rounded-xl bg-cinema-amber-500/5 border border-cinema-amber-500/20 text-[11px] text-cinema-amber-400 space-y-1" id="verification-simulation-helper">
-              <span className="font-bold uppercase tracking-wider text-[9px] font-mono">Sandbox Simulator:</span>
-              <p className="leading-relaxed">
-                To test success, visit this URL with token parameters:<br />
-                <code className="text-white bg-slate-950/70 p-1 rounded mt-1 select-all block font-mono">/verify-email?token=valid-secret-key</code>
-                To test expired or invalid states, replace it with <code className="text-white inline bg-slate-950/70 p-0.5 rounded">?token=expired</code> or <code className="text-white inline bg-slate-950/70 p-0.5 rounded">?token=invalid</code>.
-              </p>
             </div>
 
             {/* Actions: Resend or Edit Email */}
             {editMode ? (
-              <form onSubmit={handleUpdateEmail} className="space-y-3.5 p-3.5 rounded-xl bg-slate-900/50 border border-slate-800/40 animate-fade-in" id="verification-edit-email-form">
+              <form onSubmit={handleUpdateEmail} className="space-y-3.5 p-3.5 rounded-xl bg-muted/40 border border-border/50 animate-fade-in" id="verification-edit-email-form">
                 <Input 
                   id="verification-new-email"
                   label="Update Email Address"
@@ -256,7 +246,7 @@ export function EmailVerification() {
                       setNewEmail(user?.email || '');
                       setEmailError(undefined);
                     }}
-                    className="px-3 py-1.5 text-[#64748b] hover:text-white transition-colors"
+                    className="px-3 py-1.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -290,12 +280,12 @@ export function EmailVerification() {
                   )}
                 </Button>
 
-                <div className="flex justify-between items-center text-xs text-[#64748b] px-1" id="verification-secondary-actions">
+                <div className="flex justify-between items-center text-xs text-muted-foreground px-1" id="verification-secondary-actions">
                   <button 
                     type="button" 
                     id="verification-change-email"
                     onClick={() => setEditMode(true)}
-                    className="flex items-center gap-1.5 hover:text-white transition-colors"
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
                   >
                     <Edit2 className="w-3.5 h-3.5" /> Incorrect email address?
                   </button>
@@ -304,7 +294,7 @@ export function EmailVerification() {
                     type="button" 
                     id="verification-pending-logout"
                     onClick={handleLogout}
-                    className="flex items-center gap-1.5 hover:text-white transition-colors text-red-400"
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors text-red-500 cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" /> Sign Out
                   </button>
@@ -313,8 +303,8 @@ export function EmailVerification() {
             )}
 
             {/* Back link */}
-            <div className="text-center pt-2 text-xs text-[#475569]" id="verification-back-login">
-              <Link to="/login" className="hover:text-[#94a3b8] hover:underline transition-colors">
+            <div className="text-center pt-2 text-xs text-muted-foreground" id="verification-back-login">
+              <Link to="/login" className="hover:text-foreground hover:underline transition-colors">
                 Back to Login
               </Link>
             </div>
