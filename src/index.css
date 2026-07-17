@@ -366,4 +366,70 @@ html:not(.dark) .bg-auth-pillar-card {
   border-color: rgba(0, 0, 0, 0.04) !important;
 }
 
+/* Pretty floaty card style in light mode only */
+html:not(.dark) .pretty-float-card {
+  background-color: #ffffff !important;
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.04), 0 4px 12px -2px rgba(0, 0, 0, 0.02) !important;
+  border-color: rgba(0, 0, 0, 0.05) !important;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s ease !important;
+}
+
+html:not(.dark) .pretty-float-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.06), 0 10px 15px -3px rgba(0, 0, 0, 0.03) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Resume button styling in light mode to avoid orange text lockout */
+html:not(.dark) .resume-btn-style {
+  background-color: #ffffff !important;
+  color: #0b1220 !important; /* Elegant navy blue */
+  border-color: #cbd5e1 !important; /* Visible border-slate-300 */
+}
+
+/* Keep text readable on card hover (since card has group) or direct button hover */
+html:not(.dark) .group:hover .resume-btn-style,
+html:not(.dark) .resume-btn-style:hover {
+  background-color: rgba(245, 158, 11, 0.1) !important; /* soft amber background tint */
+  border-color: rgba(245, 158, 11, 0.4) !important; /* clear amber border */
+  color: #0b1220 !important; /* remain deep navy blue, fully readable! */
+}
+
+/* Ensure the play icon colors and animations match */
+html:not(.dark) .resume-btn-style svg {
+  color: #0b1220 !important;
+}
+
+/* Ensure the welcome back title and subtitle are solid black in light mode */
+html:not(.dark) #welcome-text h2 {
+  color: #000000 !important;
+}
+
+html:not(.dark) #welcome-text p {
+  color: #090d16 !important; /* solid deep black/slate */
+}
+
+/* Ensure the "Review active tasks" button text is black and readable, even on hover in light mode */
+html:not(.dark) #returning-banner-secondary {
+  color: #000000 !important;
+  border-color: #cbd5e1 !important; /* visible border */
+  background-color: transparent !important;
+}
+
+html:not(.dark) #returning-banner-secondary:hover {
+  color: #000000 !important;
+  border-color: #94a3b8 !important;
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Light mode heatmap zero cell style to match sidebar background oklch(0.984 0.003 247.858) */
+html:not(.dark) .heatmap-zero-cell {
+  background-color: oklch(0.984 0.003 247.858) !important;
+}
+
+/* Dark mode heatmap zero cell style */
+html.dark .heatmap-zero-cell {
+  background-color: #0f172a !important; /* cinema-slate-900 */
+}
+
 

@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { persistenceService, StoryService, ActivityService } from '../../storage';
+import { ActivityHeatmap } from './ActivityHeatmap';
 
 // Define the dashboard state modes
 type DashboardStateMode =
@@ -725,7 +726,7 @@ export function DashboardView() {
             id="active-returning-state"
           >
             {/* Welcoming Banner with stats snippet */}
-            <div className="p-6 md:p-8 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-cinema-slate-900 dark:to-cinema-slate-950 text-foreground dark:text-white relative overflow-hidden shadow-md dark:shadow-xl border border-border">
+            <div className="p-6 md:p-8 rounded-2xl bg-card text-foreground dark:text-white relative overflow-hidden shadow-md border border-border pretty-float-card">
               <div className="relative z-10 max-w-xl space-y-3 text-left" id="welcome-text">
                 <span className="text-[10px] tracking-widest uppercase font-bold text-cinema-amber-700 dark:text-cinema-amber-400 bg-cinema-amber-500/15 dark:bg-cinema-amber-500/10 px-2.5 py-1 rounded-full border border-cinema-amber-500/30 dark:border-cinema-amber-500/20">
                   Lead Archivist Account Active
@@ -733,8 +734,8 @@ export function DashboardView() {
                 <h2 className="font-display text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                   Welcome back, {displayName}!
                 </h2>
-                <p className="text-xs md:text-sm text-slate-600 dark:text-cinema-slate-300 leading-relaxed">
-                  Your family archives are synchronized. There are currently <strong>4 rendering jobs</strong> active, and the Intelligent Director suggests uploading 3 photos for the 1984 chapter.
+                <p className="text-xs md:text-sm text-slate-600 dark:text-cinema-slate-300 leading-relaxed font-semibold">
+                  What would you like to do?
                 </p>
                 <div className="flex gap-2 pt-1.5">
                   <Button
@@ -752,7 +753,7 @@ export function DashboardView() {
                     variant="ghost"
                     size="sm"
                     onClick={() => openOverlay('notifications')}
-                    className="text-xs border border-border hover:bg-muted/30"
+                    className="text-xs border border-slate-200 dark:border-border text-slate-700 dark:text-cinema-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-muted/30"
                   >
                     Review active tasks
                   </Button>
@@ -766,7 +767,7 @@ export function DashboardView() {
             {/* 1. Statistic Cards Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="stat-cards-grid">
               {/* Stat 1: Stories */}
-              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left" id="stat-card-stories">
+              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left pretty-float-card" id="stat-card-stories">
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Stories Drafted</p>
                   <p className="text-2xl font-black text-foreground">{stats.storiesCount} / {stats.storiesMax}</p>
@@ -780,7 +781,7 @@ export function DashboardView() {
               </div>
 
               {/* Stat 2: Media */}
-              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left" id="stat-card-media">
+              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left pretty-float-card" id="stat-card-media">
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Media Shelf</p>
                   <p className="text-2xl font-black text-foreground">{stats.mediaCount} Files</p>
@@ -792,7 +793,7 @@ export function DashboardView() {
               </div>
 
               {/* Stat 3: Timeline Events */}
-              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left" id="stat-card-render">
+              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left pretty-float-card" id="stat-card-render">
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Timeline Chronology</p>
                   <p className="text-2xl font-black text-foreground">{stats.timelineCount} Events</p>
@@ -806,7 +807,7 @@ export function DashboardView() {
               </div>
 
               {/* Stat 4: Profiles */}
-              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left" id="stat-card-profiles">
+              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left pretty-float-card" id="stat-card-profiles">
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Legacy Profiles</p>
                   <p className="text-2xl font-black text-foreground">{stats.profilesCount} Registered</p>
@@ -825,7 +826,7 @@ export function DashboardView() {
               {/* Left & Center Main Column */}
               <div className="lg:col-span-2 space-y-6" id="left-returning-col">
                 {/* Continue Editing / Continue Working Card */}
-                <div className="p-6 bg-card border border-border rounded-2xl space-y-4 shadow-sm text-left" id="continue-editing-card">
+                <div className="p-6 bg-card border border-border rounded-2xl space-y-4 shadow-sm text-left pretty-float-card" id="continue-editing-card">
                   <div className="flex items-center justify-between border-b border-border pb-3 mb-1">
                     <div>
                       <h3 className="font-display text-base font-bold text-foreground flex items-center gap-2">
@@ -866,7 +867,7 @@ export function DashboardView() {
                         title: 'Elizabeth Vance: The Early Years',
                         type: 'Legacy Profile Dossier',
                         time: 'Edited Yesterday',
-                        progress: 100,
+                        progress: 90,
                         color: 'bg-emerald-500',
                       },
                     ].map((draft, idx) => (
@@ -903,8 +904,8 @@ export function DashboardView() {
                           id={`btn-resume-draft-${idx}`}
                           variant="secondary"
                           size="sm"
-                          leftIcon={<Play className="w-3.5 h-3.5 text-foreground group-hover:text-cinema-amber-500 transition-all" />}
-                          className="shrink-0 text-xs border border-border group-hover:border-cinema-amber-500/30 group-hover:bg-cinema-amber-500/10 transition-all cursor-pointer"
+                          leftIcon={<Play className="w-3.5 h-3.5 transition-all" />}
+                          className="shrink-0 text-xs border resume-btn-style transition-all cursor-pointer"
                         >
                           Resume
                         </Button>
@@ -914,7 +915,7 @@ export function DashboardView() {
                 </div>
 
                 {/* Recent Memory Imports Card */}
-                <div className="p-6 bg-card border border-border rounded-2xl space-y-4 shadow-sm text-left" id="recent-media-card">
+                <div className="p-6 bg-card border border-border rounded-2xl space-y-4 shadow-sm text-left pretty-float-card" id="recent-media-card">
                   <div className="flex items-center justify-between border-b border-border pb-3 mb-1">
                     <div>
                       <h3 className="font-display text-base font-bold text-foreground flex items-center gap-2">
@@ -987,7 +988,7 @@ export function DashboardView() {
                 </div>
 
                 {/* Favorite Templates Library */}
-                <div className="p-6 bg-card border border-border rounded-2xl space-y-4 shadow-sm text-left" id="favorite-templates-card">
+                <div className="p-6 bg-card border border-border rounded-2xl space-y-4 shadow-sm text-left pretty-float-card" id="favorite-templates-card">
                   <div className="flex items-center justify-between border-b border-border pb-3 mb-1">
                     <div>
                       <h3 className="font-display text-base font-bold text-foreground flex items-center gap-2">
@@ -1044,7 +1045,7 @@ export function DashboardView() {
               {/* Right Utility & Secondary Column */}
               <div className="space-y-6" id="right-returning-col">
                 {/* Storage Usage Card */}
-                <div className="p-6 bg-card border border-border rounded-2xl space-y-5 shadow-sm text-left" id="storage-usage-card">
+                <div className="p-6 bg-card border border-border rounded-2xl space-y-5 shadow-sm text-left pretty-float-card" id="storage-usage-card">
                   <div className="border-b border-border pb-3 mb-1">
                     <h3 className="font-display text-sm font-bold text-foreground">Workspace Storage Vault</h3>
                     <p className="text-[11px] text-muted-foreground">
@@ -1089,89 +1090,8 @@ export function DashboardView() {
                   </div>
                 </div>
 
-                {/* AI Suggestions Preview */}
-                <div className="p-6 bg-card border border-border rounded-2xl space-y-4 shadow-sm text-left" id="ai-suggestions-card">
-                  <div className="border-b border-border pb-3 mb-1">
-                    <h3 className="font-display text-sm font-bold text-foreground flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-cinema-ai animate-pulse" /> Intelligent Director Prompts
-                    </h3>
-                    <p className="text-[11px] text-muted-foreground">
-                      Smart gaps analyzed in chronological chapters by Gemini.
-                    </p>
-                  </div>
-
-                  <div className="space-y-3" id="ai-prompts-list">
-                    {[
-                      {
-                        title: 'Media gap identified in Scene 4',
-                        desc: "Scene 4 ('Elizabeth Vance's Childhood Farmhouse') is linked with narration audio but has zero linked image coordinates. Upload vintage photo Vance_Farmhouse_1952.jpg to bridge the gap.",
-                        badge: 'Critical Gap',
-                        color: 'text-rose-500 bg-rose-500/10 border-rose-500/20',
-                      },
-                      {
-                        title: 'Nostalgic Ambient Track Option',
-                        desc: "Add a jazz or classical background track from the 1960s to reinforce the nostalgic atmosphere of chapter 2.",
-                        badge: 'Acoustic Tip',
-                        color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
-                      },
-                    ].map((sug, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3.5 rounded-xl border border-border bg-card/60 space-y-2 relative group"
-                        id={`ai-suggestion-item-${idx}`}
-                      >
-                        <div className="flex items-center justify-between" id={`ai-suggestion-item-${idx}-header`}>
-                          <span className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${sug.color}`}>
-                            {sug.badge}
-                          </span>
-                        </div>
-                        <h4 className="text-xs font-bold text-foreground">{sug.title}</h4>
-                        <p className="text-[11px] text-muted-foreground leading-relaxed">
-                          {sug.desc}
-                        </p>
-                        <button
-                          id={`btn-ai-resolve-${idx}`}
-                          onClick={() => showToast('info', 'Opening resolution workflow...')}
-                          className="text-[11px] font-bold text-cinema-amber-500 hover:underline flex items-center pt-1 cursor-pointer"
-                        >
-                          Resolve prompt <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Legacy Activity Timeline */}
-                <div className="p-6 bg-card border border-border rounded-2xl space-y-4 shadow-sm text-left" id="recent-activity-card">
-                  <div className="border-b border-border pb-3 mb-1">
-                    <h3 className="font-display text-sm font-bold text-foreground">Chronological Activity Log</h3>
-                    <p className="text-[11px] text-muted-foreground">
-                      Co-author event registrations and rendering logs.
-                    </p>
-                  </div>
-
-                  {/* Left-Bordered Timeline List */}
-                  <div className="relative border-l border-border pl-4 space-y-4 ml-1.5" id="timeline-list">
-                    {stats.recentActivities.map((act, idx) => (
-                      <div key={idx} className="relative" id={`timeline-item-${idx}`}>
-                        {/* Bullet Circle */}
-                        <span className={`absolute -left-[21.5px] top-1 w-2.5 h-2.5 rounded-full border border-card ${act.iconColor}`} />
-                        <div className="space-y-0.5 text-left" id={`timeline-item-${idx}-content`}>
-                          <div className="flex justify-between items-start gap-1">
-                            <h4 className="text-xs font-bold text-foreground leading-tight">{act.title}</h4>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground leading-relaxed">{act.desc}</p>
-                          <span className="text-[9px] font-mono font-medium text-muted-foreground/60 block pt-0.5">
-                            {act.time}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Tips & Tutorials Card */}
-                <div className="p-6 bg-card border border-border rounded-2xl space-y-3 text-left" id="tips-tutorials-card">
+                <div className="p-6 bg-card border border-border rounded-2xl space-y-3 text-left pretty-float-card" id="tips-tutorials-card">
                   <h4 className="text-xs uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
                     <Compass className="w-3.5 h-3.5 text-cinema-amber-500" /> Documentary Studio Lessons
                   </h4>
@@ -1191,6 +1111,9 @@ export function DashboardView() {
                 </div>
               </div>
             </div>
+
+            {/* Dynamic Workspace Contribution Ledger */}
+            <ActivityHeatmap />
           </motion.div>
         )}
       </AnimatePresence>
