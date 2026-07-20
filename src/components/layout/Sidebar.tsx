@@ -276,7 +276,7 @@ export function Sidebar() {
                               : 'bg-muted-foreground/15 text-muted-foreground'
                           }`}
                         >
-                          {counts[item.id as keyof typeof counts]}
+                          {counts[item.id as keyof typeof counts] > 999 ? '999+' : counts[item.id as keyof typeof counts]}
                         </span>
                       )}
 

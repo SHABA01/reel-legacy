@@ -27,6 +27,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { TabNavigation } from '../ui/TabNavigation';
 import { ExtendedStory } from './mockStoriesData';
 
 interface StoryDetailsProps {
@@ -205,52 +206,17 @@ export function StoryDetails({
           </div>
 
           {/* Subview Tabs navigation (Chapters, Timeline, Media, Audit log) */}
-          <div className="border-b border-border flex items-center gap-6" id="details-tabs-bar">
-            <button
-              id="tab-chapters-trigger"
-              onClick={() => setActiveTab('chapters')}
-              className={`pb-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-                activeTab === 'chapters'
-                  ? 'border-cinema-amber-500 text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Narrative Chapters ({story.chapters?.length || 0})
-            </button>
-            <button
-              id="tab-timeline-trigger"
-              onClick={() => setActiveTab('timeline')}
-              className={`pb-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-                activeTab === 'timeline'
-                  ? 'border-cinema-amber-500 text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Timeline Chronology ({story.timelineEvents?.length || 0})
-            </button>
-            <button
-              id="tab-media-trigger"
-              onClick={() => setActiveTab('media')}
-              className={`pb-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-                activeTab === 'media'
-                  ? 'border-cinema-amber-500 text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Vault Assets Preview ({story.mediaCount})
-            </button>
-            <button
-              id="tab-history-trigger"
-              onClick={() => setActiveTab('history')}
-              className={`pb-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-                activeTab === 'history'
-                  ? 'border-cinema-amber-500 text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              History Log
-            </button>
-          </div>
+          <TabNavigation
+            id="details-tabs-bar"
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            tabs={[
+              { value: 'chapters', label: 'Narrative Chapters', count: story.chapters?.length || 0 },
+              { value: 'timeline', label: 'Timeline Chronology', count: story.timelineEvents?.length || 0 },
+              { value: 'media', label: 'Vault Assets Preview', count: story.mediaCount },
+              { value: 'history', label: 'History Log' },
+            ]}
+          />
 
           {/* Active Tab Panel */}
           <div className="min-h-48" id="active-tab-panel-container">

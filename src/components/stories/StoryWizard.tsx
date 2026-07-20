@@ -38,6 +38,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { WizardStepper } from '../ui/WizardStepper';
 import { useToast } from '../../context/ToastContext';
 import { ExtendedStory, STORY_TYPES } from './mockStoriesData';
 import { ExtendedLegacyProfile } from '../profiles/mockData';
@@ -455,37 +456,21 @@ export function StoryWizard({ onClose, onSave }: StoryWizardProps) {
         </div>
 
         {/* 8-Step Progress Line & Indicators */}
-        <div className="bg-muted/15 border-b border-border px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs" id="wizard-navigation-indicator">
-          <div className="flex items-center gap-2 text-muted-foreground font-semibold font-mono text-[10px]">
-            <span className="bg-cinema-amber-500/10 text-cinema-amber-500 px-2 py-0.5 rounded font-black border border-cinema-amber-500/20">
-              STEP {step} OF {totalSteps}
-            </span>
-            <span>•</span>
-            <span className="text-foreground uppercase tracking-wider font-bold">
-              {step === 1 && '1. Select Legacy Profile'}
-              {step === 2 && '2. Story Information'}
-              {step === 3 && '3. Story Type Selection'}
-              {step === 4 && '4. Identify Intended Audience'}
-              {step === 5 && '5. Story Tone & Visual Style'}
-              {step === 6 && '6. Select Initial Assets'}
-              {step === 7 && '7. AI Preparation Config'}
-              {step === 8 && '8. Review & Confirm Production'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 w-full md:w-64">
-            <div className="flex-grow h-2 bg-muted rounded-full overflow-hidden" id="wizard-progress-bar-container">
-              <div
-                id="wizard-progress-bar-fill"
-                className="h-full bg-cinema-amber-500 rounded-full transition-all duration-300"
-                style={{ width: `${(step / totalSteps) * 100}%` }}
-              />
-            </div>
-            <span className="font-mono text-[10px] text-muted-foreground font-black whitespace-nowrap">
-              {Math.round((step / totalSteps) * 100)}% Done
-            </span>
-          </div>
-        </div>
+        <WizardStepper
+          id="story-wizard-steps"
+          currentStep={step}
+          variant="horizontal"
+          steps={[
+            { number: 1, title: '1. Select Legacy Profile' },
+            { number: 2, title: '2. Story Information' },
+            { number: 3, title: '3. Story Type Selection' },
+            { number: 4, title: '4. Identify Intended Audience' },
+            { number: 5, title: '5. Story Tone & Visual Style' },
+            { number: 6, title: '6. Select Initial Assets' },
+            { number: 7, title: '7. AI Preparation Config' },
+            { number: 8, title: '8. Review & Confirm Production' }
+          ]}
+        />
 
         {/* Wizard Main Panel Body */}
         <div className="flex-grow overflow-y-auto p-6 md:p-8 space-y-6 bg-card" id="wizard-main-scroller">

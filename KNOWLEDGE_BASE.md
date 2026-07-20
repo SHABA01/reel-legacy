@@ -550,4 +550,39 @@ We implemented a robust, fully decoupled, accessible, and user-friendly Authenti
 - **Forgot Password**: Password reset request with helper guides and sandbox email simulators (`notfound@reellegacy.com` to test email not found errors).
 - **Reset Password**: Verification of recovery tokens, live strength meters, password match validation checks, and simulated token expirations.
 
+---
+
+# 21. Story Library Light Theme Styling Fixes (July 2026)
+
+We implemented critical accessibility and readability fixes for the Story Library page specifically under the light theme mode, ensuring all key interactive controls are readable and intuitive.
+
+- **Dropdown Selector Accessibility**: Corrected readability of the selected options and the lists in dropdown menus (Narrative Styles, Workflow Status, AI Script Ready, and Sorting). Under the light theme, the text and icons are styled in black (instead of white) to maintain high contrast.
+- **Filters Toggle Button Custom Styling**: Adjusted the "Filters" toggle button and its slider icon color. In light theme, they render in crisp black, while safely preserving their specific amber/white styling configuration in dark theme.
+- **Consistent List & Item Contrast**: Ensured dropdown list options and their hover states transition seamlessly with stable contrasting colors matching the active theme context.
+
+---
+
+# 22. Legacy Profiles Header & UX Synchronization (July 2026)
+
+We fully synchronized the user experience, styles, animations, and layouts between the Legacy Profiles catalog page and the Story Production Library.
+
+- **Unified Header Card Layout**: Replaced the border-b header with a fully styled card (`bg-card`, rounded corners, background blur, and lighting gradients) matching the Story Library page.
+- **Pulsing/Blinking Animation**: Applied the signature `animate-pulse` breathing animation to the `Users` icon of the Legacy Profiles title, mirroring the `Film` icon animation of the Story Production Library.
+- **Dynamic Float & Hover Effects**: Configured the header card and all five statistics dashboard metrics to support smooth 3D translations and shadows (`hover:-translate-y-0.5` and `hover:-translate-y-1`) exclusively under Light theme mode, while remaining flat/static in Dark theme mode.
+- **Create Button Hover Scales**: Updated the "Create Legacy Profile" button to use the `accent` variant with standard `hover:scale-105 transition-all` hover state animations.
+
+---
+
+# 23. Legacy Profiles Filters & Controls Synchronization (July 2026)
+
+We synchronized the search bar, filter card, list/grid toggle, search placeholders, and empty query result states between Legacy Profiles and the Story Library.
+
+- **Unified Filters Card & Hover State**: Updated the filters control container card styling to support identical 3D float-up effects, shadows, and amber border highlights on hover in Light theme mode, while keeping flat styling in Dark theme mode.
+- **Custom Dropdown Menus**: Replaced raw HTML `<select>` elements in Legacy Profiles with fully custom relative-positioned interactive dropdown buttons and menus. They feature click-outside overlay triggers, high-contrast checkmark indicators, typography pairings, and full theme adaptive styling.
+- **Unified List/Grid Toggle Switch**: Styled the view-mode controls into a singular hover-scaling icon toggle button, mirroring the exact aesthetic of the Story Library toggle.
+- **Search Placeholder Update**: Updated the ancestry search placeholder text to "Search profile by name, nickname...".
+- **Enhanced Empty States**: Configured both grid and list view search failures to utilize the `<EmptyState>` component with custom search icons, descriptive tips, and robust color-matched "Reset Filters" action buttons.
+
+
+
 

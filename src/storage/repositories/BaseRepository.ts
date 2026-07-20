@@ -23,6 +23,12 @@ export abstract class BaseRepository<T extends { id: string; createdAt?: string;
     return items.find(item => item.id === id) || null;
   }
 
+  private notifyChange(): void {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('reellegacy-data-changed'));
+    }
+  }
+
   async create(item: Omit<T, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<T> {
     const items = await this.getAll();
     const newItem = {
@@ -34,6 +40,7 @@ export abstract class BaseRepository<T extends { id: string; createdAt?: string;
 
     items.push(newItem);
     await this.adapter.setItem(this.storageKey, items);
+    this.notifyChange();
     return newItem;
   }
 
@@ -50,6 +57,7 @@ export abstract class BaseRepository<T extends { id: string; createdAt?: string;
 
     items[index] = updatedItem;
     await this.adapter.setItem(this.storageKey, items);
+    this.notifyChange();
     return updatedItem;
   }
 
@@ -61,6 +69,7 @@ export abstract class BaseRepository<T extends { id: string; createdAt?: string;
     if (filtered.length === initialLength) return false;
     
     await this.adapter.setItem(this.storageKey, filtered);
+    this.notifyChange();
     return true;
   }
 
@@ -71,6 +80,7 @@ export abstract class BaseRepository<T extends { id: string; createdAt?: string;
 
   async saveAll(items: T[]): Promise<void> {
     await this.adapter.setItem(this.storageKey, items);
+    this.notifyChange();
   }
 
   async count(): Promise<number> {

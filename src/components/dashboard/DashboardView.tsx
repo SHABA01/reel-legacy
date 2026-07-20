@@ -10,6 +10,7 @@ import { useOverlay } from '../../context/OverlayContext';
 import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
 import { ErrorState } from '../ui/ErrorState';
+import { FloatingStatsGrid } from '../ui/FloatingStatsGrid';
 import {
   SkeletonCard,
   SkeletonList,
@@ -224,7 +225,7 @@ export function DashboardView() {
   };
 
   return (
-    <div id="main-dashboard-viewport" className="space-y-8 animate-fade-in text-foreground pb-8">
+    <div id="main-dashboard-viewport" className="space-y-8 animate-fade-in text-foreground pb-8 pt-2.5 md:pt-4 lg:pt-5">
       <AnimatePresence mode="wait">
         {/* ========================================================= */}
         {/* STATE A: LOADING SHIMMER STATE                            */}
@@ -765,61 +766,55 @@ export function DashboardView() {
             </div>
 
             {/* 1. Statistic Cards Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="stat-cards-grid">
-              {/* Stat 1: Stories */}
-              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left pretty-float-card" id="stat-card-stories">
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Stories Drafted</p>
-                  <p className="text-2xl font-black text-foreground">{stats.storiesCount} / {stats.storiesMax}</p>
-                  <p className="text-[10px] text-emerald-500 flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3" /> {stats.avgProgress}% Avg Progress
-                  </p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-cinema-amber-500/10 text-cinema-amber-500 border border-cinema-amber-500/20 flex items-center justify-center shrink-0">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-              </div>
-
-              {/* Stat 2: Media */}
-              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left pretty-float-card" id="stat-card-media">
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Media Shelf</p>
-                  <p className="text-2xl font-black text-foreground">{stats.mediaCount} Files</p>
-                  <p className="text-[10px] text-muted-foreground">Audio, video, clipping docs</p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 flex items-center justify-center shrink-0">
-                  <ImageIcon className="w-5 h-5" />
-                </div>
-              </div>
-
-              {/* Stat 3: Timeline Events */}
-              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left pretty-float-card" id="stat-card-render">
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Timeline Chronology</p>
-                  <p className="text-2xl font-black text-foreground">{stats.timelineCount} Events</p>
-                  <p className="text-[10px] text-indigo-400 flex items-center gap-1">
-                    <Calendar className="w-3 h-3" /> Historical milestones
-                  </p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 flex items-center justify-center shrink-0">
-                  <Film className="w-5 h-5" />
-                </div>
-              </div>
-
-              {/* Stat 4: Profiles */}
-              <div className="p-5 bg-card border border-border rounded-2xl flex items-center justify-between shadow-xs text-left pretty-float-card" id="stat-card-profiles">
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Legacy Profiles</p>
-                  <p className="text-2xl font-black text-foreground">{stats.profilesCount} Registered</p>
-                  <p className="text-[10px] text-muted-foreground truncate max-w-[150px]">
-                    {stats.profileNames.length > 0 ? stats.profileNames.join(', ') : 'No profiles registered'}
-                  </p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                  <UserCheck className="w-5 h-5" />
-                </div>
-              </div>
-            </div>
+            <FloatingStatsGrid
+              id="stat-cards-grid"
+              stats={[
+                {
+                  id: 'stat-card-stories',
+                  label: 'Stories Drafted',
+                  value: `${stats.storiesCount} / ${stats.storiesMax}`,
+                  subValue: (
+                    <span className="text-emerald-500 flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" /> {stats.avgProgress}% Avg Progress
+                    </span>
+                  ),
+                  icon: BookOpen,
+                  iconBgClass: 'bg-cinema-amber-500/10 text-cinema-amber-500 border border-cinema-amber-500/20',
+                },
+                {
+                  id: 'stat-card-media',
+                  label: 'Media Shelf',
+                  value: `${stats.mediaCount} Files`,
+                  subValue: <span className="text-muted-foreground">Audio, video, clipping docs</span>,
+                  icon: ImageIcon,
+                  iconBgClass: 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20',
+                },
+                {
+                  id: 'stat-card-render',
+                  label: 'Timeline Chronology',
+                  value: `${stats.timelineCount} Events`,
+                  subValue: (
+                    <span className="text-indigo-400 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" /> Historical milestones
+                    </span>
+                  ),
+                  icon: Film,
+                  iconBgClass: 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20',
+                },
+                {
+                  id: 'stat-card-profiles',
+                  label: 'Legacy Profiles',
+                  value: `${stats.profilesCount} Registered`,
+                  subValue: (
+                    <span className="text-muted-foreground truncate max-w-[150px]">
+                      {stats.profileNames.length > 0 ? stats.profileNames.join(', ') : 'No profiles registered'}
+                    </span>
+                  ),
+                  icon: UserCheck,
+                  iconBgClass: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20',
+                },
+              ]}
+            />
 
             {/* 2. Main Dashboard Layout Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="returning-layout-grid">

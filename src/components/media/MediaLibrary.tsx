@@ -53,6 +53,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { ViewModeToggle } from '../ui/ViewModeToggle';
 import { useToast } from '../../context/ToastContext';
 import { INITIAL_STORIES, ExtendedStory } from '../stories/mockStoriesData';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
@@ -595,28 +596,11 @@ export function MediaLibrary() {
 
         {/* View switching options & controls */}
         {activeTab === 'all' && (
-          <div className="flex items-center gap-2">
-            <div className="flex items-center bg-muted/60 p-1 rounded-lg border border-border">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded transition-colors cursor-pointer ${
-                  viewMode === 'grid' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                }`}
-                title="Grid Layout"
-              >
-                <Grid className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded transition-colors cursor-pointer ${
-                  viewMode === 'list' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                }`}
-                title="Table Layout"
-              >
-                <List className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
+          <ViewModeToggle
+            id="media-view-mode-toggle"
+            viewMode={viewMode}
+            onChange={setViewMode}
+          />
         )}
       </div>
 

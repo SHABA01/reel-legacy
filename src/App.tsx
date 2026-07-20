@@ -86,7 +86,7 @@ function MediaView() {
 
 function NarrationView() {
   return (
-    <div id="demo-narration" className="space-y-8 animate-fade-in">
+    <div id="demo-narration" className="space-y-8 animate-fade-in pt-2.5 md:pt-4 lg:pt-5">
       <div id="narration-title-card" className="border-b border-border pb-4">
         <h2 className="font-display text-xl font-bold tracking-tight text-cinema-slate-900 dark:text-white">Specialized Studio Loaders</h2>
         <p className="text-xs text-cinema-slate-500 dark:text-cinema-slate-400">
@@ -124,7 +124,7 @@ function NarrationView() {
 function RenderView() {
   const { showToast } = useToast();
   return (
-    <div id="demo-render" className="space-y-8 animate-fade-in">
+    <div id="demo-render" className="space-y-8 animate-fade-in pt-2.5 md:pt-4 lg:pt-5">
       <div id="render-title-card" className="border-b border-border pb-4">
         <h2 className="font-display text-xl font-bold tracking-tight text-cinema-slate-900 dark:text-white">Error Components Catalogue</h2>
         <p className="text-xs text-cinema-slate-500 dark:text-cinema-slate-400">

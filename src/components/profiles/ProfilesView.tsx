@@ -13,7 +13,6 @@ import {
   Trash2,
   Archive,
   Copy,
-  MoreVertical,
   Users,
   BookOpen,
   Heart,
@@ -23,14 +22,25 @@ import {
   SlidersHorizontal,
   X,
   FileText,
+  Eye,
   Image as ImageIcon,
   CheckCircle,
   HelpCircle,
-  Sparkles
+  Sparkles,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { EmptyState } from '../ui/EmptyState';
+import { MetricsGrid, MetricCardProps } from '../ui/MetricsGrid';
+import { BulkOperationsBar, BulkAction } from '../ui/BulkOperationsBar';
+import { SearchInput } from '../ui/SearchInput';
+import { FilterDropdown } from '../ui/FilterDropdown';
+import { ViewModeToggle } from '../ui/ViewModeToggle';
+import { KebabMenu } from '../ui/KebabMenu';
 import { useToast } from '../../context/ToastContext';
+import { useTheme } from '../../context/ThemeContext';
 import { INITIAL_PROFILES, ExtendedLegacyProfile } from './mockData';
 import { ProfileWizard } from './ProfileWizard';
 import { ProfileDetails } from './ProfileDetails';
@@ -39,6 +49,7 @@ import { persistenceService, ActivityService } from '../../storage';
 
 export function ProfilesView() {
   const { showToast } = useToast();
+  const { resolvedTheme } = useTheme();
 
   // App States
   const [profiles, setProfiles] = useState<ExtendedLegacyProfile[]>(() => {
@@ -57,6 +68,7 @@ export function ProfilesView() {
   const saveToLocal = (newProfiles: ExtendedLegacyProfile[]) => {
     setProfiles(newProfiles);
     persistenceService.profiles.saveAll(newProfiles as any);
+    window.dispatchEvent(new Event('reellegacy-data-changed'));
   };
 
   // Sub-navigation states
@@ -72,9 +84,6 @@ export function ProfilesView() {
 
   // Bulk operation states
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
-  
-  // Card action dropdown states
-  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
 
   // Statistics Computations
   const stats = useMemo(() => {
@@ -100,7 +109,6 @@ export function ProfilesView() {
   const handleEditProfile = (id: string) => {
     setSelectedProfileId(id);
     setActiveSubView('edit');
-    setActiveDropdownId(null);
   };
 
   const handleDuplicateProfile = (id: string) => {
@@ -120,7 +128,6 @@ export function ProfilesView() {
     const updated = [copy, ...profiles];
     saveToLocal(updated);
     showToast('success', 'Profile Cloned Successfully', `${original.preferredName} duplicate is ready in sandbox.`);
-    setActiveDropdownId(null);
   };
 
   const handleDeleteProfile = (id: string) => {
@@ -134,7 +141,6 @@ export function ProfilesView() {
       setSelectedRowIds(prev => prev.filter(rowId => rowId !== id));
       showToast('error', 'Profile Permanently Deleted', `${target.preferredName} has been purged from workspace.`);
     }
-    setActiveDropdownId(null);
   };
 
   const handleArchiveProfile = (id: string) => {
@@ -144,7 +150,6 @@ export function ProfilesView() {
     const updated = profiles.map(p => p.id === id ? { ...p, status: 'archived' as const } : p);
     saveToLocal(updated);
     showToast('info', 'Profile Archived Successfully', `${target.preferredName} has been sent to system storage.`);
-    setActiveDropdownId(null);
   };
 
   // Bulk actions
@@ -213,8 +218,26 @@ export function ProfilesView() {
     return profiles.find(p => p.id === selectedProfileId);
   }, [profiles, selectedProfileId]);
 
+  const [isSticky, setIsSticky] = useState(false);
+
+  React.useEffect(() => {
+    const viewport = document.getElementById('workspace-viewport');
+    if (!viewport) return;
+
+    const handleScroll = () => {
+      setIsSticky(viewport.scrollTop > 200);
+    };
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   return (
-    <div id="legacy-profiles-module-root" className="h-full w-full overflow-y-auto px-6 py-6 space-y-6">
+    <div id="legacy-profiles-module-root" className="space-y-6 animate-fade-in text-foreground pb-12 pt-2.5 md:pt-4 lg:pt-5">
       
       {/* Subview Transition Orchestration */}
       {activeSubView === 'create-wizard' && (
@@ -243,209 +266,181 @@ export function ProfilesView() {
       {activeSubView === 'catalog' && (
         <div className="space-y-6" id="profiles-catalog-view-root">
           {/* Header Title Card */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4" id="catalog-header-title-row">
-            <div>
-              <h2 className="font-display text-xl font-black tracking-tight text-foreground flex items-center gap-2">
-                <Users className="w-5 h-5 text-cinema-amber-500" /> Legacy Profiles
-              </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Manage, catalog, and explore biographical archives representing your ancestors and family heritage.
-              </p>
-            </div>
+          <div className={`p-6 bg-card border border-border rounded-2xl shadow-sm relative overflow-hidden transition-all duration-300 ${resolvedTheme === 'light' ? 'hover:shadow-md hover:-translate-y-0.5 hover:border-cinema-amber-500/20' : ''}`} id="catalog-header-title-row">
+            {/* Subtle background gradient and lighting */}
+            <div className="absolute right-0 top-0 w-64 h-64 bg-cinema-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+              <div>
+                <h2 className="font-display text-xl font-black tracking-tight text-foreground flex items-center gap-2">
+                  <Users className="w-5.5 h-5.5 text-cinema-amber-500 animate-pulse" /> Legacy Profiles
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1 max-w-2xl font-medium">
+                  Manage, catalog, and explore biographical archives representing your ancestors and family heritage.
+                </p>
+              </div>
 
-            <Button
-              id="btn-create-profile-trigger"
-              variant="primary"
-              size="sm"
-              leftIcon={<Plus className="w-4 h-4 text-slate-950" />}
-              onClick={() => setActiveSubView('create-wizard')}
-              className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold self-start md:self-auto shadow-sm"
-            >
-              Create Legacy Profile
-            </Button>
+              <Button
+                id="btn-create-profile-trigger"
+                variant="accent"
+                size="sm"
+                leftIcon={<Plus className="w-4 h-4 text-slate-950" />}
+                onClick={() => setActiveSubView('create-wizard')}
+                className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold self-start md:self-auto shadow-sm hover:scale-105 transition-all"
+              >
+                Create Legacy Profile
+              </Button>
+            </div>
           </div>
 
           {/* Statistics Dashboard Banner Row */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3" id="stats-dashboard-banner">
-            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="stat-card-total">
-              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">Total Profiles</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-display font-black text-2xl text-foreground">{stats.total}</span>
-                <span className="text-[10px] text-emerald-500 font-bold bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10">Active</span>
-              </div>
-            </div>
+          <MetricsGrid
+            id="stats-dashboard-banner"
+            metrics={[
+              {
+                id: 'stat-card-total',
+                label: 'Total Profiles',
+                value: stats.total,
+                subValue: 'Active',
+                subValueColor: 'text-emerald-500 bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10',
+              },
+              {
+                id: 'stat-card-living',
+                label: 'Living Members',
+                value: stats.living,
+                subValue: 'Autobios',
+                subValueColor: 'text-indigo-500 bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10',
+              },
+              {
+                id: 'stat-card-memorial',
+                label: 'In Memorial',
+                value: stats.memorial,
+                subValue: 'Tributes',
+                subValueColor: 'text-rose-500 bg-rose-500/5 px-1.5 py-0.5 rounded border border-rose-500/10',
+              },
+              {
+                id: 'stat-card-historical',
+                label: 'Historical',
+                value: stats.historical,
+                subValue: 'Legends',
+                subValueColor: 'text-amber-500 bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10 font-mono',
+              },
+              {
+                id: 'stat-card-progress',
+                label: 'Avg Story Completion',
+                value: `${stats.avgProgress}%`,
+                isAccent: true,
+                icon: TrendingUp,
+                iconClassName: 'text-cinema-amber-500 animate-pulse',
+                className: 'col-span-2 md:col-span-1',
+              }
+            ]}
+          />
 
-            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="stat-card-living">
-              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">Living Members</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-display font-black text-2xl text-foreground">{stats.living}</span>
-                <span className="text-[10px] text-indigo-500 font-bold bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10">Autobios</span>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="stat-card-memorial">
-              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">In Memorial</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-display font-black text-2xl text-foreground">{stats.memorial}</span>
-                <span className="text-[10px] text-rose-500 font-bold bg-rose-500/5 px-1.5 py-0.5 rounded border border-rose-500/10">Tributes</span>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="stat-card-historical">
-              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">Historical</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-display font-black text-2xl text-foreground">{stats.historical}</span>
-                <span className="text-[10px] text-amber-500 font-bold bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10 font-mono">Legends</span>
-              </div>
-            </div>
-
-            <div className="col-span-2 md:col-span-1 p-4 rounded-2xl bg-cinema-amber-500/5 border border-cinema-amber-500/10 flex flex-col justify-between h-24 shadow-sm" id="stat-card-progress">
-              <span className="text-[10px] text-cinema-amber-800 dark:text-cinema-amber-300 font-mono uppercase tracking-wider block">Avg Story Completion</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-display font-black text-2xl text-cinema-amber-600 dark:text-cinema-amber-400">{stats.avgProgress}%</span>
-                <TrendingUp className="w-4 h-4 text-cinema-amber-500 animate-pulse" />
-              </div>
-            </div>
-          </div>
-
-          {/* Filtering Control Bar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-card border border-border rounded-2xl" id="controls-panel-container">
-            {/* Left side: search input */}
-            <div className="flex items-center gap-2 flex-grow max-w-md relative" id="search-bar-container">
-              <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
+          {/* Sticky Filtering Control Bar wrapper */}
+          <div 
+            className={`sticky top-0 z-30 transition-all duration-300 ${
+              isSticky 
+                ? 'bg-background/95 backdrop-blur-md py-3 border-b border-border/10 shadow-sm' 
+                : 'bg-transparent py-3 border-b border-transparent'
+            }`} 
+            id="profiles-sticky-filters-container"
+          >
+            {/* Filtering Control Bar */}
+            <div className={`flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-card border border-border rounded-2xl shadow-sm transition-all duration-300 ${resolvedTheme === 'light' ? 'hover:shadow-md hover:-translate-y-0.5 hover:border-cinema-amber-500/20' : ''}`} id="controls-panel-container">
+              {/* Left side: search input */}
+              <SearchInput
                 id="search-profiles-input"
-                type="text"
-                placeholder="Search ancestry by name, nickname..."
+                placeholder="Search profile by name, nickname..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-10 pl-10 pr-10 rounded-xl bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 focus:bg-muted/70 transition-all placeholder:text-muted-foreground/60"
+                onChange={setSearchQuery}
               />
-              {searchQuery && (
-                <button
-                  id="btn-clear-search"
-                  onClick={() => setSearchQuery('')}
-                  className="p-1 rounded-full hover:bg-muted absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
 
-            {/* Middle: Selection filters */}
-            <div className="flex flex-wrap items-center gap-3" id="filters-triggers-group">
-              {/* Category Filter dropdown */}
-              <div className="flex items-center gap-1 bg-muted px-2.5 py-1.5 rounded-lg border border-border text-xs" id="category-filter-dropdown-block">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase mr-1">Cat:</span>
-                <select
-                  id="category-filter-select"
+              {/* Middle: Selection filters */}
+              <div className="flex flex-wrap items-center gap-3" id="filters-triggers-group">
+                {/* Category Filter dropdown */}
+                <FilterDropdown
+                  id="category-filter-dropdown"
+                  label="Cat:"
                   value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="bg-transparent text-foreground font-semibold focus:outline-none focus:ring-0 text-xs border-none p-0 cursor-pointer"
-                >
-                  <option value="all">All Blueprints</option>
-                  <option value="personal">Personal</option>
-                  <option value="autobiography">Autobiography</option>
-                  <option value="memorial">Memorial</option>
-                  <option value="celebration">Celebration of Life</option>
-                  <option value="career">Career Journey</option>
-                  <option value="family-history">Family History</option>
-                  <option value="historical-figure">Historical Figure</option>
-                </select>
-              </div>
+                  options={[
+                    { value: 'all', label: 'All Blueprints' },
+                    { value: 'personal', label: 'Personal' },
+                    { value: 'autobiography', label: 'Autobiography' },
+                    { value: 'memorial', label: 'Memorial' },
+                    { value: 'celebration', label: 'Celebration of Life' },
+                    { value: 'career', label: 'Career Journey' },
+                    { value: 'family-history', label: 'Family History' },
+                    { value: 'historical-figure', label: 'Historical Figure' }
+                  ]}
+                  onChange={setCategoryFilter}
+                />
 
-              {/* Status Filter dropdown */}
-              <div className="flex items-center gap-1 bg-muted px-2.5 py-1.5 rounded-lg border border-border text-xs" id="status-filter-dropdown-block">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase mr-1">Status:</span>
-                <select
-                  id="status-filter-select"
+                {/* Status Filter dropdown */}
+                <FilterDropdown
+                  id="status-filter-dropdown"
+                  label="Status:"
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-transparent text-foreground font-semibold focus:outline-none focus:ring-0 text-xs border-none p-0 cursor-pointer"
-                >
-                  <option value="all">All Status</option>
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </div>
+                  options={[
+                    { value: 'all', label: 'All Status' },
+                    { value: 'draft', label: 'Draft' },
+                    { value: 'published', label: 'Published' },
+                    { value: 'archived', label: 'Archived' }
+                  ]}
+                  onChange={setStatusFilter}
+                />
 
-              {/* Sort selector dropdown */}
-              <div className="flex items-center gap-1 bg-muted px-2.5 py-1.5 rounded-lg border border-border text-xs" id="sort-filter-dropdown-block">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase mr-1">Sort:</span>
-                <select
-                  id="sort-filter-select"
+                {/* Sort selector dropdown */}
+                <FilterDropdown
+                  id="sort-filter-dropdown"
+                  label="Sort:"
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="bg-transparent text-foreground font-semibold focus:outline-none focus:ring-0 text-xs border-none p-0 cursor-pointer"
-                >
-                  <option value="updated">Recently Updated</option>
-                  <option value="name">Name A–Z</option>
-                  <option value="progress">Completion %</option>
-                </select>
+                  options={[
+                    { value: 'updated', label: 'Recently Updated' },
+                    { value: 'name', label: 'Name A–Z' },
+                    { value: 'progress', label: 'Completion %' }
+                  ]}
+                  onChange={(val) => setSortBy(val as any)}
+                />
               </div>
-            </div>
 
-            {/* Right side: View toggles (Grid vs List) */}
-            <div className="flex items-center border border-border rounded-xl p-0.5" id="view-mode-toggles-block">
-              <button
-                id="btn-view-grid"
-                onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'grid' ? 'bg-cinema-amber-500 text-slate-950 font-black' : 'text-muted-foreground hover:text-foreground'
-                }`}
-                aria-label="Grid View"
-              >
-                <Grid className="w-4 h-4" />
-              </button>
-              <button
-                id="btn-view-list"
-                onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'list' ? 'bg-cinema-amber-500 text-slate-950 font-black' : 'text-muted-foreground hover:text-foreground'
-                }`}
-                aria-label="List View"
-              >
-                <List className="w-4 h-4" />
-              </button>
+              {/* Right side: Single View Mode Toggle */}
+              <ViewModeToggle
+                id="btn-view-mode-toggle"
+                viewMode={viewMode}
+                onChange={setViewMode}
+                className="shrink-0"
+              />
             </div>
           </div>
 
           {/* Bulk Selection Operations Action Bar */}
           {selectedRowIds.length > 0 && viewMode === 'list' && (
-            <div className="p-3 bg-muted border border-border rounded-xl flex items-center justify-between animate-fade-in" id="bulk-operations-bar">
-              <span className="text-xs font-semibold text-foreground">
-                {selectedRowIds.length} Selected Profile records
-              </span>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  id="btn-bulk-archive"
-                  variant="ghost"
-                  size="sm"
-                  leftIcon={<Archive className="w-4 h-4 text-muted-foreground" />}
-                  onClick={handleBulkArchive}
-                  className="text-xs hover:bg-card border border-border"
-                >
-                  Archive Selected
-                </Button>
-                <Button
-                  id="btn-bulk-delete"
-                  variant="ghost"
-                  size="sm"
-                  leftIcon={<Trash2 className="w-4 h-4 text-red-500" />}
-                  onClick={handleBulkDelete}
-                  className="text-xs hover:bg-card hover:text-red-400 border border-border text-red-500"
-                >
-                  Delete Selected
-                </Button>
-              </div>
-            </div>
+            <BulkOperationsBar
+              id="bulk-operations-bar"
+              selectedCount={selectedRowIds.length}
+              labelText={`${selectedRowIds.length} Selected Profile records`}
+              actions={[
+                {
+                  id: 'btn-bulk-archive',
+                  label: 'Archive Selected',
+                  icon: <Archive className="w-4 h-4 text-muted-foreground" />,
+                  onClick: handleBulkArchive,
+                  className: 'hover:bg-card',
+                },
+                {
+                  id: 'btn-bulk-delete',
+                  label: 'Delete Selected',
+                  icon: <Trash2 className="w-4 h-4 text-red-500" />,
+                  onClick: handleBulkDelete,
+                  className: 'hover:bg-card hover:text-red-400 text-red-500',
+                },
+              ]}
+            />
           )}
 
           {/* RENDER GRID VIEW */}
           {viewMode === 'grid' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="profiles-grid-canvas">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-6" id="profiles-grid-canvas">
               {filteredAndSortedProfiles.map((p) => {
                 const birthYr = p.dateOfBirth ? new Date(p.dateOfBirth).getFullYear() : 'N/A';
                 const deathYr = p.dateOfDeath ? new Date(p.dateOfDeath).getFullYear() : '';
@@ -455,79 +450,37 @@ export function ProfilesView() {
                   <div
                     key={p.id}
                     id={`profile-grid-card-${p.id}`}
-                    className="group border border-border bg-card rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-sm hover:shadow-md transition-all h-[360px]"
+                    className="group border border-border bg-card rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-sm hover:shadow-md transition-all h-[300px]"
                   >
                     {/* Cover photo block */}
-                    <div className="h-24 w-full relative shrink-0 bg-muted">
+                    <div className="h-20 w-full relative shrink-0 bg-muted">
                       <img src={p.coverPhoto} alt={`${p.preferredName} cover`} className="w-full h-full object-cover grayscale-15 group-hover:grayscale-0 transition-all duration-300" referrerPolicy="no-referrer" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                       
                       {/* Relationship badge top-left overlay */}
-                      <span className="absolute top-3 left-3 inline-flex items-center text-[9px] font-bold bg-black/50 text-white border border-white/10 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                      <span className="absolute top-2.5 left-2.5 inline-flex items-center text-[9px] font-bold bg-black/50 text-white border border-white/10 px-2 py-0.5 rounded-full backdrop-blur-sm">
                         {p.relationship}
                       </span>
 
                       {/* Dropdown menu trigger top-right overlay */}
-                      <div className="absolute top-3 right-3">
-                        <button
-                          id={`dropdown-trigger-${p.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveDropdownId(activeDropdownId === p.id ? null : p.id);
-                          }}
-                          className="p-1 rounded-lg bg-black/40 text-white/80 hover:text-white hover:bg-black/60 cursor-pointer backdrop-blur-sm"
-                          aria-label="Actions menu"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                        
-                        {/* Action Dropdown Menu Overlay */}
-                        {activeDropdownId === p.id && (
-                          <div className="absolute right-0 mt-1 w-36 bg-card border border-border rounded-xl shadow-lg py-1 z-20 text-left" id={`action-dropdown-${p.id}`}>
-                            <button
-                              id={`dropdown-action-view-${p.id}`}
-                              onClick={() => { handleSelectProfile(p.id); setActiveDropdownId(null); }}
-                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
-                            >
-                              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> View Profile
-                            </button>
-                            <button
-                              id={`dropdown-action-edit-${p.id}`}
-                              onClick={() => handleEditProfile(p.id)}
-                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
-                            >
-                              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> Edit Profile
-                            </button>
-                            <button
-                              id={`dropdown-action-clone-${p.id}`}
-                              onClick={() => handleDuplicateProfile(p.id)}
-                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
-                            >
-                              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> Duplicate
-                            </button>
-                            <button
-                              id={`dropdown-action-archive-${p.id}`}
-                              onClick={() => handleArchiveProfile(p.id)}
-                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
-                            >
-                              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> Archive
-                            </button>
-                            <div className="border-t border-border my-1" />
-                            <button
-                              id={`dropdown-action-delete-${p.id}`}
-                              onClick={() => handleDeleteProfile(p.id)}
-                              className="w-full px-4 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 font-bold text-left flex items-center gap-2 cursor-pointer"
-                            >
-                              <ChevronRight className="w-3.5 h-3.5 text-red-500" /> Delete
-                            </button>
-                          </div>
-                        )}
+                      <div className="absolute top-2.5 right-2.5">
+                        <KebabMenu
+                          id={`profile-${p.id}`}
+                          items={[
+                            { id: `dropdown-action-view-${p.id}`, label: 'View Profile', onClick: () => handleSelectProfile(p.id), icon: <Eye className="w-3.5 h-3.5 text-muted-foreground" /> },
+                            { id: `dropdown-action-edit-${p.id}`, label: 'Edit Profile', onClick: () => handleEditProfile(p.id), icon: <FileText className="w-3.5 h-3.5 text-muted-foreground" /> },
+                            { id: `dropdown-action-clone-${p.id}`, label: 'Duplicate', onClick: () => handleDuplicateProfile(p.id), icon: <Copy className="w-3.5 h-3.5 text-muted-foreground" /> },
+                            { id: `dropdown-action-archive-${p.id}`, label: 'Archive', onClick: () => handleArchiveProfile(p.id), icon: <Archive className="w-3.5 h-3.5 text-muted-foreground" /> },
+                            { id: `dropdown-action-delete-${p.id}`, label: 'Delete', onClick: () => handleDeleteProfile(p.id), isDestructive: true, hasDividerBefore: true, icon: <Trash2 className="w-3.5 h-3.5 text-red-500" /> },
+                          ]}
+                          dropdownClassName="w-40"
+                        />
                       </div>
                     </div>
 
                     {/* Avatar overlapping cover photo */}
-                    <div className="px-5 relative -mt-6 flex items-end justify-between shrink-0" id={`avatar-overlapping-${p.id}`}>
-                      <div className="relative w-14 h-14 rounded-full border-2 border-card overflow-hidden bg-muted shadow-sm">
+                    <div className="px-4 relative -mt-5 flex items-end justify-between shrink-0" id={`avatar-overlapping-${p.id}`}>
+                      <div className="relative w-11 h-11 rounded-full border-2 border-card overflow-hidden bg-muted shadow-sm">
                         <img src={p.profilePhoto} alt={p.preferredName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       </div>
                       
@@ -538,25 +491,25 @@ export function ProfilesView() {
                     </div>
 
                     {/* Middle: Details body */}
-                    <div className="px-5 py-4 flex-grow flex flex-col justify-between" id={`card-details-middle-${p.id}`}>
-                      <div>
-                        <h4 className="font-display font-bold text-sm text-foreground truncate group-hover:text-cinema-amber-600 dark:group-hover:text-cinema-amber-400 transition-colors">
+                    <div className="px-4 py-2.5 flex-grow flex flex-col justify-between min-h-0 overflow-hidden" id={`card-details-middle-${p.id}`}>
+                      <div className="min-h-0 overflow-hidden">
+                        <h4 className="font-display font-bold text-xs text-foreground truncate group-hover:text-cinema-amber-600 dark:group-hover:text-cinema-amber-400 transition-colors">
                           {p.preferredName}
                         </h4>
-                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{lifeSpan}</p>
+                        <p className="text-[9px] text-muted-foreground font-mono mt-0.5">{lifeSpan}</p>
                         
-                        <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed mt-2.5 font-medium">
+                        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed mt-1.5 font-medium">
                           {p.biographySummary || 'A beautifully catalogued biographical template pending detailed storytelling milestones.'}
                         </p>
                       </div>
 
                       {/* Stat counters */}
-                      <div className="flex items-center gap-4 pt-3 border-t border-border mt-3" id={`card-stats-row-${p.id}`}>
-                        <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground">
+                      <div className="flex items-center gap-4 pt-2 border-t border-border mt-2 shrink-0" id={`card-stats-row-${p.id}`}>
+                        <div className="flex items-center gap-1.5 text-[9px] font-mono text-muted-foreground">
                           <Calendar className="w-3.5 h-3.5 text-muted-foreground/60" />
                           <span>{p.timelineEventsCount} Milestones</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground">
+                        <div className="flex items-center gap-1.5 text-[9px] font-mono text-muted-foreground">
                           <ImageIcon className="w-3.5 h-3.5 text-muted-foreground/60" />
                           <span>{p.mediaCount} Media</span>
                         </div>
@@ -564,8 +517,8 @@ export function ProfilesView() {
                     </div>
 
                     {/* Bottom Action Area */}
-                    <div className="px-5 py-3 border-t border-sidebar-border bg-sidebar/45 flex items-center justify-between shrink-0" id={`card-footer-action-row-${p.id}`}>
-                      <span className={`inline-flex items-center text-[9px] font-bold font-mono uppercase px-2 py-0.5 rounded ${
+                    <div className="px-4 py-2 border-t border-sidebar-border bg-sidebar/45 flex items-center justify-between shrink-0" id={`card-footer-action-row-${p.id}`}>
+                      <span className={`inline-flex items-center text-[9px] font-bold font-mono uppercase px-1.5 py-0.5 rounded ${
                         p.status === 'published'
                           ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                           : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
@@ -579,7 +532,7 @@ export function ProfilesView() {
                         variant="ghost"
                         size="xs"
                         rightIcon={<ChevronRight className="w-3.5 h-3.5 text-foreground" />}
-                        className="text-[10px] font-bold hover:bg-muted"
+                        className="text-[10px] font-bold hover:bg-muted py-1 h-7"
                       >
                         Explore Legacy
                       </Button>
@@ -590,18 +543,13 @@ export function ProfilesView() {
 
               {filteredAndSortedProfiles.length === 0 && (
                 <div className="col-span-full py-16 text-center space-y-4" id="empty-search-grid-state">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500/5 border border-amber-500/15 flex items-center justify-center text-cinema-amber-500 mx-auto">
-                    <Search className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-display text-sm font-bold text-foreground uppercase tracking-wider">No Records Match Query</h3>
-                    <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
-                      We couldn't locate any legacy archive items matching "{searchQuery}". Try modifying your active categories or text queries.
-                    </p>
-                  </div>
-                  <Button id="btn-clear-grid-search" onClick={() => { setSearchQuery(''); setCategoryFilter('all'); setStatusFilter('all'); }} variant="secondary" size="sm" className="text-xs">
-                    Reset All Query Filters
-                  </Button>
+                  <EmptyState
+                    type="search"
+                    title="No Records Match Query"
+                    description={`We couldn't locate any legacy archive items matching "${searchQuery}". Try modifying your active categories or text queries.`}
+                    primaryActionLabel="Reset All Query Filters"
+                    onPrimaryAction={() => { setSearchQuery(''); setCategoryFilter('all'); setStatusFilter('all'); }}
+                  />
                 </div>
               )}
             </div>
@@ -728,19 +676,14 @@ export function ProfilesView() {
 
                     {filteredAndSortedProfiles.length === 0 && (
                       <tr id="empty-search-table-state">
-                        <td colSpan={8} className="py-16 text-center space-y-4">
-                          <div className="w-12 h-12 rounded-2xl bg-amber-500/5 border border-amber-500/15 flex items-center justify-center text-cinema-amber-500 mx-auto mb-3">
-                            <Search className="w-6 h-6" />
-                          </div>
-                          <div>
-                            <h3 className="font-display text-sm font-bold text-foreground uppercase tracking-wider">No Records Found</h3>
-                            <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
-                              We couldn't locate any archives matching your search constraints.
-                            </p>
-                          </div>
-                          <Button id="btn-clear-table-search" onClick={() => { setSearchQuery(''); setCategoryFilter('all'); setStatusFilter('all'); }} variant="secondary" size="sm" className="text-xs mt-3">
-                            Reset All Filters
-                          </Button>
+                        <td colSpan={8} className="py-16">
+                          <EmptyState
+                            type="search"
+                            title="No Records Found"
+                            description="We couldn't locate any archives matching your search constraints."
+                            primaryActionLabel="Reset All Filters"
+                            onPrimaryAction={() => { setSearchQuery(''); setCategoryFilter('all'); setStatusFilter('all'); }}
+                          />
                         </td>
                       </tr>
                     )}

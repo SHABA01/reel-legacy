@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { WizardStepper } from '../ui/WizardStepper';
 import { useToast } from '../../context/ToastContext';
 import { ExtendedLegacyProfile } from './mockData';
 
@@ -249,16 +250,18 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
   };
 
   // Stepper Header helper
-  const stepsTitles = [
-    'Basic Information',
-    'Personal Details',
-    'Life Status',
-    'Relationships',
-    'Profile Photo',
-    'Cover Photo',
-    'Review Details',
-    'Create Profile'
+  const steps = [
+    { number: 1, title: 'Basic Information', description: 'Primary name inputs' },
+    { number: 2, title: 'Personal Details', description: 'Birth & origin details' },
+    { number: 3, title: 'Life Status', description: 'Current status classification' },
+    { number: 4, title: 'Relationships', description: 'Immediate kin mapping' },
+    { number: 5, title: 'Profile Photo', description: 'Identity badge avatar' },
+    { number: 6, title: 'Cover Photo', description: 'Backdrop banner landscape' },
+    { number: 7, title: 'Review Details', description: 'Double check metadata' },
+    { number: 8, title: 'Create Profile', description: 'Finalize & build badge' }
   ];
+
+  const stepsTitles = steps.map(s => s.title);
 
   return (
     <div id="create-profile-wizard-root" className="bg-card border border-border rounded-2xl shadow-xl overflow-hidden text-left flex flex-col md:flex-row h-[550px] md:h-[620px] max-w-5xl mx-auto">
@@ -275,32 +278,12 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
           </div>
 
           {/* Steps List */}
-          <div className="space-y-3" id="wizard-steps-list-indicator">
-            {stepsTitles.map((title, idx) => {
-              const stepNum = idx + 1;
-              const isPassed = stepNum < step;
-              const isActive = stepNum === step;
-
-              return (
-                <div key={idx} className="flex items-center gap-3 text-xs" id={`wizard-step-ind-${stepNum}`}>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] border transition-all ${
-                    isPassed
-                      ? 'bg-emerald-500 border-emerald-500 text-white'
-                      : isActive
-                      ? 'bg-cinema-amber-500 border-cinema-amber-500 text-slate-950 font-black'
-                      : 'border-muted-foreground/30 text-muted-foreground/60'
-                  }`}>
-                    {isPassed ? <Check className="w-3 h-3 text-slate-950 stroke-[3]" /> : stepNum}
-                  </div>
-                  <span className={`font-medium transition-colors ${
-                    isActive ? 'text-cinema-amber-500 font-bold' : isPassed ? 'text-foreground/70' : 'text-muted-foreground/50'
-                  }`}>
-                    {title}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <WizardStepper
+            id="profile-wizard-steps"
+            steps={steps}
+            currentStep={step}
+            variant="vertical"
+          />
         </div>
 
         {/* Action triggers */}

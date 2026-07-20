@@ -204,7 +204,7 @@ export function HelpCenterView() {
   const recentArticles = useMemo(() => HELP_ARTICLES.filter((a) => a.recentlyViewed), []);
 
   return (
-    <div id="help-center-view" className="space-y-8 animate-fade-in text-foreground pb-12">
+    <div id="help-center-view" className="space-y-8 animate-fade-in text-foreground pb-12 pt-2.5 md:pt-4 lg:pt-5">
       {/* Search Jumbotron banner */}
       <div id="help-jumbotron" className="bg-gradient-to-br from-cinema-slate-900 via-cinema-slate-800 to-cinema-slate-950 text-white rounded-3xl p-8 md:p-12 text-center relative overflow-hidden shadow-xl border border-cinema-slate-800">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.1)_0%,transparent_100%)] pointer-events-none" />

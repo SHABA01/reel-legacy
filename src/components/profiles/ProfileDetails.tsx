@@ -25,6 +25,7 @@ import {
   Plus
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { TabNavigation } from '../ui/TabNavigation';
 import { useToast } from '../../context/ToastContext';
 import { ExtendedLegacyProfile } from './mockData';
 
@@ -173,25 +174,17 @@ export function ProfileDetails({ profile, onBack, onEdit }: ProfileDetailsProps)
         {/* Left Columns: Tabs & Tab content */}
         <div className="lg:col-span-2 space-y-6" id="details-left-pane">
           {/* Tab Selection */}
-          <div className="flex border-b border-border" id="details-tabs-bar">
-            {(['bio', 'timeline', 'media', 'documents'] as const).map((tab) => (
-              <button
-                key={tab}
-                id={`btn-tab-${tab}`}
-                onClick={() => setActiveTab(tab)}
-                className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-                  activeTab === tab
-                    ? 'border-cinema-amber-500 text-cinema-amber-600 dark:text-cinema-amber-400'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {tab === 'bio' && 'Biography'}
-                {tab === 'timeline' && `Chronology (${profile.timelineEventsCount})`}
-                {tab === 'media' && `Media Gallery (${profile.mediaCount})`}
-                {tab === 'documents' && `Documents (${profile.documentCount})`}
-              </button>
-            ))}
-          </div>
+          <TabNavigation
+            id="details-tabs-bar"
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            tabs={[
+              { value: 'bio', label: 'Biography' },
+              { value: 'timeline', label: 'Chronology', count: profile.timelineEventsCount },
+              { value: 'media', label: 'Media Gallery', count: profile.mediaCount },
+              { value: 'documents', label: 'Documents', count: profile.documentCount },
+            ]}
+          />
 
           {/* TAB CONTENT PANEL */}
           <div className="bg-card border border-border rounded-2xl p-6 min-h-[300px]" id="details-tabs-panel">

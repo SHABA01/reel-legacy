@@ -14,7 +14,6 @@ import {
   Trash2,
   Archive,
   Copy,
-  MoreVertical,
   BookOpen,
   Heart,
   Calendar,
@@ -40,11 +39,19 @@ import {
   Gift,
   Eye,
   CheckSquare,
-  Square
+  Square,
+  Check,
+  ChevronDown
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useToast } from '../../context/ToastContext';
 import { EmptyState } from '../ui/EmptyState';
+import { MetricsGrid } from '../ui/MetricsGrid';
+import { SearchInput } from '../ui/SearchInput';
+import { FilterDropdown } from '../ui/FilterDropdown';
+import { ViewModeToggle } from '../ui/ViewModeToggle';
+import { BulkOperationsBar, BulkAction } from '../ui/BulkOperationsBar';
+import { KebabMenu } from '../ui/KebabMenu';
 import {
   ExtendedStory,
   STORY_TYPES,
@@ -55,9 +62,11 @@ import { StoryWizard } from './StoryWizard';
 import { StoryDetails } from './StoryDetails';
 import { StoryWorkspace } from './StoryWorkspace';
 import { persistenceService, StoryService } from '../../storage';
+import { useTheme } from '../../context/ThemeContext';
 
 export function StoriesView() {
   const { showToast } = useToast();
+  const { resolvedTheme } = useTheme();
 
   // App state
   const [stories, setStories] = useState<ExtendedStory[]>([]);
@@ -110,8 +119,7 @@ export function StoriesView() {
   // Bulk operation lists
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
 
-  // Individual Card dropdown triggers
-  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
+
 
   // Render stats computed from stories state
   const stats = useMemo(() => {
@@ -161,7 +169,6 @@ export function StoriesView() {
     } catch (error: any) {
       showToast('error', 'Duplication Failed', error.message || 'Could not clone the story.');
     }
-    setActiveDropdownId(null);
   };
 
   const handleArchiveStory = async (id: string) => {
@@ -184,7 +191,6 @@ export function StoriesView() {
     } catch (error: any) {
       showToast('error', 'Operation Failed', error.message || 'Could not alter archive status.');
     }
-    setActiveDropdownId(null);
   };
 
   const handleDeleteStory = async (id: string) => {
@@ -202,7 +208,6 @@ export function StoriesView() {
         showToast('error', 'Deletion Failed', error.message || 'Could not delete story.');
       }
     }
-    setActiveDropdownId(null);
   };
 
   const handleRenameStory = async (id: string) => {
@@ -219,7 +224,6 @@ export function StoriesView() {
         showToast('error', 'Rename Failed', error.message || 'Could not rename story.');
       }
     }
-    setActiveDropdownId(null);
   };
 
   const handleTogglePin = async (id: string) => {
@@ -437,8 +441,33 @@ export function StoriesView() {
     }
   };
 
+  const [isSticky, setIsSticky] = useState(false);
+
+  React.useEffect(() => {
+    const viewport = document.getElementById('workspace-viewport');
+    if (!viewport) return;
+
+    const handleScroll = () => {
+      setIsSticky(viewport.scrollTop > 200);
+    };
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   return (
-    <div id="story-library-module-root" className="h-full w-full overflow-y-auto px-6 py-6 space-y-6">
+    <div
+      id="story-library-module-root"
+      className={
+        activeSubView === 'workspace'
+          ? 'h-full w-full flex flex-col pt-0 pb-0 gap-0 space-y-0'
+          : 'space-y-6 animate-fade-in text-foreground pb-12 pt-2.5 md:pt-4 lg:pt-5'
+      }
+    >
       
       {/* Subview router orchestration */}
       {activeSubView === 'create-wizard' && (
@@ -478,247 +507,230 @@ export function StoriesView() {
       {activeSubView === 'catalog' && (
         <div className="space-y-6" id="story-catalog-view-root">
           
-          {/* Page Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4" id="catalog-header-title-row">
-            <div>
-              <h2 className="font-display text-xl font-black tracking-tight text-foreground flex items-center gap-2">
-                <Film className="w-5 h-5 text-cinema-amber-500" /> Story Production Library
-              </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Organize, filter, structure, and prepare collaborative documentary projects for your legacy ancestors.
-              </p>
-            </div>
-
-            <Button
-              id="btn-create-story-trigger"
-              variant="accent"
-              size="sm"
-              leftIcon={<Plus className="w-4 h-4 text-slate-950" />}
-              onClick={() => setActiveSubView('create-wizard')}
-              className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold self-start md:self-auto shadow-sm"
-            >
-              Create New Story
-            </Button>
-          </div>
-
-          {/* Story Statistics Board row */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3" id="stories-stats-dashboard">
-            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="story-stat-total">
-              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">Total Stories</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-display font-black text-2xl text-foreground">{stats.total}</span>
-                <span className="text-[10px] text-emerald-500 font-bold bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10">Active</span>
+          {/* Page Header Card */}
+          <div className={`p-6 bg-card border border-border rounded-2xl shadow-sm relative overflow-hidden transition-all duration-300 ${resolvedTheme === 'light' ? 'hover:shadow-md hover:-translate-y-0.5 hover:border-cinema-amber-500/20' : ''}`} id="catalog-header-title-row">
+            {/* Subtle background gradient and lighting */}
+            <div className="absolute right-0 top-0 w-64 h-64 bg-cinema-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+              <div>
+                <h2 className="font-display text-xl font-black tracking-tight text-foreground flex items-center gap-2">
+                  <Film className="w-5.5 h-5.5 text-cinema-amber-500 animate-pulse" /> Story Production Library
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1 max-w-2xl font-medium">
+                  Organize, filter, structure, and prepare collaborative documentary projects for your legacy ancestors.
+                </p>
               </div>
-            </div>
 
-            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="story-stat-ready">
-              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">Ready for AI</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-display font-black text-2xl text-indigo-500">{stats.readyForAI}</span>
-                <span className="text-[10px] text-indigo-500 font-bold bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10">Scripts</span>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="story-stat-progress">
-              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">In Progress</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-display font-black text-2xl text-foreground">{stats.inProgress}</span>
-                <span className="text-[10px] text-amber-500 font-bold bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10">Drafting</span>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col justify-between h-24 shadow-sm" id="story-stat-published">
-              <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider block">Completed</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-display font-black text-2xl text-foreground">{stats.published}</span>
-                <span className="text-[10px] text-emerald-500 font-bold bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10">Released</span>
-              </div>
-            </div>
-
-            <div className="col-span-2 md:col-span-1 p-4 rounded-2xl bg-cinema-amber-500/5 border border-cinema-amber-500/10 flex flex-col justify-between h-24 shadow-sm" id="story-stat-avg">
-              <span className="text-[10px] text-cinema-amber-800 dark:text-cinema-amber-300 font-mono uppercase tracking-wider block">Avg Completion Progress</span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-display font-black text-2xl text-cinema-amber-600 dark:text-cinema-amber-400">{stats.avgProgress}%</span>
-                <TrendingUp className="w-4 h-4 text-cinema-amber-500 animate-pulse" />
-              </div>
+              <Button
+                id="btn-create-story-trigger"
+                variant="accent"
+                size="sm"
+                leftIcon={<Plus className="w-4 h-4 text-slate-950" />}
+                onClick={() => setActiveSubView('create-wizard')}
+                className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold self-start md:self-auto shadow-sm hover:scale-105 transition-all"
+              >
+                Create New Story
+              </Button>
             </div>
           </div>
 
-          {/* Primary Filters Toolbar container */}
-          <div className="space-y-3" id="filters-toolbar-block">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-card border border-border rounded-2xl shadow-sm" id="main-controls-row">
+          {/* Story Statistics Board row - with custom float-hover cards */}
+          <MetricsGrid
+            id="stories-stats-dashboard"
+            metrics={[
+              {
+                id: 'story-stat-total',
+                label: 'Total Stories',
+                value: stats.total,
+                subValue: 'Active',
+                subValueColor: 'text-emerald-500 bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10',
+              },
+              {
+                id: 'story-stat-ready',
+                label: 'Ready for AI',
+                value: stats.readyForAI,
+                valueClassName: 'text-indigo-500', // support text-indigo-500 if we want, or just rely on default
+                subValue: 'Scripts',
+                subValueColor: 'text-indigo-500 bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10',
+              },
+              {
+                id: 'story-stat-progress',
+                label: 'In Progress',
+                value: stats.inProgress,
+                subValue: 'Drafting',
+                subValueColor: 'text-amber-500 bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10',
+              },
+              {
+                id: 'story-stat-published',
+                label: 'Completed',
+                value: stats.published,
+                subValue: 'Released',
+                subValueColor: 'text-emerald-500 bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10',
+              },
+              {
+                id: 'story-stat-avg',
+                label: 'Avg Completion Progress',
+                value: `${stats.avgProgress}%`,
+                isAccent: true,
+                icon: TrendingUp,
+                iconClassName: 'text-cinema-amber-500 animate-pulse',
+                className: 'col-span-2 md:col-span-1',
+              }
+            ]}
+          />
+
+          {/* Sticky Primary Filters Toolbar container */}
+          <div 
+            className={`space-y-3 sticky top-0 z-30 transition-all duration-300 ${
+              isSticky 
+                ? 'bg-background/95 backdrop-blur-md py-3 border-b border-border/10 shadow-sm' 
+                : 'bg-transparent py-3 border-b border-transparent'
+            }`} 
+            id="filters-toolbar-block"
+          >
+            <div className={`flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-card border border-border rounded-2xl shadow-sm transition-all duration-300 ${resolvedTheme === 'light' ? 'hover:shadow-md hover:-translate-y-0.5 hover:border-cinema-amber-500/20' : ''}`} id="main-controls-row">
               {/* Left side: search input */}
-              <div className="flex items-center gap-2 flex-grow max-w-md relative" id="search-input-field-wrapper">
-                <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  id="search-stories-input"
-                  type="text"
-                  placeholder="Search production titles, tags, summaries..."
-                  value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                  className="w-full h-10 pl-10 pr-10 rounded-xl bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 focus:bg-muted/70 transition-all placeholder:text-muted-foreground/60"
-                />
-                {searchQuery && (
-                  <button
-                    id="btn-clear-search-query"
-                    onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
-                    className="p-1 rounded-full hover:bg-muted absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+              <SearchInput
+                id="search-stories-input"
+                placeholder="Search production titles, tags, summaries..."
+                value={searchQuery}
+                onChange={(val) => { setSearchQuery(val); setCurrentPage(1); }}
+              />
 
               {/* Middle & Right: Action dropdowns & toggles */}
               <div className="flex flex-wrap items-center gap-3" id="controls-right-side-group">
-                {/* Expand advanced filters */}
+                {/* Expand filters toggle with hover effects */}
                 <button
                   id="btn-toggle-advanced-filters"
                   onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  className={`h-10 px-3.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all cursor-pointer ${
+                  className={`h-10 px-3.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all cursor-pointer hover:scale-105 hover:shadow-sm ${
                     showAdvancedFilters || categoryFilter !== 'all' || statusFilter !== 'all' || aiReadyFilter !== 'all'
                       ? 'border-cinema-amber-500 bg-cinema-amber-500/5 text-cinema-amber-600 dark:text-cinema-amber-400'
-                      : 'border-border bg-muted hover:bg-muted/75 text-foreground'
+                      : 'border-border bg-muted hover:bg-muted/75 text-black dark:text-white'
                   }`}
+                  style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}
                 >
                   <SlidersHorizontal className="w-4 h-4" />
-                  <span>Advanced Filters</span>
+                  <span>Filters</span>
                   {(categoryFilter !== 'all' || statusFilter !== 'all' || aiReadyFilter !== 'all') && (
                     <span className="w-2 h-2 rounded-full bg-cinema-amber-500 animate-pulse" />
                   )}
                 </button>
 
-                {/* Sort dropdown */}
-                <div className="flex items-center gap-1.5 bg-muted px-3 py-2 rounded-xl border border-border text-xs h-10" id="sorting-dropdown-wrapper">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono">Sort:</span>
-                  <select
-                    id="story-sort-select"
-                    value={sortBy}
-                    onChange={(e) => { setSortBy(e.target.value as any); setCurrentPage(1); }}
-                    className="bg-transparent text-foreground font-semibold focus:outline-none focus:ring-0 text-xs border-none p-0 cursor-pointer"
-                  >
-                    <option value="updated">Recently Updated</option>
-                    <option value="name">Story Title A–Z</option>
-                    <option value="progress">Completion %</option>
-                    <option value="duration">Runtime Duration</option>
-                  </select>
-                </div>
+                {/* Custom Sort dropdown */}
+                <FilterDropdown
+                  id="story-sort-select"
+                  label="Sort:"
+                  value={sortBy}
+                  options={[
+                    { value: 'updated', label: 'Recently Updated' },
+                    { value: 'name', label: 'Story Title A–Z' },
+                    { value: 'progress', label: 'Completion %' },
+                    { value: 'duration', label: 'Runtime Duration' }
+                  ]}
+                  onChange={(val) => { setSortBy(val as any); setCurrentPage(1); }}
+                />
 
-                {/* View Mode toggles */}
-                <div className="flex items-center border border-border rounded-xl p-0.5 h-10 bg-muted/40" id="view-mode-toggles-wrapper">
-                  <button
-                    id="btn-view-grid-mode"
-                    onClick={() => setViewMode('grid')}
-                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                      viewMode === 'grid' ? 'bg-cinema-amber-500 text-slate-950 font-black' : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                    aria-label="Grid View"
-                  >
-                    <Grid className="w-4 h-4" />
-                  </button>
-                  <button
-                    id="btn-view-list-mode"
-                    onClick={() => setViewMode('list')}
-                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                      viewMode === 'list' ? 'bg-cinema-amber-500 text-slate-950 font-black' : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                    aria-label="List View"
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
-                </div>
+                {/* Single View Mode Toggle */}
+                <ViewModeToggle
+                  id="btn-view-mode-toggle"
+                  viewMode={viewMode}
+                  onChange={setViewMode}
+                />
               </div>
             </div>
 
-            {/* Expandable Advanced Filters Drawer */}
+            {/* Expandable Advanced Filters Drawer with custom roundings and dropdowns */}
             {showAdvancedFilters && (
-              <div className="p-5 bg-card border border-border rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-4 animate-fade-in shadow-sm" id="advanced-filters-panel">
-                {/* Category Filter */}
-                <div className="space-y-1.5">
-                  <label htmlFor="category-select-field" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block font-mono">
+              <div className={`p-5 bg-card border border-border rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-4 animate-fade-in shadow-sm transition-all duration-300 ${resolvedTheme === 'light' ? 'hover:shadow-md hover:border-cinema-amber-500/10' : ''}`} id="advanced-filters-panel">
+                {/* Category Filter Dropdown */}
+                <div className="space-y-1.5 relative" id="category-filter-dropdown-wrapper">
+                  <label className="text-[10px] font-bold text-black dark:text-muted-foreground uppercase tracking-wider block font-mono" style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}>
                     Story Type
                   </label>
-                  <select
-                    id="category-select-field"
+                  <FilterDropdown
+                    id="advanced-category-dropdown"
                     value={categoryFilter}
-                    onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
-                    className="w-full h-9 px-3 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 transition-all cursor-pointer"
-                  >
-                    <option value="all">All Narrative Styles</option>
-                    {STORY_TYPES.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: 'all', label: 'All Narrative Styles' },
+                      ...STORY_TYPES.map(type => ({ value: type, label: type }))
+                    ]}
+                    onChange={(val) => { setCategoryFilter(val); setCurrentPage(1); }}
+                    fullWidth
+                    align="left"
+                  />
                 </div>
 
-                {/* Status Filter */}
-                <div className="space-y-1.5">
-                  <label htmlFor="status-select-field" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block font-mono">
+                {/* Status Filter Dropdown */}
+                <div className="space-y-1.5 relative" id="status-filter-dropdown-wrapper">
+                  <label className="text-[10px] font-bold text-black dark:text-muted-foreground uppercase tracking-wider block font-mono" style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}>
                     Workflow Status
                   </label>
-                  <select
-                    id="status-select-field"
+                  <FilterDropdown
+                    id="advanced-status-dropdown"
                     value={statusFilter}
-                    onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                    className="w-full h-9 px-3 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 transition-all cursor-pointer"
-                  >
-                    <option value="all">All Stages</option>
-                    {STORY_STATUSES.map(status => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: 'all', label: 'All Stages' },
+                      ...STORY_STATUSES.map(status => ({ value: status, label: status }))
+                    ]}
+                    onChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}
+                    fullWidth
+                    align="left"
+                  />
                 </div>
 
-                {/* AI Ready Filter */}
-                <div className="space-y-1.5">
-                  <label htmlFor="ai-ready-select-field" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block font-mono">
+                {/* AI Ready Filter Dropdown */}
+                <div className="space-y-1.5 relative" id="ai-ready-filter-dropdown-wrapper">
+                  <label className="text-[10px] font-bold text-black dark:text-muted-foreground uppercase tracking-wider block font-mono" style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}>
                     AI Script Ready
                   </label>
-                  <select
-                    id="ai-ready-select-field"
+                  <FilterDropdown
+                    id="advanced-ai-ready-dropdown"
                     value={aiReadyFilter}
-                    onChange={(e) => { setAiReadyFilter(e.target.value); setCurrentPage(1); }}
-                    className="w-full h-9 px-3 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 transition-all cursor-pointer"
-                  >
-                    <option value="all">All Projects</option>
-                    <option value="yes">Ready for AI script</option>
-                    <option value="no">Needs configuration</option>
-                  </select>
+                    options={[
+                      { value: 'all', label: 'All Projects' },
+                      { value: 'yes', label: 'Ready for AI script' },
+                      { value: 'no', label: 'Needs configuration' }
+                    ]}
+                    onChange={(val) => { setAiReadyFilter(val); setCurrentPage(1); }}
+                    fullWidth
+                    align="left"
+                  />
                 </div>
 
-                {/* Micro-indicators Filters & Toggles */}
+                {/* Micro-indicators Filters & Toggles with elegant hovers */}
                 <div className="flex flex-col justify-end gap-2 text-xs" id="quick-toggles-block">
                   <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground hover:text-cinema-amber-600 dark:hover:text-cinema-amber-400 transition-colors">
                       <input
                         id="favorites-only-checkbox"
                         type="checkbox"
                         checked={showFavoritesOnly}
                         onChange={(e) => { setShowFavoritesOnly(e.target.checked); setCurrentPage(1); }}
-                        className="w-4 h-4 rounded border-border bg-muted cursor-pointer"
+                        className="w-4 h-4 rounded border-border bg-muted cursor-pointer accent-cinema-amber-500"
                       />
                       <span>Favorites Only</span>
                     </label>
 
-                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground hover:text-cinema-amber-600 dark:hover:text-cinema-amber-400 transition-colors">
                       <input
                         id="pinned-only-checkbox"
                         type="checkbox"
                         checked={showPinnedOnly}
                         onChange={(e) => { setShowPinnedOnly(e.target.checked); setCurrentPage(1); }}
-                        className="w-4 h-4 rounded border-border bg-muted cursor-pointer"
+                        className="w-4 h-4 rounded border-border bg-muted cursor-pointer accent-cinema-amber-500"
                       />
                       <span>Pinned Only</span>
                     </label>
                   </div>
 
-                  <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground mt-1 hover:text-red-600 dark:hover:text-red-400 transition-colors">
                     <input
                       id="archived-only-checkbox"
                       type="checkbox"
                       checked={showArchivedOnly}
                       onChange={(e) => { setShowArchivedOnly(e.target.checked); setCurrentPage(1); }}
-                      className="w-4 h-4 rounded border-border bg-muted cursor-pointer"
+                      className="w-4 h-4 rounded border-border bg-muted cursor-pointer accent-red-500"
                     />
                     <span className="text-red-500 font-bold">Show Archived Vault Projects</span>
                   </label>
@@ -729,49 +741,46 @@ export function StoriesView() {
 
           {/* Bulk Selection actions bar for List/Table view */}
           {selectedRowIds.length > 0 && viewMode === 'list' && (
-            <div className="p-3 bg-muted border border-border rounded-xl flex items-center justify-between animate-fade-in" id="stories-bulk-operations-bar">
-              <span className="text-xs font-bold text-foreground">
-                {selectedRowIds.length} Stories selected for batch processing
-              </span>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  id="btn-bulk-archive-stories"
-                  variant="ghost"
-                  size="sm"
-                  leftIcon={<Archive className="w-4 h-4 text-muted-foreground" />}
-                  onClick={handleBulkArchive}
-                  className="text-xs hover:bg-card border border-border"
-                >
-                  Archive Selected
-                </Button>
-                <Button
-                  id="btn-bulk-delete-stories"
-                  variant="ghost"
-                  size="sm"
-                  leftIcon={<Trash2 className="w-4 h-4 text-red-500" />}
-                  onClick={handleBulkDelete}
-                  className="text-xs text-red-500 hover:bg-card hover:text-red-400 border border-border"
-                >
-                  Delete Selected
-                </Button>
-              </div>
-            </div>
+            <BulkOperationsBar
+              id="stories-bulk-operations-bar"
+              selectedCount={selectedRowIds.length}
+              labelText={`${selectedRowIds.length} Stories selected for batch processing`}
+              actions={[
+                {
+                  id: 'btn-bulk-archive-stories',
+                  label: 'Archive Selected',
+                  icon: <Archive className="w-4 h-4 text-muted-foreground" />,
+                  onClick: handleBulkArchive,
+                  className: 'hover:bg-card',
+                },
+                {
+                  id: 'btn-bulk-delete-stories',
+                  label: 'Delete Selected',
+                  icon: <Trash2 className="w-4 h-4 text-red-500" />,
+                  onClick: handleBulkDelete,
+                  className: 'text-red-500 hover:bg-card hover:text-red-400',
+                },
+              ]}
+            />
           )}
 
-          {/* GRID VIEW PORTAL */}
+                    {/* GRID VIEW PORTAL */}
           {viewMode === 'grid' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="stories-grid-container" style={{ contentVisibility: 'auto' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-6" id="stories-grid-container" style={{ contentVisibility: 'auto' }}>
               {paginatedStories.map((story) => {
                 const birthYr = 'N/A';
                 return (
                   <div
                     key={story.id}
                     id={`story-grid-card-${story.id}`}
-                    className="group border border-border bg-card rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-sm hover:shadow-md transition-all h-[380px]"
+                    className={`group border border-border bg-card rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-sm h-[300px] transition-all duration-300 ${
+                      resolvedTheme === 'light'
+                        ? 'hover:shadow-lg hover:-translate-y-1 hover:border-cinema-amber-500/30'
+                        : ''
+                    }`}
                   >
                     {/* Story Cover Block */}
-                    <div className="h-28 w-full relative shrink-0 bg-muted">
+                    <div className="h-20 w-full relative shrink-0 bg-muted">
                       <img
                         src={story.coverImage}
                         alt={`${story.title} cover`}
@@ -781,75 +790,28 @@ export function StoriesView() {
                       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
 
                       {/* Floating Category Tag overlay */}
-                      <span className="absolute top-3 left-3 inline-flex items-center text-[9px] font-mono font-bold bg-black/60 text-cinema-amber-400 border border-cinema-amber-500/20 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                      <span className="absolute top-2.5 left-2.5 inline-flex items-center text-[9px] font-mono font-bold bg-black/60 text-cinema-amber-400 border border-cinema-amber-500/20 px-2 py-0.5 rounded-full backdrop-blur-sm">
                         {story.category}
                       </span>
 
                       {/* Dropdown Action list trigger */}
-                      <div className="absolute top-3 right-3 z-10">
-                        <button
-                          id={`dropdown-trigger-${story.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveDropdownId(activeDropdownId === story.id ? null : story.id);
-                          }}
-                          className="p-1 rounded-lg bg-black/40 text-white/80 hover:text-white hover:bg-black/60 cursor-pointer backdrop-blur-sm"
-                          aria-label="Actions menu"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-
-                        {activeDropdownId === story.id && (
-                          <div className="absolute right-0 mt-1 w-40 bg-card border border-border rounded-xl shadow-lg py-1 z-20 text-left" id={`action-dropdown-${story.id}`}>
-                            <button
-                              id={`dropdown-action-explore-${story.id}`}
-                              onClick={() => { handleSelectStory(story.id); setActiveDropdownId(null); }}
-                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-muted-foreground" /> View Production
-                            </button>
-                            <button
-                              id={`dropdown-action-studio-${story.id}`}
-                              onClick={() => { handleSimulateEdit(story.title); setActiveDropdownId(null); }}
-                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
-                            >
-                              <Film className="w-3.5 h-3.5 text-cinema-amber-500" /> Story Studio
-                            </button>
-                            <button
-                              id={`dropdown-action-rename-${story.id}`}
-                              onClick={() => handleRenameStory(story.id)}
-                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
-                            >
-                              <FileText className="w-3.5 h-3.5 text-muted-foreground" /> Rename Project
-                            </button>
-                            <button
-                              id={`dropdown-action-duplicate-${story.id}`}
-                              onClick={() => handleDuplicateStory(story.id)}
-                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
-                            >
-                              <Copy className="w-3.5 h-3.5 text-muted-foreground" /> Duplicate
-                            </button>
-                            <button
-                              id={`dropdown-action-archive-${story.id}`}
-                              onClick={() => handleArchiveStory(story.id)}
-                              className="w-full px-4 py-2 text-xs text-foreground hover:bg-muted font-semibold text-left flex items-center gap-2 cursor-pointer"
-                            >
-                              <Archive className="w-3.5 h-3.5 text-muted-foreground" /> {story.status === 'Archived' ? 'Unarchive' : 'Archive'}
-                            </button>
-                            <div className="border-t border-border my-1" />
-                            <button
-                              id={`dropdown-action-delete-${story.id}`}
-                              onClick={() => handleDeleteStory(story.id)}
-                              className="w-full px-4 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 font-bold text-left flex items-center gap-2 cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-red-500" /> Delete Project
-                            </button>
-                          </div>
-                        )}
+                      <div className="absolute top-2.5 right-2.5 z-10">
+                        <KebabMenu
+                          id={`story-${story.id}`}
+                          items={[
+                            { id: `dropdown-action-explore-${story.id}`, label: 'View Production', onClick: () => handleSelectStory(story.id), icon: <Eye className="w-3.5 h-3.5 text-muted-foreground" /> },
+                            { id: `dropdown-action-studio-${story.id}`, label: 'Story Studio', onClick: () => handleSimulateEdit(story.title), icon: <Film className="w-3.5 h-3.5 text-muted-foreground" /> },
+                            { id: `dropdown-action-rename-${story.id}`, label: 'Rename Project', onClick: () => handleRenameStory(story.id), icon: <FileText className="w-3.5 h-3.5 text-muted-foreground" /> },
+                            { id: `dropdown-action-duplicate-${story.id}`, label: 'Duplicate', onClick: () => handleDuplicateStory(story.id), icon: <Copy className="w-3.5 h-3.5 text-muted-foreground" /> },
+                            { id: `dropdown-action-archive-${story.id}`, label: story.status === 'Archived' ? 'Unarchive' : 'Archive', onClick: () => handleArchiveStory(story.id), icon: <Archive className="w-3.5 h-3.5 text-muted-foreground" /> },
+                            { id: `dropdown-action-delete-${story.id}`, label: 'Delete Project', onClick: () => handleDeleteStory(story.id), isDestructive: true, hasDividerBefore: true, icon: <Trash2 className="w-3.5 h-3.5 text-red-500" /> },
+                          ]}
+                          dropdownClassName="w-44"
+                        />
                       </div>
 
                       {/* Favorite & Pin Indicators */}
-                      <div className="absolute bottom-2 left-3 flex items-center gap-1.5 z-10" id={`card-badges-row-${story.id}`}>
+                      <div className="absolute bottom-2 left-2.5 flex items-center gap-1.5 z-10" id={`card-badges-row-${story.id}`}>
                         <button
                           id={`btn-toggle-favorite-${story.id}`}
                           onClick={(e) => { e.stopPropagation(); handleToggleFavorite(story.id); }}
@@ -868,15 +830,15 @@ export function StoriesView() {
                     </div>
 
                     {/* Profile avatar overlay details */}
-                    <div className="px-5 relative -mt-5 flex items-end justify-between shrink-0" id={`profile-avatar-row-${story.id}`}>
+                    <div className="px-4 relative -mt-4.5 flex items-end justify-between shrink-0" id={`profile-avatar-row-${story.id}`}>
                       <div className="flex items-center gap-2">
                         <img
                           src={story.associatedProfilePhoto}
                           alt={story.associatedProfileName}
-                          className="w-10 h-10 rounded-full border-2 border-card object-cover bg-muted shadow-sm"
+                          className="w-8 h-8 rounded-full border-2 border-card object-cover bg-muted shadow-sm"
                           referrerPolicy="no-referrer"
                         />
-                        <div className="text-[10px] font-bold text-foreground truncate max-w-28 bg-card/65 backdrop-blur-xs rounded px-1 border border-border/10">
+                        <div className="text-[10px] font-bold text-foreground truncate max-w-24 bg-card/65 backdrop-blur-xs rounded px-1 border border-border/10">
                           {story.associatedProfileName}
                         </div>
                       </div>
@@ -888,39 +850,39 @@ export function StoriesView() {
                     </div>
 
                     {/* Middle: Details text */}
-                    <div className="px-5 py-3 flex-grow flex flex-col justify-between" id={`card-text-body-${story.id}`}>
-                      <div>
+                    <div className="px-4 py-2.5 flex-grow flex flex-col justify-between min-h-0 overflow-hidden" id={`card-text-body-${story.id}`}>
+                      <div className="min-h-0 overflow-hidden">
                         <h4 className="font-display font-black text-xs text-foreground truncate group-hover:text-cinema-amber-600 dark:group-hover:text-cinema-amber-400 transition-colors">
                           {story.title}
                         </h4>
-                        <p className="text-[10px] text-muted-foreground font-semibold leading-tight line-clamp-1 mt-0.5">
+                        <p className="text-[9px] text-muted-foreground font-semibold leading-tight line-clamp-1 mt-0.5">
                           {story.subtitle}
                         </p>
 
-                        <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed mt-2.5 font-medium">
+                        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed mt-1.5 font-medium">
                           {story.description}
                         </p>
                       </div>
 
                       {/* Numeric indicators */}
-                      <div className="flex items-center justify-between pt-2.5 border-t border-border mt-2" id={`card-numbers-row-${story.id}`}>
-                        <div className="flex items-center gap-1 text-[9px] font-mono text-muted-foreground">
+                      <div className="flex items-center justify-between pt-2 border-t border-border mt-2 shrink-0" id={`card-numbers-row-${story.id}`}>
+                        <div className="flex items-center gap-1 text-[8.5px] font-mono text-muted-foreground">
                           <BookOpen className="w-3 h-3" />
-                          <span>{story.chapterCount} Chapters</span>
+                          <span>{story.chapterCount} Ch</span>
                         </div>
-                        <div className="flex items-center gap-1 text-[9px] font-mono text-muted-foreground">
+                        <div className="flex items-center gap-1 text-[8.5px] font-mono text-muted-foreground">
                           <ImageIcon className="w-3 h-3" />
-                          <span>{story.mediaCount} Media</span>
+                          <span>{story.mediaCount} Img</span>
                         </div>
-                        <div className="flex items-center gap-1 text-[9px] font-mono text-muted-foreground">
+                        <div className="flex items-center gap-1 text-[8.5px] font-mono text-muted-foreground">
                           <Calendar className="w-3 h-3" />
-                          <span>{story.timelineEventCount} Milestones</span>
+                          <span>{story.timelineEventCount} Mlst</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Bottom footer button bar */}
-                    <div className="px-5 py-3 border-t border-sidebar-border bg-sidebar/45 flex items-center justify-between shrink-0" id={`card-bottom-bar-${story.id}`}>
+                    <div className="px-4 py-2 border-t border-sidebar-border bg-sidebar/45 flex items-center justify-between shrink-0" id={`card-bottom-bar-${story.id}`}>
                       {/* AI Ready Badge */}
                       {story.aiReady ? (
                         <span className="inline-flex items-center gap-1 text-[8px] font-bold font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 px-1.5 py-0.5 rounded">
@@ -938,7 +900,7 @@ export function StoriesView() {
                         variant="ghost"
                         size="xs"
                         rightIcon={<ChevronRight className="w-3 h-3 text-foreground" />}
-                        className="text-[10px] font-bold hover:bg-muted"
+                        className="text-[10px] font-bold hover:bg-muted py-1 h-7"
                       >
                         Explore Project
                       </Button>
@@ -985,7 +947,7 @@ export function StoriesView() {
                       </th>
                       <th className="p-4">Commemorative Story</th>
                       <th className="p-4">Profile Link</th>
-                      <th className="p-4">Style Style</th>
+                      <th className="p-4">Style</th>
                       <th className="p-4">Stage Status</th>
                       <th className="p-4">Draft Progress</th>
                       <th className="p-4">Linked Assets</th>

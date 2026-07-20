@@ -18,9 +18,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('reellegacy-theme') as ThemeMode;
-      return saved || 'system';
+      return saved || 'light';
     }
-    return 'system';
+    return 'light';
   });
 
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() => {
@@ -28,8 +28,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const saved = localStorage.getItem('reellegacy-theme') as ThemeMode;
       if (saved === 'dark') return 'dark';
       if (saved === 'light') return 'light';
-      const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      return systemDark ? 'dark' : 'light';
+      if (saved === 'system' || !saved) {
+        try {
+          const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          return systemDark ? 'dark' : 'light';
+        } catch (e) {
+          return 'light';
+        }
+      }
     }
     return 'light';
   });

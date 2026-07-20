@@ -812,7 +812,7 @@ export function SettingsView() {
   ] as const;
 
   return (
-    <div id="settings-view-root" className="space-y-6 animate-fade-in text-foreground pb-12">
+    <div id="settings-view-root" className="space-y-6 animate-fade-in text-foreground pb-12 pt-2.5 md:pt-4 lg:pt-5">
       {/* Settings Title Header */}
       <div id="settings-view-title-card" className="border-b border-border pb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

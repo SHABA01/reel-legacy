@@ -21,6 +21,6 @@ export class NotificationRepository extends BaseRepository<NotificationSchema> {
   async markAllAsRead(): Promise<void> {
     const items = await this.getAll();
     const updated = items.map(item => ({ ...item, read: true, updatedAt: new Date().toISOString() }));
-    await this.adapter.setItem(this.storageKey, updated);
+    await this.saveAll(updated);
   }
 }

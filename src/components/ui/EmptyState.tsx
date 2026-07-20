@@ -94,13 +94,13 @@ export function EmptyState({
       </div>
       <h3
         id={`${generatedId}-title`}
-        className="font-display text-lg font-semibold tracking-tight text-cinema-slate-800 dark:text-cinema-slate-200 mb-2"
+        className="font-display text-lg font-semibold tracking-tight text-foreground mb-2"
       >
         {displayTitle}
       </h3>
       <p
         id={`${generatedId}-desc`}
-        className="text-sm text-cinema-slate-500 dark:text-cinema-slate-400 mb-6 leading-relaxed max-w-sm"
+        className="text-sm text-muted-foreground mb-6 leading-relaxed max-w-sm"
       >
         {displayDescription}
       </p>

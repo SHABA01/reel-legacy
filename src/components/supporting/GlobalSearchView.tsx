@@ -304,7 +304,7 @@ export function GlobalSearchView() {
   };
 
   return (
-    <div id="global-search-view" className="space-y-6 animate-fade-in text-foreground pb-12">
+    <div id="global-search-view" className="space-y-6 animate-fade-in text-foreground pb-12 pt-2.5 md:pt-4 lg:pt-5">
       {/* Top Title Bar */}
       <div id="search-title-card" className="border-b border-border pb-5">
         <p className="text-sm text-muted-foreground">

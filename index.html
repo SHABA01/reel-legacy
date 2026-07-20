@@ -9,7 +9,7 @@
         try {
           var saved = localStorage.getItem('reellegacy-theme');
           var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var isDark = saved === 'dark' || (!saved && systemDark) || (saved === 'system' && systemDark);
+          var isDark = saved === 'dark' || (saved === 'system' && systemDark);
           if (isDark) {
             document.documentElement.classList.add('dark');
             document.documentElement.style.colorScheme = 'dark';
