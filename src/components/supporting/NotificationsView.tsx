@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
 import { EmptyState } from '../ui/EmptyState';
 
 export interface NotificationItem {
@@ -363,20 +364,18 @@ export function NotificationsView() {
           </div>
 
           {/* Priority filter */}
-          <div className="space-y-2" id="filter-group-priority">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Priority Level</label>
-            <select
-              id="priority-select-filter"
-              value={activePriority}
-              onChange={(e) => setActivePriority(e.target.value)}
-              className="w-full text-xs bg-muted/30 border border-border p-2 rounded-xl text-foreground outline-none focus:border-cinema-amber-500"
-            >
-              <option value="all">All Priorities</option>
-              <option value="high">🔴 High Priority</option>
-              <option value="medium">🟡 Medium Priority</option>
-              <option value="low">🟢 Low Priority</option>
-            </select>
-          </div>
+          <Select
+            id="priority-select-filter"
+            label="Priority Level"
+            value={activePriority}
+            onChange={setActivePriority}
+            options={[
+              { value: 'all', label: 'All Priorities' },
+              { value: 'high', label: '🔴 High Priority' },
+              { value: 'medium', label: '🟡 Medium Priority' },
+              { value: 'low', label: '🟢 Low Priority' }
+            ]}
+          />
 
           {/* Categories List */}
           <div className="space-y-1" id="filter-group-categories">

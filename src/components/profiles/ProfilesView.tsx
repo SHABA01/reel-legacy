@@ -35,10 +35,12 @@ import { Input } from '../ui/Input';
 import { EmptyState } from '../ui/EmptyState';
 import { MetricsGrid, MetricCardProps } from '../ui/MetricsGrid';
 import { BulkOperationsBar, BulkAction } from '../ui/BulkOperationsBar';
-import { SearchInput } from '../ui/SearchInput';
+import { FilterBar } from '../ui/FilterBar';
 import { FilterDropdown } from '../ui/FilterDropdown';
-import { ViewModeToggle } from '../ui/ViewModeToggle';
 import { KebabMenu } from '../ui/KebabMenu';
+import { FavoriteButton } from '../ui/FavoriteButton';
+import { PinButton } from '../ui/PinButton';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { useToast } from '../../context/ToastContext';
 import { useTheme } from '../../context/ThemeContext';
 import { INITIAL_PROFILES, ExtendedLegacyProfile } from './mockData';
@@ -79,11 +81,23 @@ export function ProfilesView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [showPinnedOnly, setShowPinnedOnly] = useState(false);
+  const [showArchivedOnly, setShowArchivedOnly] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [sortBy, setSortBy] = useState<'updated' | 'name' | 'progress'>('updated');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Bulk operation states
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+
+  // Delete confirmation modal state
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    profileId?: string;
+    profileName?: string;
+    isBulk?: boolean;
+  }>({ isOpen: false });
 
   // Statistics Computations
   const stats = useMemo(() => {
@@ -134,13 +148,12 @@ export function ProfilesView() {
     const target = profiles.find(p => p.id === id);
     if (!target) return;
 
-    const confirmDelete = window.confirm(`Are you absolutely sure you want to permanently delete the Legacy Profile of ${target.preferredName}? This action is irreversible.`);
-    if (confirmDelete) {
-      const updated = profiles.filter(p => p.id !== id);
-      saveToLocal(updated);
-      setSelectedRowIds(prev => prev.filter(rowId => rowId !== id));
-      showToast('error', 'Profile Permanently Deleted', `${target.preferredName} has been purged from workspace.`);
-    }
+    setDeleteConfirmation({
+      isOpen: true,
+      profileId: id,
+      profileName: target.preferredName,
+      isBulk: false,
+    });
   };
 
   const handleArchiveProfile = (id: string) => {
@@ -163,13 +176,29 @@ export function ProfilesView() {
 
   const handleBulkDelete = () => {
     if (selectedRowIds.length === 0) return;
-    const confirmDelete = window.confirm(`Are you sure you want to delete ${selectedRowIds.length} selected legacy profiles?`);
-    if (confirmDelete) {
+    setDeleteConfirmation({
+      isOpen: true,
+      isBulk: true,
+    });
+  };
+
+  const executeDelete = () => {
+    if (deleteConfirmation.isBulk) {
       const updated = profiles.filter(p => !selectedRowIds.includes(p.id));
       saveToLocal(updated);
       showToast('error', 'Profiles Deleted', `${selectedRowIds.length} profiles have been removed.`);
       setSelectedRowIds([]);
+    } else if (deleteConfirmation.profileId) {
+      const id = deleteConfirmation.profileId;
+      const target = profiles.find(p => p.id === id);
+      if (target) {
+        const updated = profiles.filter(p => p.id !== id);
+        saveToLocal(updated);
+        setSelectedRowIds(prev => prev.filter(rowId => rowId !== id));
+        showToast('error', 'Profile Permanently Deleted', `${target.preferredName} has been purged from workspace.`);
+      }
     }
+    setDeleteConfirmation({ isOpen: false });
   };
 
   // Create wizard finish callback
@@ -191,6 +220,32 @@ export function ProfilesView() {
     setActiveSubView('catalog');
   };
 
+  const handleToggleFavorite = (id: string) => {
+    const target = profiles.find(p => p.id === id);
+    if (!target) return;
+    const nextFav = !target.favorite;
+    const updated = profiles.map(p => p.id === id ? { ...p, favorite: nextFav } : p);
+    saveToLocal(updated);
+    showToast(
+      nextFav ? 'success' : 'info',
+      nextFav ? 'Added to Favorites' : 'Removed from Favorites',
+      `"${target.preferredName || `${target.firstName} ${target.lastName}`}" has been ${nextFav ? 'marked as' : 'removed from'} your family highlights.`
+    );
+  };
+
+  const handleTogglePin = (id: string) => {
+    const target = profiles.find(p => p.id === id);
+    if (!target) return;
+    const nextPinned = !target.pinned;
+    const updated = profiles.map(p => p.id === id ? { ...p, pinned: nextPinned } : p);
+    saveToLocal(updated);
+    showToast(
+      'success',
+      nextPinned ? 'Profile Pinned' : 'Profile Unpinned',
+      `"${target.preferredName || `${target.firstName} ${target.lastName}`}" has been ${nextPinned ? 'pinned to' : 'unpinned from'} the top shelf.`
+    );
+  };
+
   // Filter & Sort Logic
   const filteredAndSortedProfiles = useMemo(() => {
     return profiles
@@ -198,10 +253,27 @@ export function ProfilesView() {
         const fullName = `${p.firstName} ${p.lastName} ${p.preferredName || ''} ${p.nickname || ''}`.toLowerCase();
         const matchesSearch = fullName.includes(searchQuery.toLowerCase());
         const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
-        const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
-        return matchesSearch && matchesCategory && matchesStatus;
+        
+        let matchesStatus = true;
+        if (showArchivedOnly) {
+          matchesStatus = p.status === 'archived';
+        } else if (statusFilter !== 'all') {
+          matchesStatus = p.status === statusFilter;
+        } else {
+          // Hide archived unless searching archived explicitly
+          matchesStatus = p.status !== 'archived';
+        }
+
+        const matchesFav = !showFavoritesOnly || p.favorite === true;
+        const matchesPinned = !showPinnedOnly || p.pinned === true;
+
+        return matchesSearch && matchesCategory && matchesStatus && matchesFav && matchesPinned;
       })
       .sort((a, b) => {
+        // Pinned profiles always float to top
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+
         if (sortBy === 'name') {
           return a.lastName.localeCompare(b.lastName);
         }
@@ -211,30 +283,14 @@ export function ProfilesView() {
         // Default: Recently updated
         return new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime();
       });
-  }, [profiles, searchQuery, categoryFilter, statusFilter, sortBy]);
+  }, [profiles, searchQuery, categoryFilter, statusFilter, sortBy, showFavoritesOnly, showPinnedOnly, showArchivedOnly]);
 
   // Find selected profile reference for detail/edit views
   const selectedProfile = useMemo(() => {
     return profiles.find(p => p.id === selectedProfileId);
   }, [profiles, selectedProfileId]);
 
-  const [isSticky, setIsSticky] = useState(false);
 
-  React.useEffect(() => {
-    const viewport = document.getElementById('workspace-viewport');
-    if (!viewport) return;
-
-    const handleScroll = () => {
-      setIsSticky(viewport.scrollTop > 200);
-    };
-
-    viewport.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-
-    return () => {
-      viewport.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
 
   return (
     <div id="legacy-profiles-module-root" className="space-y-6 animate-fade-in text-foreground pb-12 pt-2.5 md:pt-4 lg:pt-5">
@@ -336,31 +392,39 @@ export function ProfilesView() {
             ]}
           />
 
-          {/* Sticky Filtering Control Bar wrapper */}
-          <div 
-            className={`sticky top-0 z-30 transition-all duration-300 ${
-              isSticky 
-                ? 'bg-background/95 backdrop-blur-md py-3 border-b border-border/10 shadow-sm' 
-                : 'bg-transparent py-3 border-b border-transparent'
-            }`} 
-            id="profiles-sticky-filters-container"
-          >
             {/* Filtering Control Bar */}
-            <div className={`flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-card border border-border rounded-2xl shadow-sm transition-all duration-300 ${resolvedTheme === 'light' ? 'hover:shadow-md hover:-translate-y-0.5 hover:border-cinema-amber-500/20' : ''}`} id="controls-panel-container">
-              {/* Left side: search input */}
-              <SearchInput
-                id="search-profiles-input"
-                placeholder="Search profile by name, nickname..."
-                value={searchQuery}
-                onChange={setSearchQuery}
-              />
-
-              {/* Middle: Selection filters */}
-              <div className="flex flex-wrap items-center gap-3" id="filters-triggers-group">
-                {/* Category Filter dropdown */}
+            <FilterBar
+              id="profiles-filter-bar"
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              searchPlaceholder="Search profile by name, nickname..."
+              sortBy={sortBy}
+              sortOptions={[
+                { value: 'updated', label: 'Recently Updated' },
+                { value: 'name', label: 'Name A–Z' },
+                { value: 'progress', label: 'Completion %' }
+              ]}
+              onSortByChange={(val) => setSortBy(val as any)}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              showAdvancedFilters={showAdvancedFilters}
+              onShowAdvancedFiltersChange={setShowAdvancedFilters}
+              hasActiveFilters={categoryFilter !== 'all' || statusFilter !== 'all'}
+              showFavoritesOnly={showFavoritesOnly}
+              onFavoritesOnlyChange={setShowFavoritesOnly}
+              showPinnedOnly={showPinnedOnly}
+              onPinnedOnlyChange={setShowPinnedOnly}
+              showArchivedOnly={showArchivedOnly}
+              onArchivedOnlyChange={setShowArchivedOnly}
+              archivedLabel="Show Archived Profiles"
+            >
+              {/* Category Filter Dropdown */}
+              <div className="space-y-1.5 relative" id="profiles-category-filter-dropdown-wrapper">
+                <label className="text-[10px] font-bold text-black dark:text-muted-foreground uppercase tracking-wider block font-mono" style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}>
+                  Profile Category
+                </label>
                 <FilterDropdown
-                  id="category-filter-dropdown"
-                  label="Cat:"
+                  id="advanced-category-dropdown"
                   value={categoryFilter}
                   options={[
                     { value: 'all', label: 'All Blueprints' },
@@ -373,12 +437,18 @@ export function ProfilesView() {
                     { value: 'historical-figure', label: 'Historical Figure' }
                   ]}
                   onChange={setCategoryFilter}
+                  fullWidth
+                  align="left"
                 />
+              </div>
 
-                {/* Status Filter dropdown */}
+              {/* Status Filter Dropdown */}
+              <div className="space-y-1.5 relative" id="profiles-status-filter-dropdown-wrapper">
+                <label className="text-[10px] font-bold text-black dark:text-muted-foreground uppercase tracking-wider block font-mono" style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}>
+                  Profile Status
+                </label>
                 <FilterDropdown
-                  id="status-filter-dropdown"
-                  label="Status:"
+                  id="advanced-status-dropdown"
                   value={statusFilter}
                   options={[
                     { value: 'all', label: 'All Status' },
@@ -387,31 +457,11 @@ export function ProfilesView() {
                     { value: 'archived', label: 'Archived' }
                   ]}
                   onChange={setStatusFilter}
-                />
-
-                {/* Sort selector dropdown */}
-                <FilterDropdown
-                  id="sort-filter-dropdown"
-                  label="Sort:"
-                  value={sortBy}
-                  options={[
-                    { value: 'updated', label: 'Recently Updated' },
-                    { value: 'name', label: 'Name A–Z' },
-                    { value: 'progress', label: 'Completion %' }
-                  ]}
-                  onChange={(val) => setSortBy(val as any)}
+                  fullWidth
+                  align="left"
                 />
               </div>
-
-              {/* Right side: Single View Mode Toggle */}
-              <ViewModeToggle
-                id="btn-view-mode-toggle"
-                viewMode={viewMode}
-                onChange={setViewMode}
-                className="shrink-0"
-              />
-            </div>
-          </div>
+            </FilterBar>
 
           {/* Bulk Selection Operations Action Bar */}
           {selectedRowIds.length > 0 && viewMode === 'list' && (
@@ -450,7 +500,8 @@ export function ProfilesView() {
                   <div
                     key={p.id}
                     id={`profile-grid-card-${p.id}`}
-                    className="group border border-border bg-card rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-sm hover:shadow-md transition-all h-[300px]"
+                    onClick={() => handleSelectProfile(p.id)}
+                    className="group border border-border bg-card rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-sm hover:shadow-md transition-all h-[300px] cursor-pointer"
                   >
                     {/* Cover photo block */}
                     <div className="h-20 w-full relative shrink-0 bg-muted">
@@ -463,11 +514,10 @@ export function ProfilesView() {
                       </span>
 
                       {/* Dropdown menu trigger top-right overlay */}
-                      <div className="absolute top-2.5 right-2.5">
+                      <div className="absolute top-2.5 right-2.5" onClick={(e) => e.stopPropagation()}>
                         <KebabMenu
                           id={`profile-${p.id}`}
                           items={[
-                            { id: `dropdown-action-view-${p.id}`, label: 'View Profile', onClick: () => handleSelectProfile(p.id), icon: <Eye className="w-3.5 h-3.5 text-muted-foreground" /> },
                             { id: `dropdown-action-edit-${p.id}`, label: 'Edit Profile', onClick: () => handleEditProfile(p.id), icon: <FileText className="w-3.5 h-3.5 text-muted-foreground" /> },
                             { id: `dropdown-action-clone-${p.id}`, label: 'Duplicate', onClick: () => handleDuplicateProfile(p.id), icon: <Copy className="w-3.5 h-3.5 text-muted-foreground" /> },
                             { id: `dropdown-action-archive-${p.id}`, label: 'Archive', onClick: () => handleArchiveProfile(p.id), icon: <Archive className="w-3.5 h-3.5 text-muted-foreground" /> },
@@ -483,22 +533,36 @@ export function ProfilesView() {
                       <div className="relative w-11 h-11 rounded-full border-2 border-card overflow-hidden bg-muted shadow-sm">
                         <img src={p.profilePhoto} alt={p.preferredName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       </div>
-                      
-                      {/* Completion progress badge */}
-                      <span className="text-[9px] font-bold font-mono text-cinema-amber-700 bg-cinema-amber-500/10 border border-cinema-amber-500/20 px-2 py-0.5 rounded-full">
-                        {p.storyProgress}% Complete
-                      </span>
                     </div>
 
                     {/* Middle: Details body */}
-                    <div className="px-4 py-2.5 flex-grow flex flex-col justify-between min-h-0 overflow-hidden" id={`card-details-middle-${p.id}`}>
+                    <div className="px-4 py-2 flex-grow flex flex-col justify-between min-h-0 overflow-hidden" id={`card-details-middle-${p.id}`}>
                       <div className="min-h-0 overflow-hidden">
                         <h4 className="font-display font-bold text-xs text-foreground truncate group-hover:text-cinema-amber-600 dark:group-hover:text-cinema-amber-400 transition-colors">
                           {p.preferredName}
                         </h4>
                         <p className="text-[9px] text-muted-foreground font-mono mt-0.5">{lifeSpan}</p>
                         
-                        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed mt-1.5 font-medium">
+                        {/* Inline progress, favorite, and pin indicators */}
+                        <div className="flex items-center justify-between gap-2 mt-2.5" id={`profile-meta-actions-${p.id}`}>
+                          <span className="text-[9px] font-bold font-mono text-cinema-amber-700 bg-cinema-amber-500/10 border border-cinema-amber-500/20 px-2 py-0.5 rounded-full shrink-0">
+                            {p.storyProgress}% Complete
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <FavoriteButton
+                              id={`btn-toggle-favorite-${p.id}`}
+                              isFavorite={!!p.favorite}
+                              onClick={(e) => { e.stopPropagation(); handleToggleFavorite(p.id); }}
+                            />
+                            <PinButton
+                              id={`btn-toggle-pin-${p.id}`}
+                              isPinned={!!p.pinned}
+                              onClick={(e) => { e.stopPropagation(); handleTogglePin(p.id); }}
+                            />
+                          </div>
+                        </div>
+                        
+                        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed mt-2 font-medium">
                           {p.biographySummary || 'A beautifully catalogued biographical template pending detailed storytelling milestones.'}
                         </p>
                       </div>
@@ -694,6 +758,18 @@ export function ProfilesView() {
           )}
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={deleteConfirmation.isOpen}
+        onClose={() => setDeleteConfirmation({ isOpen: false })}
+        onConfirm={executeDelete}
+        title={deleteConfirmation.isBulk ? 'Bulk Delete Profiles' : 'Delete Legacy Profile'}
+        message={
+          deleteConfirmation.isBulk
+            ? `Are you absolutely sure you want to permanently delete the ${selectedRowIds.length} selected legacy profiles? This action is completely irreversible and will purge all associated stories, metadata, and files.`
+            : `Are you absolutely sure you want to permanently delete the Legacy Profile of "${deleteConfirmation.profileName}"? This action is irreversible.`
+        }
+      />
     </div>
   );
 }

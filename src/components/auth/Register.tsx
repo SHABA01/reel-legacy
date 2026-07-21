@@ -10,6 +10,7 @@ import { useToast } from '../../context/ToastContext';
 import { AuthLayout } from './AuthLayout';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
 import { PasswordStrengthMeter } from './PasswordStrengthMeter';
 import { Mail, Lock, Eye, EyeOff, Loader, User, Globe, AlertCircle, CheckCircle, Sparkles, Chrome, Linkedin } from 'lucide-react';
 
@@ -292,29 +293,14 @@ export function Register() {
             />
 
             {/* Country Selection */}
-            <div className="w-full flex flex-col gap-1.5" id="register-country-container">
-              <label htmlFor="register-country" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Country of Residence
-              </label>
-              <div className="relative flex items-center w-full" id="register-country-wrapper">
-                <div className="absolute left-3 text-muted-foreground flex items-center justify-center">
-                  <Globe className="w-4 h-4" />
-                </div>
-                <select
-                  id="register-country"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  disabled={isPending}
-                  className="w-full bg-card border border-border text-sm font-sans rounded-lg py-2.5 pl-10 pr-3.5 text-foreground transition-all focus:outline-none focus:ring-2 focus:ring-cinema-amber-500 focus:border-transparent cursor-pointer"
-                >
-                  {COUNTRIES.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            <Select
+              id="register-country"
+              label="Country of Residence"
+              value={country}
+              onChange={setCountry}
+              disabled={isPending}
+              options={COUNTRIES}
+            />
 
             {/* Agreements Checkboxes */}
             <div className="space-y-3.5 pt-2" id="register-agreements">

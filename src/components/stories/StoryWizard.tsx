@@ -38,7 +38,9 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
 import { WizardStepper } from '../ui/WizardStepper';
+import { WizardLayout } from '../ui/WizardLayout';
 import { useToast } from '../../context/ToastContext';
 import { ExtendedStory, STORY_TYPES } from './mockStoriesData';
 import { ExtendedLegacyProfile } from '../profiles/mockData';
@@ -420,61 +422,35 @@ export function StoryWizard({ onClose, onSave }: StoryWizardProps) {
     });
   };
 
+  const wizardSteps = [
+    { number: 1, title: 'Select Legacy Profile', description: 'Link to profile' },
+    { number: 2, title: 'Story Information', description: 'Enter title & details' },
+    { number: 3, title: 'Story Type Selection', description: 'Choose narrative style' },
+    { number: 4, title: 'Identify Intended Audience', description: 'Configure privacy level' },
+    { number: 5, title: 'Story Tone & Visual Style', description: 'Set aesthetic feel' },
+    { number: 6, title: 'Select Initial Assets', description: 'Select files' },
+    { number: 7, title: 'AI Preparation Config', description: 'Configure AI options' },
+    { number: 8, title: 'Review & Confirm Production', description: 'Submit project' }
+  ];
+
   return (
-    <div id="story-creation-wizard-backdrop" className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4">
-      <motion.div
-        id="story-creation-wizard-card"
-        initial={{ opacity: 0, scale: 0.97, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.97, y: 10 }}
-        className="w-full max-w-4xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] text-foreground"
-      >
-        {/* Wizard Header */}
-        <div className="px-6 py-4 border-b border-border bg-muted/40 flex items-center justify-between" id="wizard-header-container">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-cinema-amber-500/10 text-cinema-amber-500 border border-cinema-amber-500/15">
-              <Wand2 className="w-5 h-5 text-cinema-amber-500" />
-            </div>
-            <div>
-              <h3 className="font-display font-black text-sm text-foreground uppercase tracking-wider">
-                Story Creation Production Wizard
-              </h3>
-              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-0.5">
-                Stage 6 — Guided Eight-Step Smart Setup Flow
-              </p>
-            </div>
-          </div>
-
-          <button
-            id="wizard-close-btn"
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            aria-label="Close Wizard"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* 8-Step Progress Line & Indicators */}
-        <WizardStepper
-          id="story-wizard-steps"
-          currentStep={step}
-          variant="horizontal"
-          steps={[
-            { number: 1, title: '1. Select Legacy Profile' },
-            { number: 2, title: '2. Story Information' },
-            { number: 3, title: '3. Story Type Selection' },
-            { number: 4, title: '4. Identify Intended Audience' },
-            { number: 5, title: '5. Story Tone & Visual Style' },
-            { number: 6, title: '6. Select Initial Assets' },
-            { number: 7, title: '7. AI Preparation Config' },
-            { number: 8, title: '8. Review & Confirm Production' }
-          ]}
-        />
-
-        {/* Wizard Main Panel Body */}
-        <div className="flex-grow overflow-y-auto p-6 md:p-8 space-y-6 bg-card" id="wizard-main-scroller">
-          <AnimatePresence mode="wait">
+    <WizardLayout
+      id="story-creation-wizard"
+      title="Story Creation Production Wizard"
+      subtitle="Stage 6 — Guided Eight-Step Smart Setup Flow"
+      icon={<Wand2 className="w-5 h-5 text-cinema-amber-500" />}
+      steps={wizardSteps}
+      currentStep={step}
+      totalSteps={totalSteps}
+      onClose={onClose}
+      onBack={handleBack}
+      onNext={handleNext}
+      onSaveDraft={handleSaveDraft}
+      isFinalStep={step === totalSteps}
+      finalStepLabel="Finalize & Create Story"
+      continueLabel="Continue Workflow"
+    >
+      <div className="space-y-6" id="wizard-step-inner-content">
             
             {/* STEP 1: Select Legacy Profile */}
             {step === 1 && (
@@ -688,25 +664,21 @@ export function StoryWizard({ onClose, onSave }: StoryWizardProps) {
                     </div>
 
                     {/* Story Language */}
-                    <div className="space-y-1.5">
-                      <label htmlFor="w-language-select" className="text-xs font-bold text-foreground">
-                        Narrative Production Language
-                      </label>
-                      <select
-                        id="w-language-select"
-                        value={formData.language}
-                        onChange={(e) => setFormData({ ...formData, language: e.target.value })}
-                        className="w-full h-10 px-3.5 rounded-xl bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 transition-all"
-                      >
-                        <option value="English">English (US / UK Standard)</option>
-                        <option value="Spanish">Spanish (Español)</option>
-                        <option value="French">French (Français)</option>
-                        <option value="German">German (Deutsch)</option>
-                        <option value="Italian">Italian (Italiano)</option>
-                        <option value="Chinese">Chinese (中文)</option>
-                        <option value="Japanese">Japanese (日本語)</option>
-                      </select>
-                    </div>
+                    <Select
+                      id="w-language-select"
+                      label="Narrative Production Language"
+                      value={formData.language}
+                      onChange={(val) => setFormData({ ...formData, language: val })}
+                      options={[
+                        { value: 'English', label: 'English (US / UK Standard)' },
+                        { value: 'Spanish', label: 'Spanish (Español)' },
+                        { value: 'French', label: 'French (Français)' },
+                        { value: 'German', label: 'German (Deutsch)' },
+                        { value: 'Italian', label: 'Italian (Italiano)' },
+                        { value: 'Chinese', label: 'Chinese (中文)' },
+                        { value: 'Japanese', label: 'Japanese (日本語)' },
+                      ]}
+                    />
                   </div>
 
                   <div className="space-y-4">
@@ -1261,64 +1233,7 @@ export function StoryWizard({ onClose, onSave }: StoryWizardProps) {
               </motion.div>
             )}
 
-          </AnimatePresence>
-        </div>
-
-        {/* Wizard Footer controls */}
-        <div className="px-6 py-4 border-t border-border bg-muted/40 flex items-center justify-between" id="wizard-footer-container">
-          <div className="flex items-center gap-2">
-            {step > 1 && (
-              <Button
-                id="btn-wizard-prev"
-                variant="ghost"
-                size="sm"
-                leftIcon={<ArrowLeft className="w-4 h-4 text-foreground" />}
-                onClick={handleBack}
-                className="text-xs border border-border font-bold text-foreground cursor-pointer"
-              >
-                Previous Step
-              </Button>
-            )}
-
-            {step === 1 && (
-              <Button
-                id="btn-wizard-quit"
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                className="text-xs border border-border font-bold text-foreground cursor-pointer"
-              >
-                Cancel Wizard
-              </Button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {step < totalSteps && (
-              <Button
-                id="btn-wizard-draft-save"
-                variant="secondary"
-                size="sm"
-                onClick={handleSaveDraft}
-                className="text-xs cursor-pointer font-bold"
-              >
-                Save Draft
-              </Button>
-            )}
-
-            <Button
-              id="btn-wizard-submit"
-              variant="accent"
-              size="sm"
-              rightIcon={step === totalSteps ? <Check className="w-4 h-4 text-slate-950" /> : <ArrowRight className="w-4 h-4 text-slate-950" />}
-              onClick={handleNext}
-              className="text-xs cursor-pointer font-bold"
-            >
-              {step === totalSteps ? 'Finalize & Create Story' : 'Continue Workflow'}
-            </Button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
+      </div>
+    </WizardLayout>
   );
 }

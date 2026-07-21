@@ -29,6 +29,9 @@ import {
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { WizardStepper } from '../ui/WizardStepper';
+import { WizardLayout } from '../ui/WizardLayout';
+import { Select } from '../ui/Select';
+import { DatePicker } from '../ui/DatePicker';
 import { useToast } from '../../context/ToastContext';
 import { ExtendedLegacyProfile } from './mockData';
 
@@ -264,64 +267,23 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
   const stepsTitles = steps.map(s => s.title);
 
   return (
-    <div id="create-profile-wizard-root" className="bg-card border border-border rounded-2xl shadow-xl overflow-hidden text-left flex flex-col md:flex-row h-[550px] md:h-[620px] max-w-5xl mx-auto">
-      {/* Side Progress Bar Map */}
-      <div id="wizard-sidebar-navigation" className="hidden md:flex flex-col justify-between w-64 bg-sidebar border-r border-border p-6 shrink-0">
-        <div className="space-y-6">
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-widest text-cinema-amber-500 font-mono block">
-              CO-AUTHOR WIZARD
-            </span>
-            <h3 className="font-display font-bold text-base mt-1 text-foreground">
-              New Legacy Profile
-            </h3>
-          </div>
-
-          {/* Steps List */}
-          <WizardStepper
-            id="profile-wizard-steps"
-            steps={steps}
-            currentStep={step}
-            variant="vertical"
-          />
-        </div>
-
-        {/* Action triggers */}
-        <div className="pt-4 border-t border-border">
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            ReelLegacy structures profile metadata into compliant semantic entities. You can save at any time.
-          </p>
-        </div>
-      </div>
-
-      {/* Main Form container */}
-      <div id="wizard-main-container" className="flex-grow flex flex-col justify-between p-6 overflow-hidden">
-        {/* Step Indicator Header (Mobile) */}
-        <div className="md:hidden flex items-center justify-between border-b border-border pb-3 mb-4 shrink-0">
-          <div>
-            <p className="text-[10px] uppercase font-bold tracking-wider text-cinema-amber-500 font-mono">
-              Step {step} of {totalSteps}
-            </p>
-            <h4 className="font-display font-semibold text-sm text-foreground">
-              {stepsTitles[step - 1]}
-            </h4>
-          </div>
-          <button id="btn-mobile-wizard-close" onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Wizard Step Content - Scrollable */}
-        <div className="flex-grow overflow-y-auto pr-1" id="wizard-step-form-content">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={step}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.18 }}
-              className="space-y-5 h-full"
-            >
+    <WizardLayout
+      id="create-profile-wizard"
+      title="CO-AUTHOR WIZARD"
+      subtitle="Establish Legacy Profile Metadata Setup Flow"
+      icon={<Users className="w-5 h-5 text-cinema-amber-500" />}
+      steps={steps}
+      currentStep={step}
+      totalSteps={totalSteps}
+      onClose={onClose}
+      onBack={handlePrev}
+      onNext={step === totalSteps ? handleFinish : handleNext}
+      onSaveDraft={handleSaveDraft}
+      isFinalStep={step === totalSteps}
+      finalStepLabel="Create Profile"
+      continueLabel="Next"
+    >
+      <div className="space-y-5" id="profile-wizard-step-inner-content">
               {/* STEP 1: Basic Information */}
               {step === 1 && (
                 <div className="space-y-4 text-left" id="step-basic-info">
@@ -394,12 +356,11 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Input
+                    <DatePicker
                       id="wizard-dob"
                       label="Date of Birth *"
-                      type="date"
                       value={formData.dateOfBirth}
-                      onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                      onChange={(val) => handleInputChange('dateOfBirth', val)}
                       error={errors.dateOfBirth}
                     />
                     <Input
@@ -412,19 +373,13 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[11px] font-bold uppercase text-muted-foreground tracking-wider block mb-1">Gender</label>
-                      <select
-                        id="wizard-gender-select"
-                        value={formData.gender}
-                        onChange={(e) => handleInputChange('gender', e.target.value)}
-                        className="w-full h-10 px-3 py-1.5 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500"
-                      >
-                        {GENDER_OPTIONS.map(g => (
-                          <option key={g} value={g}>{g}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <Select
+                      id="wizard-gender-select"
+                      label="Gender"
+                      value={formData.gender}
+                      options={GENDER_OPTIONS.map(g => ({ value: g, label: g }))}
+                      onChange={(val) => handleInputChange('gender', val)}
+                    />
                     <Input
                       id="wizard-nationality"
                       label="Nationality"
@@ -506,12 +461,11 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
                       className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-muted/40 border border-border"
                       id="death-fields-block"
                     >
-                      <Input
+                      <DatePicker
                         id="wizard-dod"
                         label="Date of Death *"
-                        type="date"
                         value={formData.dateOfDeath}
-                        onChange={(e) => handleInputChange('dateOfDeath', e.target.value)}
+                        onChange={(val) => handleInputChange('dateOfDeath', val)}
                         error={errors.dateOfDeath}
                       />
                       <Input
@@ -525,19 +479,13 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
                   )}
 
                   {/* Category select */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold uppercase text-muted-foreground tracking-wider block">Profile Category Blueprint</label>
-                    <select
-                      id="wizard-category-select"
-                      value={formData.category}
-                      onChange={(e) => handleInputChange('category', e.target.value)}
-                      className="w-full h-10 px-3 py-1.5 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500"
-                    >
-                      {CATEGORY_OPTIONS.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <Select
+                    id="wizard-category-select"
+                    label="Profile Category Blueprint"
+                    value={formData.category}
+                    options={CATEGORY_OPTIONS}
+                    onChange={(val) => handleInputChange('category', val)}
+                  />
                 </div>
               )}
 
@@ -825,75 +773,7 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
                   </div>
                 </div>
               )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {/* Wizard Controls Footer */}
-        <div className="pt-4 border-t border-border flex items-center justify-between shrink-0" id="wizard-buttons-row">
-          <div className="flex gap-2">
-            <Button
-              id="wizard-cancel-btn"
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="text-xs border border-border px-3"
-            >
-              Cancel
-            </Button>
-            {step < 8 && (
-              <Button
-                id="wizard-draft-btn"
-                variant="ghost"
-                size="sm"
-                onClick={handleSaveDraft}
-                className="text-xs font-mono"
-              >
-                Save Draft
-              </Button>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            {step > 1 && (
-              <Button
-                id="wizard-prev-btn"
-                variant="secondary"
-                size="sm"
-                onClick={handlePrev}
-                leftIcon={<ArrowLeft className="w-4 h-4 text-foreground" />}
-                className="text-xs font-bold"
-              >
-                Previous
-              </Button>
-            )}
-
-            {step < 8 ? (
-              <Button
-                id="wizard-next-btn"
-                variant="primary"
-                size="sm"
-                onClick={handleNext}
-                rightIcon={<ArrowRight className="w-4 h-4 text-slate-950" />}
-                className="text-xs bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold"
-              >
-                Next
-              </Button>
-            ) : (
-              <Button
-                id="wizard-create-profile-btn"
-                variant="accent"
-                size="sm"
-                onClick={handleFinish}
-                leftIcon={<Check className="w-4 h-4 text-slate-950" />}
-                className="text-xs font-bold"
-              >
-                Create Profile
-              </Button>
-            )}
-          </div>
-        </div>
       </div>
-    </div>
+    </WizardLayout>
   );
 }

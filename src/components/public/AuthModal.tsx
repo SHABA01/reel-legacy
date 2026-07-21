@@ -10,6 +10,7 @@ import { useToast } from '../../context/ToastContext';
 import { useOverlay } from '../../context/OverlayContext';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -310,22 +311,18 @@ export function AuthModal({ isOpen, onClose, initialTab = 'login', onSuccess }: 
                           )}
                         </div>
 
-                        <div>
-                          <label htmlFor="auth-role" className="block text-xs font-semibold text-muted-foreground mb-1">
-                            I am capturing a legacy for
-                          </label>
-                          <select
-                            id="auth-role"
-                            value={storytellerRole}
-                            onChange={(e) => setStorytellerRole(e.target.value)}
-                            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cinema-amber-500/30 focus:border-cinema-amber-500 transition-all"
-                          >
-                            <option value="family_historian">Family Historian / Ancestry Archivist</option>
-                            <option value="career_veteran">Retiring Executive / Career Veteran</option>
-                            <option value="autobiographer">Myself (Autobiography & Memoirs)</option>
-                            <option value="professional">Professional Legacy Biographer</option>
-                          </select>
-                        </div>
+                        <Select
+                          id="auth-role"
+                          label="I am capturing a legacy for"
+                          value={storytellerRole}
+                          options={[
+                            { value: 'family_historian', label: 'Family Historian / Ancestry Archivist' },
+                            { value: 'career_veteran', label: 'Retiring Executive / Career Veteran' },
+                            { value: 'autobiographer', label: 'Myself (Autobiography & Memoirs)' },
+                            { value: 'professional', label: 'Professional Legacy Biographer' }
+                          ]}
+                          onChange={setStorytellerRole}
+                        />
 
                         <div className="flex justify-between items-center text-[11px] text-muted-foreground pt-1">
                           <span className="font-semibold text-cinema-amber-500">Step 1 of 2</span>

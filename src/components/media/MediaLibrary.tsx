@@ -53,10 +53,12 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
 import { ViewModeToggle } from '../ui/ViewModeToggle';
 import { useToast } from '../../context/ToastContext';
 import { INITIAL_STORIES, ExtendedStory } from '../stories/mockStoriesData';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { PromptModal } from '../ui/PromptModal';
 import { persistenceService, MediaService } from '../../storage';
 
 // --- STAGE 8 DATA MODELS ---
@@ -97,6 +99,13 @@ export function MediaLibrary() {
 
   // Delete approval modal state
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'single' | 'bulk' | 'collection' | null; name?: string } | null>(null);
+
+  // Rename modal state
+  const [renameModal, setRenameModal] = useState<{
+    isOpen: boolean;
+    assetId?: string;
+    assetName?: string;
+  }>({ isOpen: false });
 
   // --- 1. CORE LIBRARY STATES ---
   const [activeTab, setActiveTab] = useState<'all' | 'collections' | 'upload' | 'readiness'>('all');
@@ -397,20 +406,27 @@ export function MediaLibrary() {
     setDeleteTarget(null);
   };
 
-  const handleRenameAsset = async (id: string, e?: React.MouseEvent) => {
+  const handleRenameAsset = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const target = assets.find(a => a.id === id);
     if (!target) return;
-    const newName = prompt('Enter new filename with extension:', target.name);
-    if (newName && newName.trim()) {
-      try {
-        await MediaService.renameMedia(id, newName.trim());
-        await handleRefreshLibrary();
-        showToast('success', 'Filename Saved', `Asset renamed to "${newName.trim()}".`);
-      } catch (err: any) {
-        showToast('error', 'Rename Failed', err.message);
-      }
+    setRenameModal({
+      isOpen: true,
+      assetId: id,
+      assetName: target.name,
+    });
+  };
+
+  const executeRenameAsset = async (newName: string) => {
+    if (!renameModal.assetId) return;
+    try {
+      await MediaService.renameMedia(renameModal.assetId, newName.trim());
+      await handleRefreshLibrary();
+      showToast('success', 'Filename Saved', `Asset renamed to "${newName.trim()}".`);
+    } catch (err: any) {
+      showToast('error', 'Rename Failed', err.message);
     }
+    setRenameModal({ isOpen: false });
   };
 
   const handleBulkFavorite = async () => {
@@ -638,48 +654,54 @@ export function MediaLibrary() {
 
                 {/* Type filters row dropdowns */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <select
+                  <Select
+                    id="media-type-filter"
                     value={selectedType}
-                    onChange={(e) => setSelectedType(e.target.value)}
-                    className="px-3 py-1.5 text-xs bg-card border border-border rounded-xl focus:outline-none"
-                  >
-                    <option value="All">All Types</option>
-                    <option value="image">Images</option>
-                    <option value="video">Videos</option>
-                    <option value="audio">Audios</option>
-                    <option value="document">Documents</option>
-                  </select>
+                    onChange={setSelectedType}
+                    options={[
+                      { value: 'All', label: 'All Types' },
+                      { value: 'image', label: 'Images' },
+                      { value: 'video', label: 'Videos' },
+                      { value: 'audio', label: 'Audios' },
+                      { value: 'document', label: 'Documents' }
+                    ]}
+                    className="w-32"
+                  />
 
-                  <select
+                  <Select
+                    id="media-category-filter"
                     value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="px-3 py-1.5 text-xs bg-card border border-border rounded-xl focus:outline-none"
-                  >
-                    <option value="All">All Categories</option>
-                    {mediaCategories.slice(1).map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
+                    onChange={setSelectedCategory}
+                    options={[
+                      { value: 'All', label: 'All Categories' },
+                      ...mediaCategories.slice(1).map(cat => ({ value: cat, label: cat }))
+                    ]}
+                    className="w-44"
+                  />
 
-                  <select
+                  <Select
+                    id="media-story-filter"
                     value={selectedStoryFilter}
-                    onChange={(e) => setSelectedStoryFilter(e.target.value)}
-                    className="px-3 py-1.5 text-xs bg-card border border-border rounded-xl focus:outline-none max-w-[160px]"
-                  >
-                    <option value="All">All Stories</option>
-                    <option value="story-elizabeth-legacy">Elizabeth Legacy</option>
-                    <option value="story-bob-military">Grandpa Bob</option>
-                  </select>
+                    onChange={setSelectedStoryFilter}
+                    options={[
+                      { value: 'All', label: 'All Stories' },
+                      { value: 'story-elizabeth-legacy', label: 'Elizabeth Legacy' },
+                      { value: 'story-bob-military', label: 'Grandpa Bob' }
+                    ]}
+                    className="w-40"
+                  />
 
-                  <select
+                  <Select
+                    id="media-sort-by"
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="px-3 py-1.5 text-xs bg-card border border-border rounded-xl focus:outline-none"
-                  >
-                    <option value="date">Date Uploaded</option>
-                    <option value="name">File Name</option>
-                    <option value="size">Size</option>
-                  </select>
+                    onChange={(val) => setSortBy(val as any)}
+                    options={[
+                      { value: 'date', label: 'Date Uploaded' },
+                      { value: 'name', label: 'File Name' },
+                      { value: 'size', label: 'Size' }
+                    ]}
+                    className="w-36"
+                  />
 
                   <button
                     onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
@@ -1576,19 +1598,18 @@ export function MediaLibrary() {
                   />
                 </div>
 
-                <div className="space-y-1.5 text-xs">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase font-mono">Simulated Cover Image</label>
-                  <select
-                    value={newCollectionData.cover}
-                    onChange={(e) => setNewCollectionData({ ...newCollectionData, cover: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs bg-muted/40 border border-border rounded-xl focus:outline-none"
-                  >
-                    <option value="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80">Portrait Portrait</option>
-                    <option value="https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=300&q=80">Salem Classroom</option>
-                    <option value="https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=300&q=80">Watercolors Session</option>
-                    <option value="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80">Bob Uniform</option>
-                  </select>
-                </div>
+                <Select
+                  id="new-collection-cover"
+                  label="Simulated Cover Image"
+                  value={newCollectionData.cover}
+                  onChange={(val) => setNewCollectionData({ ...newCollectionData, cover: val })}
+                  options={[
+                    { value: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80", label: "Portrait Portrait" },
+                    { value: "https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=300&q=80", label: "Salem Classroom" },
+                    { value: "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=300&q=80", label: "Watercolors Session" },
+                    { value: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80", label: "Bob Uniform" }
+                  ]}
+                />
 
                 <div className="flex justify-end gap-3 pt-3 border-t border-border">
                   <Button
@@ -1877,6 +1898,17 @@ export function MediaLibrary() {
             ? `Are you sure you want to permanently delete all ${deleteTarget?.name || ''} from your vault? All chapter and timeline scene connections will be destroyed.`
             : `Are you sure you want to permanently delete the collection "${deleteTarget?.name || ''}"? This deletes the album organization wrapper but will NOT delete any individual files within it.`
         }
+      />
+
+      <PromptModal
+        isOpen={renameModal.isOpen}
+        onClose={() => setRenameModal({ isOpen: false })}
+        onConfirm={executeRenameAsset}
+        title="Rename Media Asset"
+        message="Enter a new filename with extension for this asset:"
+        defaultValue={renameModal.assetName}
+        placeholder="e.g. photo.jpg"
+        confirmLabel="Rename Asset"
       />
     </div>
   );

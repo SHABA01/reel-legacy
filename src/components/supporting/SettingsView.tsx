@@ -58,6 +58,9 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { DatePicker } from '../ui/DatePicker';
+import { Select } from '../ui/Select';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 
 type SettingsTab = 'hub' | 'account' | 'profile' | 'appearance' | 'workspace' | 'notifications' | 'accessibility' | 'privacy' | 'security' | 'storage' | 'about' | 'playback' | 'shortcuts' | 'integrations';
 
@@ -90,6 +93,19 @@ export function SettingsView() {
   const [activeTab, setActiveTab] = useState<SettingsTab>(
     window.location.pathname.endsWith('/my-profile') ? 'profile' : 'hub'
   );
+
+  // Dynamic Confirmation Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void | Promise<void>;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   useEffect(() => {
     if (location.pathname.endsWith('/my-profile')) {
@@ -377,30 +393,42 @@ export function SettingsView() {
   // ==========================================
 
   const handleClearCache = async () => {
-    const confirmed = window.confirm("Are you sure you want to clear cached assets? This will remove temporary visual assets and cached thumbnail renders.");
-    if (confirmed) {
-      showToast('success', 'Cache Cleared', 'All temporary thumbnails and cached assets have been cleared.');
-      await recalculateStorageStats();
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Clear Cached Assets',
+      message: 'Are you sure you want to clear cached assets? This will remove temporary visual assets and cached thumbnail renders.',
+      onConfirm: async () => {
+        showToast('success', 'Cache Cleared', 'All temporary thumbnails and cached assets have been cleared.');
+        await recalculateStorageStats();
+      }
+    });
   };
 
   const handleClearTemporaryFiles = async () => {
-    const confirmed = window.confirm("Are you sure you want to clear temporary files? Uncommitted voice recordings and timeline drafts will be discarded.");
-    if (confirmed) {
-      showToast('success', 'Temporary Files Cleared', 'All uncommitted timeline recordings and temp documents have been safely discarded.');
-      await recalculateStorageStats();
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Clear Temporary Files',
+      message: 'Are you sure you want to clear temporary files? Uncommitted voice recordings and timeline drafts will be discarded.',
+      onConfirm: async () => {
+        showToast('success', 'Temporary Files Cleared', 'All uncommitted timeline recordings and temp documents have been safely discarded.');
+        await recalculateStorageStats();
+      }
+    });
   };
 
   const handleResetLocalDatabase = async () => {
-    const confirmed = window.confirm("CRITICAL WARNING: This will permanently wipe ALL local stories, profiles, media archives, and configuration settings. This action is irreversible. Proceed?");
-    if (confirmed) {
-      await persistenceService.clearAll();
-      showToast('warning', 'Database Wiped', 'All local databases have been wiped. Reloading application...');
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Critical: Wipe Database',
+      message: 'CRITICAL WARNING: This will permanently wipe ALL local stories, profiles, media archives, and configuration settings. This action is irreversible. Proceed?',
+      onConfirm: async () => {
+        await persistenceService.clearAll();
+        showToast('warning', 'Database Wiped', 'All local databases have been wiped. Reloading application...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      }
+    });
   };
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
@@ -617,69 +645,73 @@ export function SettingsView() {
   };
 
   const handleResetEntireSettings = async () => {
-    const confirmed = window.confirm("Are you sure you want to restore ALL settings across all categories to default values?");
-    if (confirmed) {
-      try {
-        const s = await SettingsService.resetEntireSettings();
-        // Appearance
-        setTheme(s.theme);
-        setAccentColor(s.accentColor);
-        setFontScaling(s.fontScale);
-        setMotionPref(s.motionPref);
-        setCompactMode(s.compactMode);
-        setAnimationIntensity(s.animationIntensity);
-        // Workspace
-        setSidebarBehavior(s.sidebarBehavior);
-        setRightPanelBehavior(s.rightPanelBehavior);
-        setDefaultView(s.defaultView);
-        setCardDensity(s.cardDensity);
-        setTableDensity(s.tableDensity);
-        // Notifications
-        setEmailDigest(s.emailDigest);
-        setInAppNotifs(s.inAppNotifs);
-        setWeeklyReminders(s.weeklyReminders);
-        setSecurityLogs(s.securityLogs);
-        setUploadNotifs(s.uploadNotifs);
-        setStoryNotifs(s.storyNotifs);
-        setTimelineNotifs(s.timelineNotifs);
-        // Accessibility
-        setHighContrast(s.highContrast);
-        setReducedMotion(s.reducedMotion);
-        setKeyboardNav(s.keyboardNavigation);
-        setScreenReader(s.screenReader);
-        setFocusVisibility(s.focusVisibility);
-        // Privacy
-        setAnalyticsEnabled(s.analyticsEnabled);
-        setDataSharing(s.dataSharing);
-        setProfileVisibility(s.profileVisibility);
-        setStoryVisibility(s.storyVisibility);
-        setLegacyProfilePrivacy(s.legacyProfilePrivacy);
-        setSearchVisibility(s.searchVisibility);
-        // Playback
-        setPlaybackQuality(s.playbackQuality);
-        setPlaybackAutoplay(s.playbackAutoplay);
-        setPlaybackMuteByDefault(s.playbackMuteByDefault);
-        setPlaybackTransitionSpeed(s.playbackTransitionSpeed);
-        // Account
-        setFullName(s.fullName || '');
-        setDisplayName(s.displayName || '');
-        setEmail(s.email || '');
-        setPhone(s.phone || '');
-        setDob(s.dob || '');
-        setCountry(s.country || '');
-        setTimezone(s.timeZone || '');
-        setPreferredLanguage(s.preferredLanguage || '');
-        // Profile
-        setFirstName(s.firstName || '');
-        setLastName(s.lastName || '');
-        setCitations(s.citations || '');
-        setBiography(s.biography || '');
+    setConfirmModal({
+      isOpen: true,
+      title: 'Reset All Settings',
+      message: 'Are you sure you want to restore ALL settings across all categories to default values?',
+      onConfirm: async () => {
+        try {
+          const s = await SettingsService.resetEntireSettings();
+          // Appearance
+          setTheme(s.theme);
+          setAccentColor(s.accentColor);
+          setFontScaling(s.fontScale);
+          setMotionPref(s.motionPref);
+          setCompactMode(s.compactMode);
+          setAnimationIntensity(s.animationIntensity);
+          // Workspace
+          setSidebarBehavior(s.sidebarBehavior);
+          setRightPanelBehavior(s.rightPanelBehavior);
+          setDefaultView(s.defaultView);
+          setCardDensity(s.cardDensity);
+          setTableDensity(s.tableDensity);
+          // Notifications
+          setEmailDigest(s.emailDigest);
+          setInAppNotifs(s.inAppNotifs);
+          setWeeklyReminders(s.weeklyReminders);
+          setSecurityLogs(s.securityLogs);
+          setUploadNotifs(s.uploadNotifs);
+          setStoryNotifs(s.storyNotifs);
+          setTimelineNotifs(s.timelineNotifs);
+          // Accessibility
+          setHighContrast(s.highContrast);
+          setReducedMotion(s.reducedMotion);
+          setKeyboardNav(s.keyboardNavigation);
+          setScreenReader(s.screenReader);
+          setFocusVisibility(s.focusVisibility);
+          // Privacy
+          setAnalyticsEnabled(s.analyticsEnabled);
+          setDataSharing(s.dataSharing);
+          setProfileVisibility(s.profileVisibility);
+          setStoryVisibility(s.storyVisibility);
+          setLegacyProfilePrivacy(s.legacyProfilePrivacy);
+          setSearchVisibility(s.searchVisibility);
+          // Playback
+          setPlaybackQuality(s.playbackQuality);
+          setPlaybackAutoplay(s.playbackAutoplay);
+          setPlaybackMuteByDefault(s.playbackMuteByDefault);
+          setPlaybackTransitionSpeed(s.playbackTransitionSpeed);
+          // Account
+          setFullName(s.fullName || '');
+          setDisplayName(s.displayName || '');
+          setEmail(s.email || '');
+          setPhone(s.phone || '');
+          setDob(s.dob || '');
+          setCountry(s.country || '');
+          setTimezone(s.timeZone || '');
+          setPreferredLanguage(s.preferredLanguage || '');
+          // Profile
+          setFirstName(s.firstName || '');
+          setLastName(s.lastName || '');
+          setCitations(s.citations || '');
+          setBiography(s.biography || '');
 
-        showToast('success', 'All Preferences Reset', 'System configurations successfully restored to defaults.');
-      } catch (err: any) {
-        showToast('error', 'Reset Failed', err.message);
+          showToast('success', 'All Preferences Reset', 'System configurations successfully restored to defaults.');
+        } catch (err: any) {
+          showToast('error', 'Reset Failed', err.message);
+        }
       }
-    }
+    });
   };
 
   const handleExportSettings = async () => {
@@ -1055,56 +1087,49 @@ export function SettingsView() {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                   />
-                  <Input
+                  <DatePicker
                     id="account-dob"
                     label="Date of Birth"
-                    type="date"
                     value={dob}
-                    onChange={(e) => setDob(e.target.value)}
+                    onChange={(val) => setDob(val)}
                   />
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Country / Region</label>
-                    <select
-                      id="account-country-select"
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold"
-                    >
-                      <option value="United States">United States</option>
-                      <option value="United Kingdom">United Kingdom</option>
-                      <option value="Canada">Canada</option>
-                      <option value="Germany">Germany</option>
-                      <option value="France">France</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Time Zone</label>
-                    <select
-                      id="account-timezone-select"
-                      value={timezone}
-                      onChange={(e) => setTimezone(e.target.value)}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold"
-                    >
-                      <option value="America/Los_Angeles (PST)">America/Los_Angeles (PST)</option>
-                      <option value="America/New_York (EST)">America/New_York (EST)</option>
-                      <option value="Europe/London (GMT)">Europe/London (GMT)</option>
-                      <option value="Europe/Paris (CET)">Europe/Paris (CET)</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Preferred Language</label>
-                    <select
-                      id="account-lang-select"
-                      value={preferredLanguage}
-                      onChange={(e) => setPreferredLanguage(e.target.value)}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold"
-                    >
-                      <option value="English (US)">English (US)</option>
-                      <option value="English (UK)">English (UK)</option>
-                      <option value="Español">Español</option>
-                      <option value="Deutsch">Deutsch</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="account-country-select"
+                    label="Country / Region"
+                    value={country}
+                    onChange={setCountry}
+                    options={[
+                      { value: 'United States', label: 'United States' },
+                      { value: 'United Kingdom', label: 'United Kingdom' },
+                      { value: 'Canada', label: 'Canada' },
+                      { value: 'Germany', label: 'Germany' },
+                      { value: 'France', label: 'France' }
+                    ]}
+                  />
+                  <Select
+                    id="account-timezone-select"
+                    label="Time Zone"
+                    value={timezone}
+                    onChange={setTimezone}
+                    options={[
+                      { value: 'America/Los_Angeles (PST)', label: 'America/Los_Angeles (PST)' },
+                      { value: 'America/New_York (EST)', label: 'America/New_York (EST)' },
+                      { value: 'Europe/London (GMT)', label: 'Europe/London (GMT)' },
+                      { value: 'Europe/Paris (CET)', label: 'Europe/Paris (CET)' }
+                    ]}
+                  />
+                  <Select
+                    id="account-lang-select"
+                    label="Preferred Language"
+                    value={preferredLanguage}
+                    onChange={setPreferredLanguage}
+                    options={[
+                      { value: 'English (US)', label: 'English (US)' },
+                      { value: 'English (UK)', label: 'English (UK)' },
+                      { value: 'Español', label: 'Español' },
+                      { value: 'Deutsch', label: 'Deutsch' }
+                    ]}
+                  />
                 </div>
 
                 <div className="flex justify-between items-center pt-4 border-t border-border" id="account-form-actions">
@@ -1273,57 +1298,51 @@ export function SettingsView() {
                   </div>
 
                   {/* Font Sizing */}
-                  <div className="space-y-2" id="pref-fontscale-container">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Text Font Scaling</label>
-                    <select
-                      id="font-scale-select"
-                      value={fontScaling}
-                      onChange={(e) => {
-                        setFontScaling(e.target.value);
-                        showToast('info', `Font scale configured to ${e.target.value}`);
-                      }}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold outline-none focus:border-cinema-amber-500"
-                    >
-                      <option value="small">Small size (Default Compact)</option>
-                      <option value="medium">Standard Cozy (14px baseline)</option>
-                      <option value="large">Large visibility (Enhanced contrast)</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="font-scale-select"
+                    label="Text Font Scaling"
+                    value={fontScaling}
+                    onChange={(val) => {
+                      setFontScaling(val);
+                      showToast('info', `Font scale configured to ${val}`);
+                    }}
+                    options={[
+                      { value: 'small', label: 'Small size (Default Compact)' },
+                      { value: 'medium', label: 'Standard Cozy (14px baseline)' },
+                      { value: 'large', label: 'Large visibility (Enhanced contrast)' }
+                    ]}
+                  />
 
                   {/* Motion settings */}
-                  <div className="space-y-2" id="pref-motion-container">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Animation Transitions</label>
-                    <select
-                      id="motion-select"
-                      value={motionPref}
-                      onChange={(e) => {
-                        setMotionPref(e.target.value);
-                        showToast('info', `Motion settings adjusted: ${e.target.value}`);
-                      }}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold outline-none focus:border-cinema-amber-500"
-                    >
-                      <option value="smooth">Cinematic Smooth (Fades and staggered entrance)</option>
-                      <option value="minimal">High Speed Minimal (Instant tab swaps)</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="motion-select"
+                    label="Animation Transitions"
+                    value={motionPref}
+                    onChange={(val) => {
+                      setMotionPref(val);
+                      showToast('info', `Motion settings adjusted: ${val}`);
+                    }}
+                    options={[
+                      { value: 'smooth', label: 'Cinematic Smooth (Fades and staggered entrance)' },
+                      { value: 'minimal', label: 'High Speed Minimal (Instant tab swaps)' }
+                    ]}
+                  />
 
                   {/* Animation Intensity */}
-                  <div className="space-y-2" id="pref-intensity-container">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Animation Intensity</label>
-                    <select
-                      id="anim-intensity-select"
-                      value={animationIntensity}
-                      onChange={(e) => {
-                        setAnimationIntensity(e.target.value);
-                        showToast('info', `Animation intensity set to ${e.target.value}`);
-                      }}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold outline-none focus:border-cinema-amber-500"
-                    >
-                      <option value="gentle">Gentle (Subtle layout shifts)</option>
-                      <option value="moderate">Moderate (Standard fluid shimmers)</option>
-                      <option value="full">Full (High-fidelity spring motions)</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="anim-intensity-select"
+                    label="Animation Intensity"
+                    value={animationIntensity}
+                    onChange={(val) => {
+                      setAnimationIntensity(val);
+                      showToast('info', `Animation intensity set to ${val}`);
+                    }}
+                    options={[
+                      { value: 'gentle', label: 'Gentle (Subtle layout shifts)' },
+                      { value: 'moderate', label: 'Moderate (Standard fluid shimmers)' },
+                      { value: 'full', label: 'Full (High-fidelity spring motions)' }
+                    ]}
+                  />
 
                   {/* Compact Mode Switch */}
                   <div className="md:col-span-2 flex items-center justify-between p-4 rounded-xl border border-border bg-muted/10" id="compact-mode-toggle">
@@ -1381,79 +1400,69 @@ export function SettingsView() {
               <div className="space-y-5" id="workspace-form-rows">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6" id="workspace-inputs-grid">
                   {/* Sidebar Behavior */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Sidebar Default State</label>
-                    <select
-                      id="sidebar-behavior-select"
-                      value={sidebarBehavior}
-                      onChange={(e) => {
-                        setSidebarBehavior(e.target.value);
-                        showToast('info', `Sidebar behavior adjusted to: ${e.target.value}`);
-                      }}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold"
-                    >
-                      <option value="expanded">Expanded (Always display section labels)</option>
-                      <option value="collapsed">Collapsed (Render icon rails only)</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="sidebar-behavior-select"
+                    label="Sidebar Default State"
+                    value={sidebarBehavior}
+                    onChange={(val) => {
+                      setSidebarBehavior(val);
+                      showToast('info', `Sidebar behavior adjusted to: ${val}`);
+                    }}
+                    options={[
+                      { value: 'expanded', label: 'Expanded (Always display section labels)' },
+                      { value: 'collapsed', label: 'Collapsed (Render icon rails only)' }
+                    ]}
+                  />
 
                   {/* Right Panel docked behavior */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Right Panel Behavior</label>
-                    <select
-                      id="right-panel-behavior-select"
-                      value={rightPanelBehavior}
-                      onChange={(e) => setRightPanelBehavior(e.target.value)}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold"
-                    >
-                      <option value="collapsible">Collapsible Drawer (Auto-closes on layout shrink)</option>
-                      <option value="fixed">Fixed Panel (Pushes viewport boundaries)</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="right-panel-behavior-select"
+                    label="Right Panel Behavior"
+                    value={rightPanelBehavior}
+                    onChange={setRightPanelBehavior}
+                    options={[
+                      { value: 'collapsible', label: 'Collapsible Drawer (Auto-closes on layout shrink)' },
+                      { value: 'fixed', label: 'Fixed Panel (Pushes viewport boundaries)' }
+                    ]}
+                  />
 
                   {/* Opening route */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Landing View Screen</label>
-                    <select
-                      id="default-view-select"
-                      value={defaultView}
-                      onChange={(e) => setDefaultView(e.target.value)}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold"
-                    >
-                      <option value="dashboard">Cinematic Dashboard</option>
-                      <option value="stories">Story Library</option>
-                      <option value="profiles">Legacy Profiles</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="default-view-select"
+                    label="Landing View Screen"
+                    value={defaultView}
+                    onChange={setDefaultView}
+                    options={[
+                      { value: 'dashboard', label: 'Cinematic Dashboard' },
+                      { value: 'stories', label: 'Story Library' },
+                      { value: 'profiles', label: 'Legacy Profiles' }
+                    ]}
+                  />
 
                   {/* Card density config */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Memoir Card Density</label>
-                    <select
-                      id="card-density-select"
-                      value={cardDensity}
-                      onChange={(e) => setCardDensity(e.target.value)}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold"
-                    >
-                      <option value="comfortable">Comfortable (Generous negative spaces)</option>
-                      <option value="cozy">Cozy (Standard card titles)</option>
-                      <option value="compact">Brutalist (Compact grid limits)</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="card-density-select"
+                    label="Memoir Card Density"
+                    value={cardDensity}
+                    onChange={setCardDensity}
+                    options={[
+                      { value: 'comfortable', label: 'Comfortable (Generous negative spaces)' },
+                      { value: 'cozy', label: 'Cozy (Standard card titles)' },
+                      { value: 'compact', label: 'Brutalist (Compact grid limits)' }
+                    ]}
+                  />
 
                   {/* Table Density */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Table Row Spacing</label>
-                    <select
-                      id="table-density-select"
-                      value={tableDensity}
-                      onChange={(e) => setTableDensity(e.target.value)}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold"
-                    >
-                      <option value="standard">Standard (44px vertical targets)</option>
-                      <option value="dense">Dense (Compact excel lists)</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="table-density-select"
+                    label="Table Row Spacing"
+                    value={tableDensity}
+                    onChange={setTableDensity}
+                    options={[
+                      { value: 'standard', label: 'Standard (44px vertical targets)' },
+                      { value: 'dense', label: 'Dense (Compact excel lists)' }
+                    ]}
+                  />
                 </div>
 
                 <div className="flex justify-between items-center pt-4 border-t border-border" id="workspace-save-row">
@@ -1737,18 +1746,16 @@ export function SettingsView() {
                 </div>
 
                 {/* Search Visibility options */}
-                <div className="space-y-2" id="search-visibility-container">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Search Index Visibility</label>
-                  <select
-                    id="search-visibility-select"
-                    value={searchVisibility}
-                    onChange={(e) => setSearchVisibility(e.target.value)}
-                    className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold"
-                  >
-                    <option value="hidden">Hidden from global workspace search queries (Strict Private)</option>
-                    <option value="visible">Allow co-author search references to indexed legacy documents</option>
-                  </select>
-                </div>
+                <Select
+                  id="search-visibility-select"
+                  label="Search Index Visibility"
+                  value={searchVisibility}
+                  onChange={setSearchVisibility}
+                  options={[
+                    { value: 'hidden', label: 'Hidden from global workspace search queries (Strict Private)' },
+                    { value: 'visible', label: 'Allow co-author search references to indexed legacy documents' }
+                  ]}
+                />
 
                 <div className="flex justify-between items-center pt-4 border-t border-border" id="privacy-save-row">
                   <Button
@@ -2140,36 +2147,32 @@ export function SettingsView() {
               <div className="space-y-6" id="playback-content">
                 <div className="space-y-4">
                   {/* Default Preview Quality */}
-                  <div className="space-y-2" id="playback-quality-box">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Default Video Quality</label>
-                    <select
-                      id="playback-quality-select"
-                      value={playbackQuality}
-                      onChange={(e) => setPlaybackQuality(e.target.value)}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold font-sans focus:outline-hidden focus:border-cinema-amber-500/50"
-                    >
-                      <option value="auto">Auto (Balanced with network bandwidth)</option>
-                      <option value="high">High Quality (1080p, Full fidelity)</option>
-                      <option value="medium">Medium Quality (720p, Optimized)</option>
-                      <option value="low">Low Quality (480p, Data saver)</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="playback-quality-select"
+                    label="Default Video Quality"
+                    value={playbackQuality}
+                    onChange={setPlaybackQuality}
+                    options={[
+                      { value: 'auto', label: 'Auto (Balanced with network bandwidth)' },
+                      { value: 'high', label: 'High Quality (1080p, Full fidelity)' },
+                      { value: 'medium', label: 'Medium Quality (720p, Optimized)' },
+                      { value: 'low', label: 'Low Quality (480p, Data saver)' }
+                    ]}
+                  />
 
                   {/* Transition Speed */}
-                  <div className="space-y-2" id="playback-transition-box">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Transition Velocity</label>
-                    <select
-                      id="playback-transition-select"
-                      value={playbackTransitionSpeed}
-                      onChange={(e) => setPlaybackTransitionSpeed(e.target.value)}
-                      className="w-full text-xs bg-muted/40 border border-border p-2.5 rounded-xl text-foreground font-semibold font-sans focus:outline-hidden focus:border-cinema-amber-500/50"
-                    >
-                      <option value="instant">Instant (No delay, immediate cuts)</option>
-                      <option value="fast">Fast (0.2s quick crossfades)</option>
-                      <option value="normal">Normal (0.5s standard pacing)</option>
-                      <option value="slow">Slow (1.2s atmospheric dissolves)</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="playback-transition-select"
+                    label="Transition Velocity"
+                    value={playbackTransitionSpeed}
+                    onChange={setPlaybackTransitionSpeed}
+                    options={[
+                      { value: 'instant', label: 'Instant (No delay, immediate cuts)' },
+                      { value: 'fast', label: 'Fast (0.2s quick crossfades)' },
+                      { value: 'normal', label: 'Normal (0.5s standard pacing)' },
+                      { value: 'slow', label: 'Slow (1.2s atmospheric dissolves)' }
+                    ]}
+                  />
 
                   {/* Toggles */}
                   {[
@@ -2467,6 +2470,14 @@ export function SettingsView() {
 
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+      />
     </div>
   );
 }

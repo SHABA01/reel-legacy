@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
 import { EmptyState } from '../ui/EmptyState';
 
 export interface SearchResult {
@@ -499,16 +500,17 @@ export function GlobalSearchView() {
 
             <div className="flex items-center gap-3 w-full sm:w-auto" id="results-feed-sort">
               <span className="text-xs text-muted-foreground font-medium shrink-0">Sort:</span>
-              <select
+              <Select
                 id="search-sort-select"
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="text-xs bg-muted/40 border border-border p-1.5 rounded-lg text-foreground outline-none focus:border-cinema-amber-500 w-full sm:w-auto font-semibold"
-              >
-                <option value="relevance">Highly Relevant First</option>
-                <option value="date-desc">Newest Restorations</option>
-                <option value="date-asc">Chronological Order</option>
-              </select>
+                onChange={setSortBy}
+                options={[
+                  { value: 'relevance', label: 'Highly Relevant First' },
+                  { value: 'date-desc', label: 'Newest Restorations' },
+                  { value: 'date-asc', label: 'Chronological Order' }
+                ]}
+                className="w-full sm:w-48"
+              />
             </div>
           </div>
 

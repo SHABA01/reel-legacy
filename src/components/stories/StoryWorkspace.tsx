@@ -72,7 +72,10 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
 import { EmptyState } from '../ui/EmptyState';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { PromptModal } from '../ui/PromptModal';
 import { useToast } from '../../context/ToastContext';
 import { ExtendedStory } from './mockStoriesData';
 import { TimelineService, persistenceService, MediaService, DocumentService, DocumentSchema, ImportSchema, ImportService, LegacyProfileSchema, StorySchema } from '../../storage';
@@ -150,6 +153,35 @@ interface LocalDocument {
 
 export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWorkspaceProps) {
   const { showToast } = useToast();
+
+  // Dynamic Workspace delete and rename modal state
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    id: string;
+    type: 'document' | 'import' | 'timeline' | 'media';
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    id: '',
+    type: 'document',
+    title: '',
+    message: '',
+  });
+
+  const [renameModal, setRenameModal] = useState<{
+    isOpen: boolean;
+    id: string;
+    type: 'media';
+    title: string;
+    defaultValue: string;
+  }>({
+    isOpen: false,
+    id: '',
+    type: 'media',
+    title: '',
+    defaultValue: '',
+  });
 
   // 1. NAVIGATION & LAYOUT CONTROLS
   const [activeSection, setActiveSection] = useState<string>('overview');
@@ -637,19 +669,14 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
     }
   };
 
-  const handleDeleteDocument = async (id: string) => {
-    if (window.confirm('Are you absolutely sure you want to permanently delete this document? This cannot be undone.')) {
-      try {
-        await DocumentService.deleteDocument(id);
-        showToast('success', 'Document Purged', 'File permanently deleted.');
-        if (selectedInspectorItem.type === 'document' && selectedInspectorItem.id === id) {
-          setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
-        }
-        await handleRefreshDocuments();
-      } catch (err: any) {
-        showToast('error', 'Delete Failed', err.message);
-      }
-    }
+  const handleDeleteDocument = (id: string) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      id,
+      type: 'document',
+      title: 'Delete Document',
+      message: 'Are you absolutely sure you want to permanently delete this document? This cannot be undone.',
+    });
   };
 
   const handleRenameDocument = async (id: string, newName: string) => {
@@ -783,19 +810,14 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
     }
   };
 
-  const handleDeleteImport = async (id: string) => {
-    if (window.confirm('Are you absolutely sure you want to permanently delete this import record? This will purge all associated base64 local storage data and cannot be undone.')) {
-      try {
-        await ImportService.deleteImport(id);
-        showToast('success', 'Import Permanently Deleted', 'Record and storage footprints successfully cleared.');
-        if (previewImport && previewImport.id === id) {
-          setPreviewImport(null);
-        }
-        await handleRefreshImports();
-      } catch (err: any) {
-        showToast('error', 'Delete Failed', err.message);
-      }
-    }
+  const handleDeleteImport = (id: string) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      id,
+      type: 'import',
+      title: 'Delete Import Record',
+      message: 'Are you absolutely sure you want to permanently delete this import record? This will purge all associated base64 local storage data and cannot be undone.',
+    });
   };
 
   const handleOpenImportPreview = (imp: ImportSchema) => {
@@ -1023,19 +1045,14 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
     }
   };
 
-  const handleDeleteTimelineEvent = async (id: string) => {
-    if (confirm('Permanently remove this chronological event from the story ledger?')) {
-      try {
-        await TimelineService.deleteEvent(id);
-        await handleRefreshTimeline();
-        showToast('error', 'Event Deleted', 'Chronology point pruned.');
-        if (selectedInspectorItem.type === 'timeline' && selectedInspectorItem.id === id) {
-          setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
-        }
-      } catch (err: any) {
-        showToast('error', 'Delete Failed', err.message);
-      }
-    }
+  const handleDeleteTimelineEvent = (id: string) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      id,
+      type: 'timeline',
+      title: 'Delete Timeline Event',
+      message: 'Permanently remove this chronological event from the story ledger?',
+    });
   };
 
   const handleDuplicateTimelineEvent = async (evt: LocalTimelineEvent) => {
@@ -1122,9 +1139,54 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
     }
   };
 
-  const handleDeleteMedia = async (id: string) => {
-    if (confirm('Permanently disconnect and delete this media file?')) {
-      try {
+  const handleDeleteMedia = (id: string) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      id,
+      type: 'media',
+      title: 'Delete Media',
+      message: 'Permanently disconnect and delete this media file?',
+    });
+  };
+
+  const handleRenameMedia = (id: string) => {
+    const item = mediaItems.find(m => m.id === id);
+    if (!item) return;
+    setRenameModal({
+      isOpen: true,
+      id,
+      type: 'media',
+      title: 'Rename Media Metadata',
+      defaultValue: item.title,
+    });
+  };
+
+  const executeWorkspaceDelete = async () => {
+    const { id, type } = deleteConfirmation;
+    if (!id) return;
+    try {
+      if (type === 'document') {
+        await DocumentService.deleteDocument(id);
+        showToast('success', 'Document Purged', 'File permanently deleted.');
+        if (selectedInspectorItem.type === 'document' && selectedInspectorItem.id === id) {
+          setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
+        }
+        await handleRefreshDocuments();
+      } else if (type === 'import') {
+        await ImportService.deleteImport(id);
+        showToast('success', 'Import Permanently Deleted', 'Record and storage footprints successfully cleared.');
+        if (previewImport && previewImport.id === id) {
+          setPreviewImport(null);
+        }
+        await handleRefreshImports();
+      } else if (type === 'timeline') {
+        await TimelineService.deleteEvent(id);
+        await handleRefreshTimeline();
+        showToast('error', 'Event Deleted', 'Chronology point pruned.');
+        if (selectedInspectorItem.type === 'timeline' && selectedInspectorItem.id === id) {
+          setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
+        }
+      } else if (type === 'media') {
         await MediaService.deleteMedia(id);
         await handleRefreshMedia();
         showToast('error', 'Media Disconnected', 'Scanned image files unlinked.');
@@ -1132,26 +1194,27 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
         if (selectedInspectorItem.type === 'media' && selectedInspectorItem.id === id) {
           setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
         }
-      } catch (err: any) {
-        showToast('error', 'Delete Failed', err.message);
       }
+    } catch (err: any) {
+      showToast('error', 'Delete Failed', err.message);
     }
+    setDeleteConfirmation(prev => ({ ...prev, isOpen: false }));
   };
 
-  const handleRenameMedia = async (id: string) => {
-    const item = mediaItems.find(m => m.id === id);
-    if (!item) return;
-    const newTitle = prompt('Enter new file metadata title:', item.title);
-    if (newTitle && newTitle.trim()) {
-      try {
-        await MediaService.renameMedia(id, newTitle.trim());
+  const executeWorkspaceRename = async (newName: string) => {
+    const { id, type } = renameModal;
+    if (!id || !newName.trim()) return;
+    try {
+      if (type === 'media') {
+        await MediaService.renameMedia(id, newName.trim());
         await handleRefreshMedia();
         showToast('success', 'File Renamed');
         setSaveStatus('Unsaved Changes');
-      } catch (err: any) {
-        showToast('error', 'Rename Failed', err.message);
       }
+    } catch (err: any) {
+      showToast('error', 'Rename Failed', err.message);
     }
+    setRenameModal(prev => ({ ...prev, isOpen: false }));
   };
 
   const workspaceFileInputRef = useRef<HTMLInputElement>(null);
@@ -1710,33 +1773,29 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-foreground">Narrative Production Language</label>
-                      <select
-                        id="meta-language"
-                        value={storyMeta.language}
-                        onChange={(e) => handleMetaChange('language', e.target.value)}
-                        className="w-full h-10 px-3 bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 rounded-xl cursor-pointer"
-                      >
-                        <option value="English">English (US Standard)</option>
-                        <option value="Spanish">Spanish (Español)</option>
-                        <option value="French">French (Français)</option>
-                      </select>
-                    </div>
+                    <Select
+                      id="meta-language"
+                      label="Narrative Production Language"
+                      value={storyMeta.language}
+                      onChange={(val) => handleMetaChange('language', val)}
+                      options={[
+                        { value: 'English', label: 'English (US Standard)' },
+                        { value: 'Spanish', label: 'Spanish (Español)' },
+                        { value: 'French', label: 'French (Français)' }
+                      ]}
+                    />
 
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-foreground">Visibility & Archiving</label>
-                      <select
-                        id="meta-visibility"
-                        value={storyMeta.visibility}
-                        onChange={(e) => handleMetaChange('visibility', e.target.value)}
-                        className="w-full h-10 px-3 bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 rounded-xl cursor-pointer"
-                      >
-                        <option value="Private">Strictly Private (Me Only)</option>
-                        <option value="Family">Family Circle (Secured Invite)</option>
-                        <option value="Public">Public Link (Unrestricted viewing)</option>
-                      </select>
-                    </div>
+                    <Select
+                      id="meta-visibility"
+                      label="Visibility & Archiving"
+                      value={storyMeta.visibility}
+                      onChange={(val) => handleMetaChange('visibility', val)}
+                      options={[
+                        { value: 'Private', label: 'Strictly Private (Me Only)' },
+                        { value: 'Family', label: 'Family Circle (Secured Invite)' },
+                        { value: 'Public', label: 'Public Link (Unrestricted viewing)' }
+                      ]}
+                    />
                   </div>
 
                   <div className="space-y-1.5 pt-2">
@@ -1975,55 +2034,52 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                       />
                     </div>
 
-                    <div>
-                      <select
-                        value={timelineCategoryFilter}
-                        onChange={(e) => setTimelineCategoryFilter(e.target.value)}
-                        className="w-full h-9 px-3 bg-muted/50 border border-border text-foreground text-xs font-semibold focus:outline-none rounded-lg cursor-pointer"
-                      >
-                        <option value="All">All Categories</option>
-                        <option value="Birth">Birth</option>
-                        <option value="Childhood">Childhood</option>
-                        <option value="Education">Education</option>
-                        <option value="Graduation">Graduation</option>
-                        <option value="Employment">Employment</option>
-                        <option value="Promotion">Promotion</option>
-                        <option value="Marriage">Marriage</option>
-                        <option value="Family">Family</option>
-                        <option value="Achievement">Achievement</option>
-                        <option value="Award">Award</option>
-                        <option value="Travel">Travel</option>
-                        <option value="Relocation">Relocation</option>
-                        <option value="Milestone">Milestone</option>
-                        <option value="Retirement">Retirement</option>
-                        <option value="Custom Event">Custom Event</option>
-                      </select>
-                    </div>
+                    <Select
+                      id="timeline-category-filter"
+                      value={timelineCategoryFilter}
+                      onChange={setTimelineCategoryFilter}
+                      options={[
+                        { value: 'All', label: 'All Categories' },
+                        { value: 'Birth', label: 'Birth' },
+                        { value: 'Childhood', label: 'Childhood' },
+                        { value: 'Education', label: 'Education' },
+                        { value: 'Graduation', label: 'Graduation' },
+                        { value: 'Employment', label: 'Employment' },
+                        { value: 'Promotion', label: 'Promotion' },
+                        { value: 'Marriage', label: 'Marriage' },
+                        { value: 'Family', label: 'Family' },
+                        { value: 'Achievement', label: 'Achievement' },
+                        { value: 'Award', label: 'Award' },
+                        { value: 'Travel', label: 'Travel' },
+                        { value: 'Relocation', label: 'Relocation' },
+                        { value: 'Milestone', label: 'Milestone' },
+                        { value: 'Retirement', label: 'Retirement' },
+                        { value: 'Custom Event', label: 'Custom Event' }
+                      ]}
+                    />
 
-                    <div>
-                      <select
-                        value={timelineStatusFilter}
-                        onChange={(e) => setTimelineStatusFilter(e.target.value)}
-                        className="w-full h-9 px-3 bg-muted/50 border border-border text-foreground text-xs font-semibold focus:outline-none rounded-lg cursor-pointer"
-                      >
-                        <option value="Active">Active Events</option>
-                        <option value="Draft">Drafts Only</option>
-                        <option value="Archived">Archived Only</option>
-                      </select>
-                    </div>
+                    <Select
+                      id="timeline-status-filter"
+                      value={timelineStatusFilter}
+                      onChange={setTimelineStatusFilter}
+                      options={[
+                        { value: 'Active', label: 'Active Events' },
+                        { value: 'Draft', label: 'Drafts Only' },
+                        { value: 'Archived', label: 'Archived Only' }
+                      ]}
+                    />
 
-                    <div>
-                      <select
-                        value={timelineSortOrder}
-                        onChange={(e) => setTimelineSortOrder(e.target.value as any)}
-                        className="w-full h-9 px-3 bg-muted/50 border border-border text-foreground text-xs font-semibold focus:outline-none rounded-lg cursor-pointer"
-                      >
-                        <option value="asc">Sort: Oldest First</option>
-                        <option value="desc">Sort: Newest First</option>
-                        <option value="title">Sort: Alphabetical</option>
-                        <option value="importance">Sort: High Priority First</option>
-                      </select>
-                    </div>
+                    <Select
+                      id="timeline-sort-order"
+                      value={timelineSortOrder}
+                      onChange={(val) => setTimelineSortOrder(val as any)}
+                      options={[
+                        { value: 'asc', label: 'Sort: Oldest First' },
+                        { value: 'desc', label: 'Sort: Newest First' },
+                        { value: 'title', label: 'Sort: Alphabetical' },
+                        { value: 'importance', label: 'Sort: High Priority First' }
+                      ]}
+                    />
                   </div>
                 </div>
 
@@ -2820,16 +2876,18 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                         </div>
 
                         {/* Sort Dropdown */}
-                        <select
+                        <Select
+                          id="import-sort-by"
                           value={importSortBy}
-                          onChange={(e: any) => setImportSortBy(e.target.value)}
-                          className="bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-cinema-amber-500 font-bold text-foreground cursor-pointer"
-                        >
-                          <option value="recently-uploaded">Recently Added</option>
-                          <option value="name">Sort by Name</option>
-                          <option value="size">Sort by Size</option>
-                          <option value="type">Sort by Type</option>
-                        </select>
+                          onChange={(val) => setImportSortBy(val as any)}
+                          options={[
+                            { value: 'recently-uploaded', label: 'Recently Added' },
+                            { value: 'name', label: 'Sort by Name' },
+                            { value: 'size', label: 'Sort by Size' },
+                            { value: 'type', label: 'Sort by Type' }
+                          ]}
+                          className="w-40"
+                        />
 
                         {/* Archive Toggle */}
                         <button
@@ -3143,16 +3201,18 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                     </div>
 
                     {/* Sort Dropdown */}
-                    <select
+                    <Select
+                      id="document-sort-by"
                       value={documentSortBy}
-                      onChange={(e: any) => setDocumentSortBy(e.target.value)}
-                      className="bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-cinema-amber-500 font-bold text-foreground cursor-pointer"
-                    >
-                      <option value="recently-uploaded">Recently Added</option>
-                      <option value="name">Sort by Name</option>
-                      <option value="size">Sort by Size</option>
-                      <option value="type">Sort by Type</option>
-                    </select>
+                      onChange={(val) => setDocumentSortBy(val as any)}
+                      options={[
+                        { value: 'recently-uploaded', label: 'Recently Added' },
+                        { value: 'name', label: 'Sort by Name' },
+                        { value: 'size', label: 'Sort by Size' },
+                        { value: 'type', label: 'Sort by Type' }
+                      ]}
+                      className="w-40"
+                    />
                   </div>
                 </div>
 
@@ -3383,20 +3443,19 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                                   />
                                 </div>
 
-                                <div className="space-y-1">
-                                  <label className="text-xs font-bold text-muted-foreground uppercase block">Classification Type</label>
-                                  <select
-                                    value={editDocumentType}
-                                    onChange={(e) => setEditDocumentType(e.target.value)}
-                                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cinema-amber-500 font-bold text-foreground cursor-pointer"
-                                  >
-                                    <option value="Certificate">Certificate</option>
-                                    <option value="Letter">Letter of Endorsement / Correspondence</option>
-                                    <option value="Resume">Resume / CV</option>
-                                    <option value="Article">Press Article / Catalogue</option>
-                                    <option value="Official">Official Record</option>
-                                  </select>
-                                </div>
+                                <Select
+                                  id="edit-document-type"
+                                  label="Classification Type"
+                                  value={editDocumentType}
+                                  onChange={setEditDocumentType}
+                                  options={[
+                                    { value: 'Certificate', label: 'Certificate' },
+                                    { value: 'Letter', label: 'Letter of Endorsement / Correspondence' },
+                                    { value: 'Resume', label: 'Resume / CV' },
+                                    { value: 'Article', label: 'Press Article / Catalogue' },
+                                    { value: 'Official', label: 'Official Record' }
+                                  ]}
+                                />
 
                                 <div className="space-y-1">
                                   <label className="text-xs font-bold text-muted-foreground uppercase block">Description & Notes</label>
@@ -4053,23 +4112,22 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                   />
                 </div>
 
-                <div className="col-span-2 space-y-1">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase">Category tag *</label>
-                  <select
+                  <Select
                     id="modal-category-select"
+                    label="Category tag *"
                     value={activeTimelineEvent.category || 'Milestone'}
-                    onChange={(e) => setActiveTimelineEvent({ ...activeTimelineEvent, category: e.target.value as any })}
-                    className="w-full h-10 px-3 bg-muted border border-border rounded-xl focus:outline-none focus:border-cinema-amber-500 font-semibold cursor-pointer"
-                  >
-                    <option value="Childhood">Childhood</option>
-                    <option value="Education">Education</option>
-                    <option value="Career">Career</option>
-                    <option value="Family">Family</option>
-                    <option value="Milestone">General Milestone</option>
-                    <option value="Retirement">Retirement</option>
-                    <option value="Historical">Historical Archive</option>
-                  </select>
-                </div>
+                    onChange={(val) => setActiveTimelineEvent({ ...activeTimelineEvent, category: val as any })}
+                    options={[
+                      { value: 'Childhood', label: 'Childhood' },
+                      { value: 'Education', label: 'Education' },
+                      { value: 'Career', label: 'Career' },
+                      { value: 'Family', label: 'Family' },
+                      { value: 'Milestone', label: 'General Milestone' },
+                      { value: 'Retirement', label: 'Retirement' },
+                      { value: 'Historical', label: 'Historical Archive' }
+                    ]}
+                    className="col-span-2"
+                  />
               </div>
 
               <div className="space-y-1">
@@ -4109,19 +4167,17 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase">Visual Priority</label>
-                  <select
+                  <Select
                     id="modal-importance-select"
+                    label="Visual Priority"
                     value={activeTimelineEvent.importance || 'Medium'}
-                    onChange={(e) => setActiveTimelineEvent({ ...activeTimelineEvent, importance: e.target.value as any })}
-                    className="w-full h-10 px-3 bg-muted border border-border rounded-xl focus:outline-none focus:border-cinema-amber-500 font-semibold cursor-pointer"
-                  >
-                    <option value="High">High (Cinematic highlight)</option>
-                    <option value="Medium">Medium (Standard chapter entry)</option>
-                    <option value="Low">Low (Background reference)</option>
-                  </select>
-                </div>
+                    onChange={(val) => setActiveTimelineEvent({ ...activeTimelineEvent, importance: val as any })}
+                    options={[
+                      { value: 'High', label: 'High (Cinematic highlight)' },
+                      { value: 'Medium', label: 'Medium (Standard chapter entry)' },
+                      { value: 'Low', label: 'Low (Background reference)' }
+                    ]}
+                  />
               </div>
             </div>
 
@@ -4255,58 +4311,51 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                       </div>
 
                       {/* Import Type */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Import Type *</label>
-                        <select
-                          value={editImportType}
-                          onChange={(e) => setEditImportType(e.target.value)}
-                          className="w-full h-10 px-3 bg-muted border border-border rounded-xl focus:outline-none focus:border-cinema-amber-500 font-semibold cursor-pointer text-xs"
-                        >
-                          <option value="Resume / CV">Resume / CV</option>
-                          <option value="Biography">Biography</option>
-                          <option value="Autobiography">Autobiography</option>
-                          <option value="Memoir">Memoir</option>
-                          <option value="Obituary">Obituary</option>
-                          <option value="Personal Notes">Personal Notes</option>
-                          <option value="Interview Transcript">Interview Transcript</option>
-                          <option value="Journal">Journal</option>
-                          <option value="Letter Collection">Letter Collection</option>
-                          <option value="Custom Document">Custom Document</option>
-                        </select>
-                      </div>
+                      <Select
+                        id="edit-import-type"
+                        label="Import Type *"
+                        value={editImportType}
+                        onChange={setEditImportType}
+                        options={[
+                          { value: 'Resume / CV', label: 'Resume / CV' },
+                          { value: 'Biography', label: 'Biography' },
+                          { value: 'Autobiography', label: 'Autobiography' },
+                          { value: 'Memoir', label: 'Memoir' },
+                          { value: 'Obituary', label: 'Obituary' },
+                          { value: 'Personal Notes', label: 'Personal Notes' },
+                          { value: 'Interview Transcript', label: 'Interview Transcript' },
+                          { value: 'Journal', label: 'Journal' },
+                          { value: 'Letter Collection', label: 'Letter Collection' },
+                          { value: 'Custom Document', label: 'Custom Document' }
+                        ]}
+                      />
 
                       {/* Associated Legacy Profile */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase font-mono">Linked Legacy Profile *</label>
-                        <select
-                          value={editImportProfileId}
-                          onChange={(e) => setEditImportProfileId(e.target.value)}
-                          className="w-full h-10 px-3 bg-muted border border-border rounded-xl focus:outline-none focus:border-cinema-amber-500 font-semibold cursor-pointer text-xs"
-                        >
-                          {profilesList.map(profile => (
-                            <option key={profile.id} value={profile.id}>
-                              {profile.firstName} {profile.lastName} ({profile.birthYear} - {profile.deathYear || 'Present'})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <Select
+                        id="edit-import-profile-id"
+                        label="Linked Legacy Profile *"
+                        value={editImportProfileId}
+                        onChange={setEditImportProfileId}
+                        options={profilesList.map(profile => ({
+                          value: profile.id,
+                          label: `${profile.firstName} ${profile.lastName} (${profile.birthYear} - ${profile.deathYear || 'Present'})`
+                        }))}
+                      />
 
                       {/* Associated Story */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase font-mono">Associated Story</label>
-                        <select
-                          value={editImportStoryId}
-                          onChange={(e) => setEditImportStoryId(e.target.value)}
-                          className="w-full h-10 px-3 bg-muted border border-border rounded-xl focus:outline-none focus:border-cinema-amber-500 font-semibold cursor-pointer text-xs"
-                        >
-                          <option value="">No Story Linkage</option>
-                          {storiesList.map(story => (
-                            <option key={story.id} value={story.id}>
-                              {story.title}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <Select
+                        id="edit-import-story-id"
+                        label="Associated Story"
+                        value={editImportStoryId}
+                        onChange={setEditImportStoryId}
+                        options={[
+                          { value: '', label: 'No Story Linkage' },
+                          ...storiesList.map(story => ({
+                            value: story.id,
+                            label: story.title
+                          }))
+                        ]}
+                      />
 
                       {/* Description */}
                       <div className="space-y-1">
@@ -4471,6 +4520,24 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
         )}
       </AnimatePresence>
 
+      <ConfirmationModal
+        isOpen={deleteConfirmation.isOpen}
+        onClose={() => setDeleteConfirmation(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={executeWorkspaceDelete}
+        title={deleteConfirmation.title}
+        message={deleteConfirmation.message}
+      />
+
+      <PromptModal
+        isOpen={renameModal.isOpen}
+        onClose={() => setRenameModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={executeWorkspaceRename}
+        title={renameModal.title}
+        message="Enter new title or label below:"
+        defaultValue={renameModal.defaultValue}
+        placeholder="Enter value..."
+        confirmLabel="Rename"
+      />
     </div>
   );
 }

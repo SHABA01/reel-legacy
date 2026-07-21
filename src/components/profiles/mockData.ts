@@ -32,6 +32,8 @@ export interface ExtendedLegacyProfile {
   dateCreated: string;
   biographySummary?: string;
   tags?: string[];
+  pinned?: boolean;
+  favorite?: boolean;
   
   // Relationships
   parents?: string[];

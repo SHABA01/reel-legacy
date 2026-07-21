@@ -17,6 +17,9 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { DatePicker } from '../ui/DatePicker';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { useToast } from '../../context/ToastContext';
 import { ExtendedLegacyProfile } from './mockData';
 
@@ -62,6 +65,7 @@ export function ProfileEdit({ profile, onCancel, onSave }: ProfileEditProps) {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
   // Track modification
@@ -148,10 +152,7 @@ export function ProfileEdit({ profile, onCancel, onSave }: ProfileEditProps) {
 
   const handleCancelClick = () => {
     if (isDirty) {
-      const confirmDiscard = window.confirm('You have unsaved changes. Are you sure you want to discard them?');
-      if (confirmDiscard) {
-        onCancel();
-      }
+      setIsCancelModalOpen(true);
     } else {
       onCancel();
     }
@@ -267,12 +268,11 @@ export function ProfileEdit({ profile, onCancel, onSave }: ProfileEditProps) {
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
+              <DatePicker
                 id="edit-dob"
                 label="Date of Birth *"
-                type="date"
                 value={formData.dateOfBirth}
-                onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                onChange={(val) => handleInputChange('dateOfBirth', val)}
                 error={errors.dateOfBirth}
               />
               <Input
@@ -284,21 +284,19 @@ export function ProfileEdit({ profile, onCancel, onSave }: ProfileEditProps) {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[11px] font-bold uppercase text-muted-foreground tracking-wider block mb-1">Gender</label>
-                <select
-                  id="edit-gender-select"
-                  value={formData.gender}
-                  onChange={(e) => handleInputChange('gender', e.target.value)}
-                  className="w-full h-10 px-3 py-1.5 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500"
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Non-Binary">Non-Binary</option>
-                  <option value="Other">Other</option>
-                  <option value="Prefer not to say">Prefer not to say</option>
-                </select>
-              </div>
+              <Select
+                id="edit-gender-select"
+                label="Gender"
+                value={formData.gender}
+                options={[
+                  { value: 'Male', label: 'Male' },
+                  { value: 'Female', label: 'Female' },
+                  { value: 'Non-Binary', label: 'Non-Binary' },
+                  { value: 'Other', label: 'Other' },
+                  { value: 'Prefer not to say', label: 'Prefer not to say' }
+                ]}
+                onChange={(val) => handleInputChange('gender', val)}
+              />
               <Input
                 id="edit-nationality"
                 label="Nationality"
@@ -315,43 +313,34 @@ export function ProfileEdit({ profile, onCancel, onSave }: ProfileEditProps) {
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[11px] font-bold uppercase text-muted-foreground tracking-wider block mb-1">Life Status</label>
-                <select
-                  id="edit-life-status-select"
-                  value={formData.lifeStatus}
-                  onChange={(e) => handleInputChange('lifeStatus', e.target.value)}
-                  className="w-full h-10 px-3 py-1.5 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500"
-                >
-                  <option value="living">Living</option>
-                  <option value="memorial">In Memorial</option>
-                  <option value="historical">Historical Figure</option>
-                </select>
-              </div>
+              <Select
+                id="edit-life-status-select"
+                label="Life Status"
+                value={formData.lifeStatus}
+                options={[
+                  { value: 'living', label: 'Living' },
+                  { value: 'memorial', label: 'In Memorial' },
+                  { value: 'historical', label: 'Historical Figure' }
+                ]}
+                onChange={(val) => handleInputChange('lifeStatus', val)}
+              />
 
-              <div>
-                <label className="text-[11px] font-bold uppercase text-muted-foreground tracking-wider block mb-1">Category Classification</label>
-                <select
-                  id="edit-category-select"
-                  value={formData.category}
-                  onChange={(e) => handleInputChange('category', e.target.value)}
-                  className="w-full h-10 px-3 py-1.5 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500"
-                >
-                  {CATEGORY_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                id="edit-category-select"
+                label="Category Classification"
+                value={formData.category}
+                options={[...CATEGORY_OPTIONS]}
+                onChange={(val) => handleInputChange('category', val)}
+              />
             </div>
 
             {formData.lifeStatus !== 'living' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-muted/40 border border-border" id="edit-death-details-fields">
-                <Input
+                <DatePicker
                   id="edit-dod"
                   label="Date of Death *"
-                  type="date"
                   value={formData.dateOfDeath}
-                  onChange={(e) => handleInputChange('dateOfDeath', e.target.value)}
+                  onChange={(val) => handleInputChange('dateOfDeath', val)}
                   error={errors.dateOfDeath}
                 />
                 <Input
@@ -393,19 +382,17 @@ export function ProfileEdit({ profile, onCancel, onSave }: ProfileEditProps) {
             </h3>
 
             <div className="space-y-3">
-              <div>
-                <label className="text-[11px] font-bold uppercase text-muted-foreground tracking-wider block mb-1">Workflow Status</label>
-                <select
-                  id="edit-status-select"
-                  value={formData.status}
-                  onChange={(e) => handleInputChange('status', e.target.value)}
-                  className="w-full h-10 px-3 py-1.5 rounded-lg bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500"
-                >
-                  <option value="draft">Draft (Private Sandbox)</option>
-                  <option value="published">Published (Family Library)</option>
-                  <option value="archived">Archived (System Attic)</option>
-                </select>
-              </div>
+              <Select
+                id="edit-status-select"
+                label="Workflow Status"
+                value={formData.status}
+                options={[
+                  { value: 'draft', label: 'Draft (Private Sandbox)' },
+                  { value: 'published', label: 'Published (Family Library)' },
+                  { value: 'archived', label: 'Archived (System Attic)' }
+                ]}
+                onChange={(val) => handleInputChange('status', val)}
+              />
 
               <p className="text-[10px] text-muted-foreground leading-relaxed">
                 Published profiles are available for compiling automatic video narration scripts in the Story Studio.
@@ -414,6 +401,16 @@ export function ProfileEdit({ profile, onCancel, onSave }: ProfileEditProps) {
           </div>
         </div>
       </form>
+
+      <ConfirmationModal
+        isOpen={isCancelModalOpen}
+        onClose={() => setIsCancelModalOpen(false)}
+        onConfirm={onCancel}
+        title="Discard Unsaved Changes"
+        message="You have made modifications to this legacy profile that have not been saved. Are you sure you want to discard your changes?"
+        confirmLabel="Discard Changes"
+        cancelLabel="Continue Editing"
+      />
     </div>
   );
 }

@@ -47,11 +47,14 @@ import { Button } from '../ui/Button';
 import { useToast } from '../../context/ToastContext';
 import { EmptyState } from '../ui/EmptyState';
 import { MetricsGrid } from '../ui/MetricsGrid';
-import { SearchInput } from '../ui/SearchInput';
+import { FilterBar } from '../ui/FilterBar';
 import { FilterDropdown } from '../ui/FilterDropdown';
-import { ViewModeToggle } from '../ui/ViewModeToggle';
 import { BulkOperationsBar, BulkAction } from '../ui/BulkOperationsBar';
 import { KebabMenu } from '../ui/KebabMenu';
+import { FavoriteButton } from '../ui/FavoriteButton';
+import { PinButton } from '../ui/PinButton';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { PromptModal } from '../ui/PromptModal';
 import {
   ExtendedStory,
   STORY_TYPES,
@@ -118,6 +121,20 @@ export function StoriesView() {
 
   // Bulk operation lists
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+
+  // Modals state
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    storyId?: string;
+    storyTitle?: string;
+    isBulk?: boolean;
+  }>({ isOpen: false });
+
+  const [renameModal, setRenameModal] = useState<{
+    isOpen: boolean;
+    storyId?: string;
+    storyTitle?: string;
+  }>({ isOpen: false });
 
 
 
@@ -197,33 +214,61 @@ export function StoriesView() {
     const target = stories.find(s => s.id === id);
     if (!target) return;
 
-    const confirmDelete = window.confirm(`Are you absolutely sure you want to permanently delete "${target.title}"? This will dissolve all chapters, narrative drafts, and references.`);
-    if (confirmDelete) {
+    setDeleteConfirmation({
+      isOpen: true,
+      storyId: id,
+      storyTitle: target.title,
+      isBulk: false,
+    });
+  };
+
+  const executeDeleteStory = async () => {
+    if (deleteConfirmation.isBulk) {
+      try {
+        for (const id of selectedRowIds) {
+          await StoryService.deleteStory(id);
+        }
+        await refreshStories();
+        showToast('error', 'Stories Deleted', `${selectedRowIds.length} stories have been permanently purged.`);
+        setSelectedRowIds([]);
+      } catch (error: any) {
+        showToast('error', 'Bulk Deletion Failed', error.message || 'Could not delete some stories.');
+      }
+    } else if (deleteConfirmation.storyId) {
+      const id = deleteConfirmation.storyId;
       try {
         await StoryService.deleteStory(id);
         await refreshStories();
         setSelectedRowIds(prev => prev.filter(rowId => rowId !== id));
-        showToast('error', 'Story Permanently Deleted', `"${target.title}" has been purged from system memory.`);
+        showToast('error', 'Story Permanently Deleted', `"${deleteConfirmation.storyTitle}" has been purged from system memory.`);
       } catch (error: any) {
         showToast('error', 'Deletion Failed', error.message || 'Could not delete story.');
       }
     }
+    setDeleteConfirmation({ isOpen: false });
   };
 
   const handleRenameStory = async (id: string) => {
     const target = stories.find(s => s.id === id);
     if (!target) return;
 
-    const newTitle = window.prompt('Enter new title for this story:', target.title);
-    if (newTitle && newTitle.trim()) {
-      try {
-        await StoryService.updateStory(id, { title: newTitle.trim() });
-        await refreshStories();
-        showToast('success', 'Story Renamed', `Project is now titled "${newTitle.trim()}".`);
-      } catch (error: any) {
-        showToast('error', 'Rename Failed', error.message || 'Could not rename story.');
-      }
+    setRenameModal({
+      isOpen: true,
+      storyId: id,
+      storyTitle: target.title,
+    });
+  };
+
+  const executeRenameStory = async (newTitle: string) => {
+    if (!renameModal.storyId) return;
+    try {
+      await StoryService.updateStory(renameModal.storyId, { title: newTitle.trim() });
+      await refreshStories();
+      showToast('success', 'Story Renamed', `Project is now titled "${newTitle.trim()}".`);
+    } catch (error: any) {
+      showToast('error', 'Rename Failed', error.message || 'Could not rename story.');
     }
+    setRenameModal({ isOpen: false });
   };
 
   const handleTogglePin = async (id: string) => {
@@ -277,19 +322,10 @@ export function StoriesView() {
 
   const handleBulkDelete = async () => {
     if (selectedRowIds.length === 0) return;
-    const confirmDelete = window.confirm(`Are you sure you want to permanently delete ${selectedRowIds.length} selected story projects? This action is completely irreversible.`);
-    if (confirmDelete) {
-      try {
-        for (const id of selectedRowIds) {
-          await StoryService.deleteStory(id);
-        }
-        await refreshStories();
-        showToast('error', 'Stories Deleted', `${selectedRowIds.length} stories have been permanently purged.`);
-        setSelectedRowIds([]);
-      } catch (error: any) {
-        showToast('error', 'Bulk Deletion Failed', error.message || 'Could not delete some stories.');
-      }
-    }
+    setDeleteConfirmation({
+      isOpen: true,
+      isBulk: true,
+    });
   };
 
   // Create wizard save callback
@@ -441,23 +477,7 @@ export function StoriesView() {
     }
   };
 
-  const [isSticky, setIsSticky] = useState(false);
 
-  React.useEffect(() => {
-    const viewport = document.getElementById('workspace-viewport');
-    if (!viewport) return;
-
-    const handleScroll = () => {
-      setIsSticky(viewport.scrollTop > 200);
-    };
-
-    viewport.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-
-    return () => {
-      viewport.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
 
   return (
     <div
@@ -579,165 +599,87 @@ export function StoriesView() {
             ]}
           />
 
-          {/* Sticky Primary Filters Toolbar container */}
-          <div 
-            className={`space-y-3 sticky top-0 z-30 transition-all duration-300 ${
-              isSticky 
-                ? 'bg-background/95 backdrop-blur-md py-3 border-b border-border/10 shadow-sm' 
-                : 'bg-transparent py-3 border-b border-transparent'
-            }`} 
-            id="filters-toolbar-block"
-          >
-            <div className={`flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-card border border-border rounded-2xl shadow-sm transition-all duration-300 ${resolvedTheme === 'light' ? 'hover:shadow-md hover:-translate-y-0.5 hover:border-cinema-amber-500/20' : ''}`} id="main-controls-row">
-              {/* Left side: search input */}
-              <SearchInput
-                id="search-stories-input"
-                placeholder="Search production titles, tags, summaries..."
-                value={searchQuery}
-                onChange={(val) => { setSearchQuery(val); setCurrentPage(1); }}
-              />
-
-              {/* Middle & Right: Action dropdowns & toggles */}
-              <div className="flex flex-wrap items-center gap-3" id="controls-right-side-group">
-                {/* Expand filters toggle with hover effects */}
-                <button
-                  id="btn-toggle-advanced-filters"
-                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  className={`h-10 px-3.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all cursor-pointer hover:scale-105 hover:shadow-sm ${
-                    showAdvancedFilters || categoryFilter !== 'all' || statusFilter !== 'all' || aiReadyFilter !== 'all'
-                      ? 'border-cinema-amber-500 bg-cinema-amber-500/5 text-cinema-amber-600 dark:text-cinema-amber-400'
-                      : 'border-border bg-muted hover:bg-muted/75 text-black dark:text-white'
-                  }`}
-                  style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}
-                >
-                  <SlidersHorizontal className="w-4 h-4" />
-                  <span>Filters</span>
-                  {(categoryFilter !== 'all' || statusFilter !== 'all' || aiReadyFilter !== 'all') && (
-                    <span className="w-2 h-2 rounded-full bg-cinema-amber-500 animate-pulse" />
-                  )}
-                </button>
-
-                {/* Custom Sort dropdown */}
+            <FilterBar
+              id="stories-filter-bar"
+              searchQuery={searchQuery}
+              onSearchQueryChange={(val) => { setSearchQuery(val); setCurrentPage(1); }}
+              searchPlaceholder="Search production titles, tags, summaries..."
+              sortBy={sortBy}
+              sortOptions={[
+                { value: 'updated', label: 'Recently Updated' },
+                { value: 'name', label: 'Story Title A–Z' },
+                { value: 'progress', label: 'Completion %' },
+                { value: 'duration', label: 'Runtime Duration' }
+              ]}
+              onSortByChange={(val) => { setSortBy(val as any); setCurrentPage(1); }}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              showAdvancedFilters={showAdvancedFilters}
+              onShowAdvancedFiltersChange={setShowAdvancedFilters}
+              hasActiveFilters={categoryFilter !== 'all' || statusFilter !== 'all' || aiReadyFilter !== 'all'}
+              showFavoritesOnly={showFavoritesOnly}
+              onFavoritesOnlyChange={(val) => { setShowFavoritesOnly(val); setCurrentPage(1); }}
+              showPinnedOnly={showPinnedOnly}
+              onPinnedOnlyChange={(val) => { setShowPinnedOnly(val); setCurrentPage(1); }}
+              showArchivedOnly={showArchivedOnly}
+              onArchivedOnlyChange={(val) => { setShowArchivedOnly(val); setCurrentPage(1); }}
+              archivedLabel="Show Archived Vault Projects"
+            >
+              {/* Category Filter Dropdown */}
+              <div className="space-y-1.5 relative" id="category-filter-dropdown-wrapper">
+                <label className="text-[10px] font-bold text-black dark:text-muted-foreground uppercase tracking-wider block font-mono" style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}>
+                  Story Type
+                </label>
                 <FilterDropdown
-                  id="story-sort-select"
-                  label="Sort:"
-                  value={sortBy}
+                  id="advanced-category-dropdown"
+                  value={categoryFilter}
                   options={[
-                    { value: 'updated', label: 'Recently Updated' },
-                    { value: 'name', label: 'Story Title A–Z' },
-                    { value: 'progress', label: 'Completion %' },
-                    { value: 'duration', label: 'Runtime Duration' }
+                    { value: 'all', label: 'All Narrative Styles' },
+                    ...STORY_TYPES.map(type => ({ value: type, label: type }))
                   ]}
-                  onChange={(val) => { setSortBy(val as any); setCurrentPage(1); }}
-                />
-
-                {/* Single View Mode Toggle */}
-                <ViewModeToggle
-                  id="btn-view-mode-toggle"
-                  viewMode={viewMode}
-                  onChange={setViewMode}
+                  onChange={(val) => { setCategoryFilter(val); setCurrentPage(1); }}
+                  fullWidth
+                  align="left"
                 />
               </div>
-            </div>
 
-            {/* Expandable Advanced Filters Drawer with custom roundings and dropdowns */}
-            {showAdvancedFilters && (
-              <div className={`p-5 bg-card border border-border rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-4 animate-fade-in shadow-sm transition-all duration-300 ${resolvedTheme === 'light' ? 'hover:shadow-md hover:border-cinema-amber-500/10' : ''}`} id="advanced-filters-panel">
-                {/* Category Filter Dropdown */}
-                <div className="space-y-1.5 relative" id="category-filter-dropdown-wrapper">
-                  <label className="text-[10px] font-bold text-black dark:text-muted-foreground uppercase tracking-wider block font-mono" style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}>
-                    Story Type
-                  </label>
-                  <FilterDropdown
-                    id="advanced-category-dropdown"
-                    value={categoryFilter}
-                    options={[
-                      { value: 'all', label: 'All Narrative Styles' },
-                      ...STORY_TYPES.map(type => ({ value: type, label: type }))
-                    ]}
-                    onChange={(val) => { setCategoryFilter(val); setCurrentPage(1); }}
-                    fullWidth
-                    align="left"
-                  />
-                </div>
-
-                {/* Status Filter Dropdown */}
-                <div className="space-y-1.5 relative" id="status-filter-dropdown-wrapper">
-                  <label className="text-[10px] font-bold text-black dark:text-muted-foreground uppercase tracking-wider block font-mono" style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}>
-                    Workflow Status
-                  </label>
-                  <FilterDropdown
-                    id="advanced-status-dropdown"
-                    value={statusFilter}
-                    options={[
-                      { value: 'all', label: 'All Stages' },
-                      ...STORY_STATUSES.map(status => ({ value: status, label: status }))
-                    ]}
-                    onChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}
-                    fullWidth
-                    align="left"
-                  />
-                </div>
-
-                {/* AI Ready Filter Dropdown */}
-                <div className="space-y-1.5 relative" id="ai-ready-filter-dropdown-wrapper">
-                  <label className="text-[10px] font-bold text-black dark:text-muted-foreground uppercase tracking-wider block font-mono" style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}>
-                    AI Script Ready
-                  </label>
-                  <FilterDropdown
-                    id="advanced-ai-ready-dropdown"
-                    value={aiReadyFilter}
-                    options={[
-                      { value: 'all', label: 'All Projects' },
-                      { value: 'yes', label: 'Ready for AI script' },
-                      { value: 'no', label: 'Needs configuration' }
-                    ]}
-                    onChange={(val) => { setAiReadyFilter(val); setCurrentPage(1); }}
-                    fullWidth
-                    align="left"
-                  />
-                </div>
-
-                {/* Micro-indicators Filters & Toggles with elegant hovers */}
-                <div className="flex flex-col justify-end gap-2 text-xs" id="quick-toggles-block">
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground hover:text-cinema-amber-600 dark:hover:text-cinema-amber-400 transition-colors">
-                      <input
-                        id="favorites-only-checkbox"
-                        type="checkbox"
-                        checked={showFavoritesOnly}
-                        onChange={(e) => { setShowFavoritesOnly(e.target.checked); setCurrentPage(1); }}
-                        className="w-4 h-4 rounded border-border bg-muted cursor-pointer accent-cinema-amber-500"
-                      />
-                      <span>Favorites Only</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground hover:text-cinema-amber-600 dark:hover:text-cinema-amber-400 transition-colors">
-                      <input
-                        id="pinned-only-checkbox"
-                        type="checkbox"
-                        checked={showPinnedOnly}
-                        onChange={(e) => { setShowPinnedOnly(e.target.checked); setCurrentPage(1); }}
-                        className="w-4 h-4 rounded border-border bg-muted cursor-pointer accent-cinema-amber-500"
-                      />
-                      <span>Pinned Only</span>
-                    </label>
-                  </div>
-
-                  <label className="flex items-center gap-2 cursor-pointer font-semibold text-foreground mt-1 hover:text-red-600 dark:hover:text-red-400 transition-colors">
-                    <input
-                      id="archived-only-checkbox"
-                      type="checkbox"
-                      checked={showArchivedOnly}
-                      onChange={(e) => { setShowArchivedOnly(e.target.checked); setCurrentPage(1); }}
-                      className="w-4 h-4 rounded border-border bg-muted cursor-pointer accent-red-500"
-                    />
-                    <span className="text-red-500 font-bold">Show Archived Vault Projects</span>
-                  </label>
-                </div>
+              {/* Status Filter Dropdown */}
+              <div className="space-y-1.5 relative" id="status-filter-dropdown-wrapper">
+                <label className="text-[10px] font-bold text-black dark:text-muted-foreground uppercase tracking-wider block font-mono" style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}>
+                  Workflow Status
+                </label>
+                <FilterDropdown
+                  id="advanced-status-dropdown"
+                  value={statusFilter}
+                  options={[
+                    { value: 'all', label: 'All Stages' },
+                    ...STORY_STATUSES.map(status => ({ value: status, label: status }))
+                  ]}
+                  onChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}
+                  fullWidth
+                  align="left"
+                />
               </div>
-            )}
-          </div>
+
+              {/* AI Ready Filter Dropdown */}
+              <div className="space-y-1.5 relative" id="ai-ready-filter-dropdown-wrapper">
+                <label className="text-[10px] font-bold text-black dark:text-muted-foreground uppercase tracking-wider block font-mono" style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}>
+                  AI Script Ready
+                </label>
+                <FilterDropdown
+                  id="advanced-ai-ready-dropdown"
+                  value={aiReadyFilter}
+                  options={[
+                    { value: 'all', label: 'All Projects' },
+                    { value: 'yes', label: 'Ready for AI script' },
+                    { value: 'no', label: 'Needs configuration' }
+                  ]}
+                  onChange={(val) => { setAiReadyFilter(val); setCurrentPage(1); }}
+                  fullWidth
+                  align="left"
+                />
+              </div>
+            </FilterBar>
 
           {/* Bulk Selection actions bar for List/Table view */}
           {selectedRowIds.length > 0 && viewMode === 'list' && (
@@ -773,10 +715,11 @@ export function StoriesView() {
                   <div
                     key={story.id}
                     id={`story-grid-card-${story.id}`}
-                    className={`group border border-border bg-card rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-sm h-[300px] transition-all duration-300 ${
+                    onClick={() => handleSelectStory(story.id)}
+                    className={`group border border-border bg-card rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-sm h-[300px] transition-all duration-300 cursor-pointer ${
                       resolvedTheme === 'light'
                         ? 'hover:shadow-lg hover:-translate-y-1 hover:border-cinema-amber-500/30'
-                        : ''
+                        : 'hover:border-cinema-amber-500/20'
                     }`}
                   >
                     {/* Story Cover Block */}
@@ -795,11 +738,10 @@ export function StoriesView() {
                       </span>
 
                       {/* Dropdown Action list trigger */}
-                      <div className="absolute top-2.5 right-2.5 z-10">
+                      <div className="absolute top-2.5 right-2.5 z-10" onClick={(e) => e.stopPropagation()}>
                         <KebabMenu
                           id={`story-${story.id}`}
                           items={[
-                            { id: `dropdown-action-explore-${story.id}`, label: 'View Production', onClick: () => handleSelectStory(story.id), icon: <Eye className="w-3.5 h-3.5 text-muted-foreground" /> },
                             { id: `dropdown-action-studio-${story.id}`, label: 'Story Studio', onClick: () => handleSimulateEdit(story.title), icon: <Film className="w-3.5 h-3.5 text-muted-foreground" /> },
                             { id: `dropdown-action-rename-${story.id}`, label: 'Rename Project', onClick: () => handleRenameStory(story.id), icon: <FileText className="w-3.5 h-3.5 text-muted-foreground" /> },
                             { id: `dropdown-action-duplicate-${story.id}`, label: 'Duplicate', onClick: () => handleDuplicateStory(story.id), icon: <Copy className="w-3.5 h-3.5 text-muted-foreground" /> },
@@ -808,24 +750,6 @@ export function StoriesView() {
                           ]}
                           dropdownClassName="w-44"
                         />
-                      </div>
-
-                      {/* Favorite & Pin Indicators */}
-                      <div className="absolute bottom-2 left-2.5 flex items-center gap-1.5 z-10" id={`card-badges-row-${story.id}`}>
-                        <button
-                          id={`btn-toggle-favorite-${story.id}`}
-                          onClick={(e) => { e.stopPropagation(); handleToggleFavorite(story.id); }}
-                          className={`p-1 rounded-md cursor-pointer ${story.favorite ? 'bg-cinema-amber-500/20 text-cinema-amber-500' : 'bg-black/35 text-white/50 hover:text-white'}`}
-                        >
-                          <Star className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          id={`btn-toggle-pin-${story.id}`}
-                          onClick={(e) => { e.stopPropagation(); handleTogglePin(story.id); }}
-                          className={`p-1 rounded-md cursor-pointer ${story.pinned ? 'bg-indigo-500/20 text-indigo-400' : 'bg-black/35 text-white/50 hover:text-white'}`}
-                        >
-                          <Pin className="w-3.5 h-3.5" />
-                        </button>
                       </div>
                     </div>
 
@@ -842,15 +766,10 @@ export function StoriesView() {
                           {story.associatedProfileName}
                         </div>
                       </div>
-
-                      {/* Story progress percentage badge */}
-                      <span className="text-[9px] font-bold font-mono text-cinema-amber-700 bg-cinema-amber-500/10 border border-cinema-amber-500/20 px-2 py-0.5 rounded-full">
-                        {story.completionProgress}% Drafted
-                      </span>
                     </div>
 
                     {/* Middle: Details text */}
-                    <div className="px-4 py-2.5 flex-grow flex flex-col justify-between min-h-0 overflow-hidden" id={`card-text-body-${story.id}`}>
+                    <div className="px-4 py-2 flex-grow flex flex-col justify-between min-h-0 overflow-hidden" id={`card-text-body-${story.id}`}>
                       <div className="min-h-0 overflow-hidden">
                         <h4 className="font-display font-black text-xs text-foreground truncate group-hover:text-cinema-amber-600 dark:group-hover:text-cinema-amber-400 transition-colors">
                           {story.title}
@@ -859,7 +778,26 @@ export function StoriesView() {
                           {story.subtitle}
                         </p>
 
-                        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed mt-1.5 font-medium">
+                        {/* Inline progress, favorite, and pin indicators */}
+                        <div className="flex items-center justify-between gap-2 mt-2.5" id={`story-meta-actions-${story.id}`}>
+                          <span className="text-[9px] font-bold font-mono text-cinema-amber-700 bg-cinema-amber-500/10 border border-cinema-amber-500/20 px-2 py-0.5 rounded-full shrink-0">
+                            {story.completionProgress}% Drafted
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <FavoriteButton
+                              id={`btn-toggle-favorite-${story.id}`}
+                              isFavorite={story.favorite}
+                              onClick={(e) => { e.stopPropagation(); handleToggleFavorite(story.id); }}
+                            />
+                            <PinButton
+                              id={`btn-toggle-pin-${story.id}`}
+                              isPinned={story.pinned}
+                              onClick={(e) => { e.stopPropagation(); handleTogglePin(story.id); }}
+                            />
+                          </div>
+                        </div>
+
+                        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed mt-2 font-medium">
                           {story.description}
                         </p>
                       </div>
@@ -1157,6 +1095,29 @@ export function StoriesView() {
           )}
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={deleteConfirmation.isOpen}
+        onClose={() => setDeleteConfirmation({ isOpen: false })}
+        onConfirm={executeDeleteStory}
+        title={deleteConfirmation.isBulk ? 'Bulk Delete Stories' : 'Delete Story Project'}
+        message={
+          deleteConfirmation.isBulk
+            ? `Are you absolutely sure you want to permanently delete ${selectedRowIds.length} selected story projects? This action is completely irreversible and will purge all narrative materials.`
+            : `Are you absolutely sure you want to permanently delete "${deleteConfirmation.storyTitle}"? This will dissolve all chapters, narrative drafts, and references.`
+        }
+      />
+
+      <PromptModal
+        isOpen={renameModal.isOpen}
+        onClose={() => setRenameModal({ isOpen: false })}
+        onConfirm={executeRenameStory}
+        title="Rename Story Project"
+        message="Enter a new title for this storytelling narrative record:"
+        defaultValue={renameModal.storyTitle}
+        placeholder="e.g. Life of Arthur"
+        confirmLabel="Rename Project"
+      />
     </div>
   );
 }
