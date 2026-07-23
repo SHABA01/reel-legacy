@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft,
@@ -24,7 +24,8 @@ import {
   Sparkles,
   Heart,
   Briefcase,
-  FolderOpen
+  FolderOpen,
+  Crop,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -32,6 +33,7 @@ import { WizardStepper } from '../ui/WizardStepper';
 import { WizardLayout } from '../ui/WizardLayout';
 import { Select } from '../ui/Select';
 import { DatePicker } from '../ui/DatePicker';
+import { ImageCropperModal } from '../ui/ImageCropperModal';
 import { useToast } from '../../context/ToastContext';
 import { ExtendedLegacyProfile } from './mockData';
 
@@ -109,6 +111,54 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
   const [langInput, setLangInput] = useState('');
   const [parentInput, setParentInput] = useState('');
   const [childInput, setChildInput] = useState('');
+
+  // Image Cropper & File Upload state
+  const profileFileInputRef = useRef<HTMLInputElement>(null);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [cropperState, setCropperState] = useState<{
+    isOpen: boolean;
+    imageSrc: string;
+    type: 'profile' | 'cover';
+  }>({
+    isOpen: false,
+    imageSrc: '',
+    type: 'profile',
+  });
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'cover') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      showToast('error', 'File Too Large', 'Please select an image smaller than 15MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setCropperState({
+          isOpen: true,
+          imageSrc: event.target.result as string,
+          type,
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleCropSave = (croppedDataUrl: string) => {
+    if (cropperState.type === 'profile') {
+      handleInputChange('profilePhoto', croppedDataUrl);
+      showToast('success', 'Profile Photo Saved', 'Custom profile photo repositioned and set.');
+    } else {
+      handleInputChange('coverPhoto', croppedDataUrl);
+      showToast('success', 'Hero Cover Saved', 'Custom cover banner repositioned and set.');
+    }
+    setCropperState((prev) => ({ ...prev, isOpen: false }));
+  };
 
   // Errors for active fields
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -580,12 +630,20 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
                       <ImageIcon className="w-5 h-5 text-indigo-500" /> Profile Photo
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      Select from our vintage historical avatars, or simulated upload.
+                      Select from our vintage historical avatars or upload a custom image (1:1 aspect ratio with crop & reposition).
                     </p>
                   </div>
 
+                  <input
+                    ref={profileFileInputRef}
+                    type="file"
+                    accept="image/png, image/jpeg, image/webp"
+                    className="hidden"
+                    onChange={(e) => handleFileSelect(e, 'profile')}
+                  />
+
                   <div className="flex flex-col sm:flex-row items-center gap-6 p-4 rounded-2xl bg-muted/30 border border-border">
-                    <div className="relative w-24 h-24 rounded-full border border-border overflow-hidden shrink-0 bg-muted">
+                    <div className="relative w-24 h-24 rounded-full border-2 border-cinema-amber-500/40 overflow-hidden shrink-0 bg-muted shadow-md group">
                       <img
                         id="wizard-profile-preview"
                         src={formData.profilePhoto}
@@ -612,17 +670,20 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
                         ))}
                       </div>
                       
-                      <div className="pt-2 border-t border-border/40">
+                      <div className="pt-2 border-t border-border/40 flex flex-wrap items-center gap-3 justify-center sm:justify-start">
                         <Button
-                          id="btn-upload-sim-photo"
+                          id="btn-upload-custom-photo"
                           variant="ghost"
                           size="sm"
-                          leftIcon={<Upload className="w-4 h-4 text-muted-foreground" />}
-                          onClick={() => showToast('info', 'File system upload simulated successfully')}
-                          className="text-[11px] font-bold font-mono border border-border/80"
+                          leftIcon={<Upload className="w-4 h-4 text-cinema-amber-500" />}
+                          onClick={() => profileFileInputRef.current?.click()}
+                          className="text-[11px] font-bold border border-cinema-amber-500/30 hover:bg-cinema-amber-500/10"
                         >
-                          Upload Custom Photo (Simulated)
+                          Upload Custom Photo
                         </Button>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted border border-border px-2 py-1 rounded-md">
+                          Target Aspect Ratio: <strong className="text-foreground">1:1 Square</strong> (400x400 px)
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -637,12 +698,20 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
                       <ImageIcon className="w-5 h-5 text-purple-500" /> Hero Cover Image
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      Choose an atmospheric background representing their native lands or visual landscape.
+                      Choose an atmospheric background or upload a custom landscape banner (16:5 widescreen aspect ratio with crop & reposition).
                     </p>
                   </div>
 
+                  <input
+                    ref={coverFileInputRef}
+                    type="file"
+                    accept="image/png, image/jpeg, image/webp"
+                    className="hidden"
+                    onChange={(e) => handleFileSelect(e, 'cover')}
+                  />
+
                   <div className="space-y-4 p-4 rounded-2xl bg-muted/30 border border-border">
-                    <div className="w-full h-28 rounded-xl border border-border overflow-hidden bg-muted relative">
+                    <div className="w-full h-28 rounded-xl border border-cinema-amber-500/40 overflow-hidden bg-muted relative shadow-sm">
                       <img
                         id="wizard-cover-preview"
                         src={formData.coverPhoto}
@@ -669,17 +738,20 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
                         ))}
                       </div>
 
-                      <div className="pt-2 border-t border-border/40 flex justify-center sm:justify-start">
+                      <div className="pt-2 border-t border-border/40 flex flex-wrap items-center gap-3 justify-center sm:justify-start">
                         <Button
-                          id="btn-upload-sim-cover"
+                          id="btn-upload-custom-cover"
                           variant="ghost"
                           size="sm"
-                          leftIcon={<Upload className="w-4 h-4 text-muted-foreground" />}
-                          onClick={() => showToast('info', 'File system upload simulated successfully')}
-                          className="text-[11px] font-bold font-mono border border-border/80"
+                          leftIcon={<Upload className="w-4 h-4 text-cinema-amber-500" />}
+                          onClick={() => coverFileInputRef.current?.click()}
+                          className="text-[11px] font-bold border border-cinema-amber-500/30 hover:bg-cinema-amber-500/10"
                         >
-                          Upload Custom Cover (Simulated)
+                          Upload Custom Cover
                         </Button>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted border border-border px-2 py-1 rounded-md">
+                          Target Aspect Ratio: <strong className="text-foreground">16:5 Wide Banner</strong> (1200x375 px)
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -774,6 +846,23 @@ export function ProfileWizard({ onClose, onSave }: ProfileWizardProps) {
                 </div>
               )}
       </div>
+
+      {/* Image Cropper Modal */}
+      <ImageCropperModal
+        isOpen={cropperState.isOpen}
+        imageSrc={cropperState.imageSrc}
+        title={cropperState.type === 'profile' ? 'Reposition Profile Photo' : 'Reposition Hero Cover Image'}
+        aspectRatio={cropperState.type === 'profile' ? 1 : 16 / 5}
+        aspectRatioLabel={
+          cropperState.type === 'profile'
+            ? '1:1 Square Ratio (Recommended: 400x400 px)'
+            : '16:5 Wide Banner Ratio (Recommended: 1200x375 px)'
+        }
+        targetWidth={cropperState.type === 'profile' ? 400 : 1200}
+        targetHeight={cropperState.type === 'profile' ? 400 : 375}
+        onClose={() => setCropperState((prev) => ({ ...prev, isOpen: false }))}
+        onCropSave={handleCropSave}
+      />
     </WizardLayout>
   );
 }

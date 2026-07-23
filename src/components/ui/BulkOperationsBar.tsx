@@ -17,7 +17,9 @@ export interface BulkAction {
 interface BulkOperationsBarProps {
   id: string;
   selectedCount: number;
-  labelText: string;
+  labelText?: string;
+  itemTypeSingular?: string;
+  itemTypePlural?: string;
   actions: BulkAction[];
   className?: string;
 }
@@ -26,10 +28,18 @@ export function BulkOperationsBar({
   id,
   selectedCount,
   labelText,
+  itemTypeSingular = 'item',
+  itemTypePlural = 'items',
   actions,
   className = '',
 }: BulkOperationsBarProps) {
   if (selectedCount === 0) return null;
+
+  const displayLabel = labelText
+    ? labelText
+    : selectedCount === 1
+    ? `1 ${itemTypeSingular} selected for batch processing`
+    : `${selectedCount} ${itemTypePlural} selected for batch processing`;
 
   return (
     <div
@@ -37,7 +47,7 @@ export function BulkOperationsBar({
       id={id}
     >
       <span className="text-xs font-semibold text-foreground">
-        {labelText}
+        {displayLabel}
       </span>
 
       <div className="flex items-center gap-2">

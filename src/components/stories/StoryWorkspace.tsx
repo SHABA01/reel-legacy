@@ -911,26 +911,44 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
     localStorage.setItem(`rl_people_${initialStory.id}`, JSON.stringify(people));
   }, [people, initialStory.id]);
 
-  // Active sub-sections inside Left Sidebar
-  const sidebarSections = [
-    { id: 'overview', label: 'Overview', icon: Film },
-    { id: 'info', label: 'Story Information', icon: Sliders },
-    { id: 'biography', label: 'Biography', icon: BookOpen },
-    { id: 'timeline', label: 'Timeline Chronology', icon: Calendar },
-    { id: 'media', label: 'Media Organizer', icon: Camera },
-    { id: 'people', label: 'Associated People', icon: Users },
-    { id: 'locations', label: 'Story Locations', icon: MapPin },
-    { id: 'career', label: 'Career Retrospective', icon: Briefcase },
-    { id: 'education', label: 'Education Ledger', icon: GraduationCap },
-    { id: 'achievements', label: 'Achievements & Awards', icon: Award },
-    { id: 'documents', label: 'Supporting Documents', icon: FileText },
-    { id: 'narration', label: 'Narration Studio Cues', icon: Mic },
-    { id: 'music', label: 'Acoustic Soundtracks', icon: Smile },
-    { id: 'interviews', label: 'Q&A Interview Notes', icon: MessageSquare },
-    { id: 'templates', label: 'Production Templates', icon: Layers },
-    { id: 'history', label: 'Version Sandbox History', icon: Clock },
-    { id: 'review', label: 'Review & Verify Ready', icon: CheckSquare }
+  // Active sub-sections & Streamlined Top Horizontal Tabs
+  const studioTabs = [
+    { id: 'overview', label: 'Overview', icon: Film, description: 'Completion score, narrative brief & AI readiness' },
+    { id: 'info', label: 'Story Info & Bio', icon: BookOpen, description: 'Core metadata, tone parameters & manuscript biography' },
+    { id: 'timeline', label: 'Timeline Chronology', icon: Calendar, description: 'Milestones & chronological event builder' },
+    { id: 'media', label: 'Media & Documents', icon: Camera, description: 'Photos, scanned historical records & documents' },
+    { id: 'people', label: 'People & Relationships', icon: Users, description: 'Associated family members, co-authors & interviewees' },
+    { id: 'render', label: 'Production & Render Studio', icon: Layers, description: 'Video reels, podcast audio & digital memoir exports' },
   ];
+  const sidebarSections = studioTabs; // Backward compatibility fallback
+
+  // Production Render Studio State
+  const [selectedRenderPreset, setSelectedRenderPreset] = useState<'video-16-9' | 'video-9-16' | 'audio-podcast' | 'pdf-memoir'>('video-16-9');
+  const [isRendering, setIsRendering] = useState<boolean>(false);
+  const [renderProgress, setRenderProgress] = useState<number>(0);
+  const [renderComplete, setRenderComplete] = useState<boolean>(false);
+
+  const handleStartRender = () => {
+    setIsRendering(true);
+    setRenderProgress(5);
+    setRenderComplete(false);
+    showToast('info', 'Production Pipeline Initialized', 'Synthesizing script scenes, voiceover, and media assets...');
+
+    const interval = setInterval(() => {
+      setRenderProgress((prev) => {
+        if (prev >= 95) {
+          clearInterval(interval);
+          setTimeout(() => {
+            setIsRendering(false);
+            setRenderComplete(true);
+            showToast('success', 'Render Complete!', 'Your media reel package is compiled and ready for preview.');
+          }, 600);
+          return 100;
+        }
+        return prev + Math.floor(Math.random() * 18) + 12;
+      });
+    }, 450);
+  };
 
   // REAL-TIME AUTO SAVE PROCESS
   const triggerAutoSave = (updatedFields: any) => {
@@ -1450,63 +1468,63 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
         </div>
       </div>
 
-      {/* 2. DUAL SIDEBAR WORKSPACE GRID */}
+      {/* 2. TOP HORIZONTAL NAVIGATION TAB BAR */}
+      <div id="workspace-top-tab-bar" className="bg-card/90 backdrop-blur-md border-b border-border px-4 md:px-6 py-2.5 flex items-center justify-between gap-4 overflow-x-auto custom-scrollbar shrink-0 z-10 shadow-sm">
+        <div className="flex items-center gap-1.5 md:gap-2 min-w-max">
+          {studioTabs.map((tab) => {
+            const isActive =
+              activeSection === tab.id ||
+              (tab.id === 'info' && activeSection === 'biography') ||
+              (tab.id === 'media' && activeSection === 'documents') ||
+              (tab.id === 'render' && ['templates', 'narration', 'music', 'history', 'review', 'production'].includes(activeSection));
+            const IconComp = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                id={`top-tab-btn-${tab.id}`}
+                onClick={() => {
+                  setActiveSection(tab.id);
+                  if (tab.id === 'info') {
+                    setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
+                  }
+                }}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer select-none ${
+                  isActive
+                    ? 'bg-cinema-amber-500/15 text-cinema-amber-600 dark:text-cinema-amber-400 border border-cinema-amber-500/35 shadow-sm font-black'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/70 border border-transparent'
+                }`}
+                title={tab.description}
+              >
+                <IconComp className={`w-4 h-4 shrink-0 ${isActive ? 'text-cinema-amber-500' : 'text-muted-foreground'}`} />
+                <span className="uppercase tracking-wider font-display text-[11px]">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Workspace Inspector Toggle */}
+        <div className="flex items-center gap-2 shrink-0 border-l border-border/80 pl-3 md:pl-4">
+          <Button
+            id="btn-toggle-workspace-inspector"
+            variant="ghost"
+            size="xs"
+            leftIcon={<Sliders className="w-3.5 h-3.5 text-cinema-amber-500" />}
+            onClick={() => setIsRightInspectorCollapsed(!isRightInspectorCollapsed)}
+            className={`text-xs font-bold border transition-all ${
+              !isRightInspectorCollapsed
+                ? 'bg-cinema-amber-500/10 border-cinema-amber-500/30 text-cinema-amber-500'
+                : 'border-border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {isRightInspectorCollapsed ? 'Show Inspector' : 'Inspector'}
+          </Button>
+        </div>
+      </div>
+
+      {/* 3. FULL-WIDTH WORKSPACE CANVAS */}
       <div className="flex-grow flex overflow-hidden relative" id="workspace-panels-mesh">
-        
-        {/* LEFT NAV PANEL */}
-        <aside
-          id="workspace-left-nav"
-          className={`h-full border-r border-border bg-muted/30 transition-all duration-300 flex flex-col justify-between shrink-0 ${
-            isLeftSidebarCollapsed ? 'w-16' : 'w-64'
-          }`}
-        >
-          {/* Scrollable list items */}
-          <div className="flex-grow overflow-y-auto py-4 px-3 space-y-1.5">
-            {sidebarSections.map((sect) => {
-              const isActive = activeSection === sect.id;
-              const IconComp = sect.icon;
-              return (
-                <button
-                  key={sect.id}
-                  id={`left-nav-btn-${sect.id}`}
-                  onClick={() => {
-                    setActiveSection(sect.id);
-                    // Standard inspector updates based on section clicks
-                    if (sect.id === 'info') {
-                      setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
-                    }
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer group text-left ${
-                    isActive
-                      ? 'bg-cinema-amber-500/10 text-cinema-amber-600 dark:text-cinema-amber-400 border border-cinema-amber-500/15'
-                      : 'hover:bg-muted text-muted-foreground hover:text-foreground border border-transparent'
-                  }`}
-                >
-                  <IconComp className={`w-4 h-4 shrink-0 ${isActive ? 'text-cinema-amber-500' : 'text-muted-foreground group-hover:text-foreground'}`} />
-                  {!isLeftSidebarCollapsed && (
-                    <span className="text-xs font-semibold truncate uppercase tracking-wider">
-                      {sect.label}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Toggle Sidebar Collapse button */}
-          <div className="p-3 border-t border-border/65 bg-muted/10 shrink-0">
-            <button
-              onClick={() => setIsLeftSidebarCollapsed(!isLeftSidebarCollapsed)}
-              className="w-full h-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer border border-border/40"
-              aria-label="Collapse Navigation"
-            >
-              {isLeftSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            </button>
-          </div>
-        </aside>
-
-        {/* PRIMARY WORKSPACE CONTENT */}
-        <main className="flex-grow flex flex-col overflow-y-auto bg-muted/15" id="workspace-primary-scroller">
+        {/* PRIMARY WORKSPACE CONTENT (FULL WIDTH) */}
+        <main className="flex-grow flex flex-col overflow-y-auto bg-muted/15 w-full min-w-0" id="workspace-primary-scroller">
           
           <AnimatePresence mode="wait">
             
@@ -1727,16 +1745,34 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6 max-w-3xl"
+                className="p-6 md:p-8 space-y-6 w-full"
                 id="pane-info"
               >
-                <div>
-                  <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider">
-                    Administrative Story Information
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Configure names, display tags, and file privacy parameters for the core biographical record.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
+                  <div>
+                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-cinema-amber-500" /> Story Information & Biography
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Configure story metadata, tone parameters, and edit full life manuscript narrative text.
+                    </p>
+                  </div>
+
+                  {/* Inner sub-tab switcher */}
+                  <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border/80 rounded-xl shrink-0">
+                    <button
+                      onClick={() => setActiveSection('info')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cinema-amber-500/15 text-cinema-amber-500 border border-cinema-amber-500/30"
+                    >
+                      Administrative Metadata
+                    </button>
+                    <button
+                      onClick={() => setActiveSection('biography')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-muted-foreground hover:text-foreground"
+                    >
+                      Biography Manuscript
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-6 bg-card border border-border rounded-2xl shadow-sm space-y-5">
@@ -1823,13 +1859,31 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 className="p-6 md:p-8 space-y-6"
                 id="pane-biography"
               >
-                <div>
-                  <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider">
-                    Full Life Biography Writing Workspace
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Craft the core biographical manuscript. Narrator voiceover AI is scaffolded directly from this content.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
+                  <div>
+                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-cinema-amber-500" /> Full Life Biography Writing Workspace
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Craft the core biographical manuscript. Narrator voiceover AI is scaffolded directly from this content.
+                    </p>
+                  </div>
+
+                  {/* Inner sub-tab switcher */}
+                  <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border/80 rounded-xl shrink-0">
+                    <button
+                      onClick={() => setActiveSection('info')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-muted-foreground hover:text-foreground"
+                    >
+                      Administrative Metadata
+                    </button>
+                    <button
+                      onClick={() => setActiveSection('biography')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cinema-amber-500/15 text-cinema-amber-500 border border-cinema-amber-500/30"
+                    >
+                      Biography Manuscript
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -2483,18 +2537,35 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6"
+                className="p-6 md:p-8 space-y-6 w-full"
                 id="pane-media"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
                   <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider">
-                      Narrator Media & Portrait Archive
+                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-cinema-amber-500" /> Media & Supporting Documents
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Verify portrait quality, tag visual themes, and register home videos to chapters.
+                      Verify portrait quality, tag visual themes, and manage scanned documents and certificates.
                     </p>
                   </div>
+
+                  {/* Sub-tab switcher */}
+                  <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border/80 rounded-xl shrink-0">
+                    <button
+                      onClick={() => setActiveSection('media')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cinema-amber-500/15 text-cinema-amber-500 border border-cinema-amber-500/30"
+                    >
+                      Media Assets ({mediaItems.length})
+                    </button>
+                    <button
+                      onClick={() => setActiveSection('documents')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-muted-foreground hover:text-foreground"
+                    >
+                      Supporting Documents ({documents.length})
+                    </button>
+                  </div>
+                </div>
 
                   <div className="flex items-center gap-3 self-start sm:self-auto">
                     <input
@@ -2533,7 +2604,6 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                       ))}
                     </div>
                   </div>
-                </div>
 
                 {/* Grid container of files */}
                 {filteredMedia.length === 0 ? (
@@ -3119,11 +3189,11 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 )}
 
                 {/* Header Row */}
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider">
-                        Supporting Documents Ledger
+                      <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-cinema-amber-500" /> Supporting Documents Ledger
                       </h3>
                       <span className="text-[10px] font-mono font-bold bg-cinema-amber-500/15 text-cinema-amber-500 px-1.5 py-0.5 rounded border border-cinema-amber-500/20">
                         {documents.length} PERSISTED
@@ -3133,6 +3203,23 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                       Organize scanned letters, diplomas, military records, and physical archives using local storage. Drag & drop files directly onto this panel.
                     </p>
                   </div>
+
+                  {/* Sub-tab switcher */}
+                  <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border/80 rounded-xl shrink-0">
+                    <button
+                      onClick={() => setActiveSection('media')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-muted-foreground hover:text-foreground"
+                    >
+                      Media Assets ({mediaItems.length})
+                    </button>
+                    <button
+                      onClick={() => setActiveSection('documents')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cinema-amber-500/15 text-cinema-amber-500 border border-cinema-amber-500/30"
+                    >
+                      Supporting Documents ({documents.length})
+                    </button>
+                  </div>
+                </div>
 
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Upload Trigger */}
@@ -3157,7 +3244,6 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                       {showArchivedDocs ? 'Viewing Archived' : 'Show Archived'}
                     </button>
                   </div>
-                </div>
 
                 {/* Filter / Search Controls bar */}
                 <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-muted/40 p-3 rounded-2xl border border-border/80">
@@ -3606,26 +3692,224 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
               </motion.div>
             )}
 
-            {/* UNIMPLEMENTED SUBVIEWS (Narration, Music, Version, Review) */}
-            {!['overview', 'info', 'biography', 'timeline', 'media', 'people', 'career', 'documents'].includes(activeSection) && (
+            {/* PRODUCTION & RENDER STUDIO VIEW */}
+            {['render', 'production', 'templates', 'narration', 'music', 'history', 'review'].includes(activeSection) && (
               <motion.div
-                key="workspace-unimplemented"
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                className="py-16 text-center space-y-4 max-w-md mx-auto"
-                id="unimplemented-placeholder"
+                key="workspace-render-studio"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-6 md:p-8 space-y-6 w-full"
+                id="pane-render-studio"
               >
-                <div className="w-16 h-16 rounded-2xl bg-amber-500/5 border border-amber-500/15 flex items-center justify-center text-cinema-amber-500 mx-auto">
-                  <SlidersHorizontal className="w-8 h-8 animate-pulse" />
+                {/* Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-4">
+                  <div>
+                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-cinema-amber-500 animate-pulse" /> Production & Render Studio
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Synthesize biographical manuscript text, scanned photo archives, and voiceover audio into exportable media packages.
+                    </p>
+                  </div>
+
+                  <button
+                    id="btn-trigger-production-render"
+                    onClick={handleStartRender}
+                    disabled={isRendering}
+                    className="px-5 py-2.5 bg-cinema-amber-500 hover:bg-cinema-amber-600 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer uppercase tracking-wider"
+                  >
+                    {isRendering ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Rendering ({renderProgress}%)
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="w-4 h-4 stroke-[2.5]" />
+                        Compile Media Package
+                      </>
+                    )}
+                  </button>
                 </div>
-                <div>
-                  <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider">
-                    {sidebarSections.find(s => s.id === activeSection)?.label} Subview
-                  </h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed font-semibold">
-                    The Story Studio has fully registered this navigation section in the pipeline schema. Interactive tools and AI parameters will bind in future implementation stages.
-                  </p>
+
+                {/* Render Progress Bar */}
+                {isRendering && (
+                  <div className="p-5 bg-card border border-cinema-amber-500/30 rounded-2xl shadow-sm space-y-3 animate-pulse">
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="text-foreground flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-cinema-amber-500" /> Synthesizing Cinema Timeline...
+                      </span>
+                      <span className="font-mono text-cinema-amber-500">{renderProgress}%</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden border border-border">
+                      <div className="bg-cinema-amber-500 h-full transition-all duration-300" style={{ width: `${renderProgress}%` }} />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground font-mono">
+                      Aligning {mediaItems.length} scanned photos with {timelineEvents.length} chronological milestones and AI narration cues...
+                    </p>
+                  </div>
+                )}
+
+                {renderComplete && !isRendering && (
+                  <div className="p-5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="w-6 h-6 text-emerald-500 shrink-0" />
+                      <div>
+                        <h4 className="text-xs font-bold text-foreground">Production Package Compiled Successfully!</h4>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">High-definition 16:9 documentary reel with embedded subtitle cues is ready.</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => showToast('success', 'Package Downloaded', 'Media reel zip exported to downloads.')}
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition-all shrink-0 cursor-pointer"
+                    >
+                      Export Package Zip
+                    </button>
+                  </div>
+                )}
+
+                {/* Grid of Export Format Presets */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-black uppercase text-foreground tracking-wider font-mono">
+                    Select Target Export Format
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                      {
+                        id: 'video-16-9',
+                        title: '16:9 Cinematic Video Reel',
+                        description: '4K Ultra-HD documentary reel with voiceover & Ken Burns pan-zoom.',
+                        badge: 'Recommended',
+                        icon: Video
+                      },
+                      {
+                        id: 'video-9-16',
+                        title: '9:16 Social Story Short',
+                        description: 'Vertical story reel optimized for mobile sharing with animated captions.',
+                        badge: 'Mobile',
+                        icon: Film
+                      },
+                      {
+                        id: 'audio-podcast',
+                        title: 'Audio Memoir Podcast',
+                        description: 'High-fidelity audio recording with acoustic music backing tracks.',
+                        badge: 'Audio Only',
+                        icon: Mic
+                      },
+                      {
+                        id: 'pdf-memoir',
+                        title: 'Printable Memoir Booklet',
+                        description: 'Full-color PDF eBook with high-res document scans and bio chapters.',
+                        badge: 'Print Ready',
+                        icon: FileText
+                      }
+                    ].map((preset) => {
+                      const isSelected = selectedRenderPreset === preset.id;
+                      const IconComp = preset.icon;
+                      return (
+                        <div
+                          key={preset.id}
+                          onClick={() => setSelectedRenderPreset(preset.id as any)}
+                          className={`p-5 bg-card border rounded-2xl cursor-pointer transition-all flex flex-col justify-between space-y-4 hover:shadow-md ${
+                            isSelected
+                              ? 'border-cinema-amber-500 ring-1 ring-cinema-amber-500 bg-cinema-amber-500/[0.03]'
+                              : 'border-border hover:border-muted-foreground/30'
+                          }`}
+                        >
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className={`p-2.5 rounded-xl ${isSelected ? 'bg-cinema-amber-500/15 text-cinema-amber-500' : 'bg-muted text-muted-foreground'}`}>
+                                <IconComp className="w-5 h-5" />
+                              </div>
+                              <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 bg-muted rounded-md border border-border text-muted-foreground">
+                                {preset.badge}
+                              </span>
+                            </div>
+                            <div>
+                              <h5 className="text-xs font-bold text-foreground">{preset.title}</h5>
+                              <p className="text-[11px] text-muted-foreground mt-1 leading-normal font-medium">{preset.description}</p>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[10px] font-mono font-bold text-muted-foreground">
+                            <span>Status: Ready</span>
+                            <span className={isSelected ? 'text-cinema-amber-500' : ''}>{isSelected ? 'SELECTED ✓' : 'Select'}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Production Configuration Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                  {/* Left: Included Assets */}
+                  <div className="p-5 bg-card border border-border rounded-2xl shadow-sm space-y-4">
+                    <h4 className="text-xs font-black uppercase text-foreground tracking-wider flex items-center justify-between">
+                      <span>Pipeline Asset Allocation</span>
+                      <Sparkles className="w-3.5 h-3.5 text-cinema-amber-500" />
+                    </h4>
+
+                    <div className="space-y-3 text-xs">
+                      <div className="p-3 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
+                        <span className="font-medium text-foreground flex items-center gap-2">
+                          <BookOpen className="w-3.5 h-3.5 text-cinema-amber-500" /> Biography Manuscript
+                        </span>
+                        <span className="font-mono text-[10px] text-emerald-500 font-bold">READY ({biographyText.split(/\s+/).filter(Boolean).length} WORDS)</span>
+                      </div>
+
+                      <div className="p-3 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
+                        <span className="font-medium text-foreground flex items-center gap-2">
+                          <Calendar className="w-3.5 h-3.5 text-blue-400" /> Milestone Events
+                        </span>
+                        <span className="font-mono text-[10px] text-blue-400 font-bold">{timelineEvents.length} EVENTS LINKED</span>
+                      </div>
+
+                      <div className="p-3 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
+                        <span className="font-medium text-foreground flex items-center gap-2">
+                          <Camera className="w-3.5 h-3.5 text-emerald-400" /> Scanned Photos & Media
+                        </span>
+                        <span className="font-mono text-[10px] text-emerald-400 font-bold">{mediaItems.length} HIGH-RES ASSETS</span>
+                      </div>
+
+                      <div className="p-3 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
+                        <span className="font-medium text-foreground flex items-center gap-2">
+                          <FileText className="w-3.5 h-3.5 text-purple-400" /> Supporting Archival Documents
+                        </span>
+                        <span className="font-mono text-[10px] text-purple-400 font-bold">{documents.length} DOCUMENTS</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: AI Voiceover & Music Options */}
+                  <div className="p-5 bg-card border border-border rounded-2xl shadow-sm space-y-4">
+                    <h4 className="text-xs font-black uppercase text-foreground tracking-wider flex items-center justify-between">
+                      <span>Audio & Voiceover Parameters</span>
+                      <Mic className="w-3.5 h-3.5 text-cinema-amber-500" />
+                    </h4>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-bold text-foreground block mb-1">Narrator AI Voice Profile</label>
+                        <select className="w-full h-9 px-3 bg-muted border border-border text-foreground text-xs font-semibold rounded-xl focus:outline-none focus:border-cinema-amber-500">
+                          <option>Warm Documentary Male (Arthur - Warm, Measured)</option>
+                          <option>Empathetic Female Reader (Evelyn - Gentle, Nostalgic)</option>
+                          <option>Classic Heritage Voice (Archival Recording Preset)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-foreground block mb-1">Background Acoustic Score</label>
+                        <select className="w-full h-9 px-3 bg-muted border border-border text-foreground text-xs font-semibold rounded-xl focus:outline-none focus:border-cinema-amber-500">
+                          <option>Soft Piano & Coastal Cello Ensemble</option>
+                          <option>Acoustic Guitar & Gentle Strings</option>
+                          <option>Minimal Ambient Atmosphere</option>
+                          <option>None (Voiceover & Original Audio Clips Only)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}

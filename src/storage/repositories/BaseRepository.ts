@@ -73,6 +73,19 @@ export abstract class BaseRepository<T extends { id: string; createdAt?: string;
     return true;
   }
 
+  async deleteMany(ids: string[]): Promise<boolean> {
+    const items = await this.getAll();
+    const initialLength = items.length;
+    const idSet = new Set(ids);
+    const filtered = items.filter(item => !idSet.has(item.id));
+    
+    if (filtered.length === initialLength) return false;
+    
+    await this.adapter.setItem(this.storageKey, filtered);
+    this.notifyChange();
+    return true;
+  }
+
   async exists(id: string): Promise<boolean> {
     const items = await this.getAll();
     return items.some(item => item.id === id);

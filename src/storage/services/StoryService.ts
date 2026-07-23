@@ -134,6 +134,17 @@ export class StoryService {
   }
 
   /**
+   * Permanently deletes multiple stories in bulk.
+   */
+  static async deleteStories(ids: string[]): Promise<boolean> {
+    const deleted = await persistenceService.stories.deleteMany(ids);
+    if (deleted) {
+      window.dispatchEvent(new Event('reellegacy-data-changed'));
+    }
+    return deleted;
+  }
+
+  /**
    * Clones / duplicates a story.
    */
   static async duplicateStory(id: string): Promise<StorySchema> {
@@ -229,7 +240,7 @@ export class StoryService {
       items = items.filter(item => item.ownerId === userId);
     }
 
-    const total = items.filter(s => s.status !== 'Archived').length;
+    const total = items.length;
     const draft = items.filter(s => s.status === 'Draft').length;
     const published = items.filter(s => s.status === 'Published').length;
     const archived = items.filter(s => s.status === 'Archived').length;

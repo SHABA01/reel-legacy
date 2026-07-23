@@ -725,7 +725,7 @@ export function MediaLibrary() {
                   >
                     <div className="flex items-center gap-2 pl-2">
                       <span className="text-[10px] font-mono font-bold text-cinema-amber-600 dark:text-cinema-amber-400">
-                        {selectedAssets.length} ASSETS SELECTED
+                        {selectedAssets.length} {selectedAssets.length === 1 ? 'ASSET' : 'ASSETS'} SELECTED
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -737,7 +737,7 @@ export function MediaLibrary() {
                         onClick={handleBulkFavorite}
                         className="text-[10px] py-1 border border-cinema-amber-500/25"
                       >
-                        Favorite All
+                        {selectedAssets.length === 1 ? 'Favorite Selected' : 'Favorite All'}
                       </Button>
                       <Button
                         id="btn-bulk-delete"
@@ -747,7 +747,7 @@ export function MediaLibrary() {
                         onClick={handleBulkDelete}
                         className="text-[10px] py-1 text-red-500 hover:bg-red-500/10 border border-red-500/20"
                       >
-                        Delete All
+                        {selectedAssets.length === 1 ? 'Delete Selected' : 'Delete All'}
                       </Button>
                       <button
                         onClick={() => setSelectedAssets([])}
@@ -1888,14 +1888,47 @@ export function MediaLibrary() {
           deleteTarget?.type === 'single'
             ? 'Delete Memoir Asset?'
             : deleteTarget?.type === 'bulk'
-            ? 'Delete Selected Assets?'
+            ? (selectedAssets.length === 1 ? 'Delete Selected Asset' : 'Delete Selected Assets')
             : 'Delete Album Collection?'
         }
         message={
           deleteTarget?.type === 'single'
             ? `Are you sure you want to permanently delete "${deleteTarget?.name || ''}" from your vault? All chapter and timeline scene connections will be destroyed.`
             : deleteTarget?.type === 'bulk'
-            ? `Are you sure you want to permanently delete all ${deleteTarget?.name || ''} from your vault? All chapter and timeline scene connections will be destroyed.`
+            ? (() => {
+                const count = selectedAssets.length;
+                const selectedList = assets.filter(a => selectedAssets.includes(a.id));
+                const archivedCount = selectedList.filter(a => a.archived).length;
+                if (archivedCount > 0) {
+                  return (
+                    <div className="space-y-2.5">
+                      <p>
+                        Are you sure you want to permanently delete {count === 1 ? 'the 1 selected asset' : `all ${count} selected assets`} from your vault?
+                      </p>
+                      <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-amber-600 dark:text-amber-400 text-xs flex items-start gap-2.5">
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+                        <div className="space-y-1">
+                          <span className="font-bold uppercase tracking-wider text-[10px] block text-amber-500">
+                            {count === 1 ? 'Notice: Contains Archived Asset' : 'Notice: Contains Archived Assets'}
+                          </span>
+                          <p className="leading-snug">
+                            {count === 1 ? (
+                              <>The <strong>1 selected asset</strong> is <strong>archived</strong>. Proceeding will permanently purge it from storage.</>
+                            ) : archivedCount === count ? (
+                              <>All <strong>{count}</strong> selected assets are <strong>archived</strong>. Proceeding will permanently purge them from storage.</>
+                            ) : (
+                              <><strong>{archivedCount}</strong> of the {count} selected assets are currently <strong>archived</strong>. Proceeding will permanently purge all selected items, including archived assets.</>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return count === 1
+                  ? `Are you sure you want to permanently delete the 1 selected asset from your vault? All chapter and timeline scene connections will be destroyed.`
+                  : `Are you sure you want to permanently delete all ${count} selected assets from your vault? All chapter and timeline scene connections will be destroyed.`;
+              })()
             : `Are you sure you want to permanently delete the collection "${deleteTarget?.name || ''}"? This deletes the album organization wrapper but will NOT delete any individual files within it.`
         }
       />

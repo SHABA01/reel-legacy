@@ -54,16 +54,19 @@ export function Sidebar() {
 
   const updateCounts = async () => {
     try {
-      const [storiesCount, profilesCount, timelineCount, mediaCount, unreadNotifs] = await Promise.all([
-        persistenceService.stories.count(),
-        persistenceService.profiles.count(),
+      const [allStories, allProfiles, timelineCount, mediaCount, unreadNotifs] = await Promise.all([
+        persistenceService.stories.getAll(),
+        persistenceService.profiles.getAll(),
         persistenceService.timeline.count(),
         persistenceService.media.count(),
         persistenceService.notifications.getUnread().then(notifs => notifs.filter(n => !n.read).length).catch(() => 0)
       ]);
+      const activeStoriesCount = allStories.filter(s => s.status !== 'Archived').length;
+      const activeProfilesCount = allProfiles.filter((p: any) => p.status !== 'archived').length;
+
       setCounts({
-        stories: storiesCount,
-        profiles: profilesCount,
+        stories: activeStoriesCount,
+        profiles: activeProfilesCount,
         timeline: timelineCount,
         media: mediaCount,
         notifications: unreadNotifs,
@@ -89,7 +92,7 @@ export function Sidebar() {
       window.removeEventListener('storage-activity-updated', handleUpdate);
       window.removeEventListener('reellegacy-data-changed', handleUpdate);
     };
-  }, []);
+  }, [activeView]);
 
   const viewPaths: Record<ActiveView, string> = {
     dashboard: '/workspace/dashboard',

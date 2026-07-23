@@ -28,7 +28,8 @@ import {
   HelpCircle,
   Sparkles,
   ChevronDown,
-  Check
+  Check,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -67,6 +68,30 @@ export function ProfilesView() {
     return [];
   });
 
+  const loadProfiles = async () => {
+    try {
+      const fetched = await persistenceService.profiles.getAll();
+      if (fetched && fetched.length >= 0) {
+        setProfiles(fetched as any);
+      }
+    } catch (e) {
+      console.warn('Error fetching profiles from repository:', e);
+    }
+  };
+
+  React.useEffect(() => {
+    loadProfiles();
+    const handleDataChanged = () => {
+      loadProfiles();
+    };
+    window.addEventListener('reellegacy-data-changed', handleDataChanged);
+    window.addEventListener('storage', handleDataChanged);
+    return () => {
+      window.removeEventListener('reellegacy-data-changed', handleDataChanged);
+      window.removeEventListener('storage', handleDataChanged);
+    };
+  }, []);
+
   const saveToLocal = (newProfiles: ExtendedLegacyProfile[]) => {
     setProfiles(newProfiles);
     persistenceService.profiles.saveAll(newProfiles as any);
@@ -102,15 +127,16 @@ export function ProfilesView() {
   // Statistics Computations
   const stats = useMemo(() => {
     const total = profiles.length;
-    const living = profiles.filter(p => p.lifeStatus === 'living').length;
-    const memorial = profiles.filter(p => p.lifeStatus === 'memorial').length;
-    const historical = profiles.filter(p => p.lifeStatus === 'historical').length;
+    const active = profiles.filter(p => p.status !== 'archived').length;
+    const living = profiles.filter(p => p.lifeStatus === 'living' && p.status !== 'archived').length;
+    const archived = profiles.filter(p => p.status === 'archived').length;
     
     // Average story completion progress
-    const totalProgress = profiles.reduce((sum, p) => sum + p.storyProgress, 0);
-    const avgProgress = total > 0 ? Math.round(totalProgress / total) : 0;
+    const activeProfiles = profiles.filter(p => p.status !== 'archived');
+    const totalProgress = activeProfiles.reduce((sum, p) => sum + (p.storyProgress || 0), 0);
+    const avgProgress = activeProfiles.length > 0 ? Math.round(totalProgress / activeProfiles.length) : 0;
 
-    return { total, living, memorial, historical, avgProgress };
+    return { total, active, living, archived, avgProgress };
   }, [profiles]);
 
   // Handle Profile selection for detailed overview
@@ -356,8 +382,17 @@ export function ProfilesView() {
                 id: 'stat-card-total',
                 label: 'Total Profiles',
                 value: stats.total,
+                subValue: 'In Repository',
+                subValueColor: 'text-blue-500 bg-blue-500/5 px-1.5 py-0.5 rounded border border-blue-500/10',
+                onClick: () => { setShowArchivedOnly(false); setStatusFilter('all'); },
+              },
+              {
+                id: 'stat-card-active',
+                label: 'Active Profiles',
+                value: stats.active,
                 subValue: 'Active',
                 subValueColor: 'text-emerald-500 bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10',
+                onClick: () => { setShowArchivedOnly(false); setStatusFilter('all'); },
               },
               {
                 id: 'stat-card-living',
@@ -365,20 +400,15 @@ export function ProfilesView() {
                 value: stats.living,
                 subValue: 'Autobios',
                 subValueColor: 'text-indigo-500 bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10',
+                onClick: () => { setShowArchivedOnly(false); setStatusFilter('all'); },
               },
               {
-                id: 'stat-card-memorial',
-                label: 'In Memorial',
-                value: stats.memorial,
-                subValue: 'Tributes',
+                id: 'stat-card-archived',
+                label: 'Archived',
+                value: stats.archived,
+                subValue: 'Vaulted',
                 subValueColor: 'text-rose-500 bg-rose-500/5 px-1.5 py-0.5 rounded border border-rose-500/10',
-              },
-              {
-                id: 'stat-card-historical',
-                label: 'Historical',
-                value: stats.historical,
-                subValue: 'Legends',
-                subValueColor: 'text-amber-500 bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10 font-mono',
+                onClick: () => { setShowArchivedOnly(true); },
               },
               {
                 id: 'stat-card-progress',
@@ -468,7 +498,8 @@ export function ProfilesView() {
             <BulkOperationsBar
               id="bulk-operations-bar"
               selectedCount={selectedRowIds.length}
-              labelText={`${selectedRowIds.length} Selected Profile records`}
+              itemTypeSingular="Profile"
+              itemTypePlural="Profiles"
               actions={[
                 {
                   id: 'btn-bulk-archive',
@@ -622,11 +653,11 @@ export function ProfilesView() {
           {/* RENDER LIST VIEW TABLE */}
           {viewMode === 'list' && (
             <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm" id="profiles-table-container">
-              <div className="overflow-x-auto">
+              <div className="overflow-y-auto overflow-x-hidden max-h-[500px] relative scrollbar-thin">
                 <table className="w-full text-left border-collapse" id="profiles-table">
                   <thead>
-                    <tr className="border-b border-border bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      <th className="p-4 w-10">
+                    <tr className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <th className="sticky top-0 bg-card z-20 p-4 w-10 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">
                         <input
                           id="bulk-all-select-checkbox"
                           type="checkbox"
@@ -641,13 +672,13 @@ export function ProfilesView() {
                           className="w-3.5 h-3.5 rounded border-border bg-muted cursor-pointer"
                         />
                       </th>
-                      <th className="p-4">Profile Ancestor</th>
-                      <th className="p-4">Category</th>
-                      <th className="p-4">Lifespan Timeline</th>
-                      <th className="p-4">Workflow Status</th>
-                      <th className="p-4">Story completion</th>
-                      <th className="p-4">Vault Assets</th>
-                      <th className="p-4 text-right">Actions</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Profile Ancestor</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Category</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Lifespan Timeline</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Workflow Status</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Story completion</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Vault Assets</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 text-right border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -663,7 +694,7 @@ export function ProfilesView() {
                           id={`profile-table-row-${p.id}`}
                           className={`border-b border-border text-xs hover:bg-muted/40 transition-colors ${isChecked ? 'bg-cinema-amber-500/5' : ''}`}
                         >
-                          <td className="p-4">
+                          <td className="p-4 w-10">
                             <input
                               id={`select-checkbox-${p.id}`}
                               type="checkbox"
@@ -678,27 +709,27 @@ export function ProfilesView() {
                               className="w-3.5 h-3.5 rounded border-border bg-muted cursor-pointer"
                             />
                           </td>
-                          <td className="p-4">
-                            <button id={`btn-row-name-trigger-${p.id}`} onClick={() => handleSelectProfile(p.id)} className="flex items-center gap-3 cursor-pointer group text-left">
-                              <img src={p.profilePhoto} className="w-9 h-9 rounded-full object-cover border border-border" alt={p.preferredName} referrerPolicy="no-referrer" />
-                              <div>
-                                <h4 className="font-bold text-foreground truncate group-hover:text-cinema-amber-600 dark:group-hover:text-cinema-amber-400 transition-colors">
+                          <td className="p-4 min-w-0 max-w-[200px]">
+                            <button id={`btn-row-name-trigger-${p.id}`} onClick={() => handleSelectProfile(p.id)} className="flex items-center gap-3 cursor-pointer group text-left w-full min-w-0">
+                              <img src={p.profilePhoto} className="w-8 h-8 rounded-full object-cover border border-border shrink-0" alt={p.preferredName} referrerPolicy="no-referrer" />
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-bold text-foreground truncate max-w-[140px] group-hover:text-cinema-amber-600 dark:group-hover:text-cinema-amber-400 transition-colors">
                                   {p.preferredName}
                                 </h4>
-                                <span className="text-[10px] text-muted-foreground font-semibold">{p.relationship}</span>
+                                <span className="text-[10px] text-muted-foreground font-semibold truncate max-w-[140px] block">{p.relationship}</span>
                               </div>
                             </button>
                           </td>
-                          <td className="p-4">
-                            <span className="font-mono text-[10px] uppercase font-bold text-muted-foreground">
+                          <td className="p-4 min-w-0 max-w-[110px]">
+                            <span className="font-mono text-[10px] uppercase font-bold text-muted-foreground truncate block" title={p.category.replace('-', ' ')}>
                               {p.category.replace('-', ' ')}
                             </span>
                           </td>
-                          <td className="p-4">
-                            <span className="font-mono text-[10px] font-semibold text-foreground/80">{lifeSpan}</span>
+                          <td className="p-4 whitespace-nowrap">
+                            <span className="font-mono text-[10px] font-semibold text-foreground/80 shrink-0">{lifeSpan}</span>
                           </td>
-                          <td className="p-4">
-                            <span className={`inline-flex items-center text-[9px] font-bold font-mono uppercase px-2 py-0.5 rounded ${
+                          <td className="p-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center text-[9px] font-bold font-mono uppercase px-2 py-0.5 rounded shrink-0 ${
                               p.status === 'published'
                                 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25'
                                 : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25'
@@ -706,31 +737,31 @@ export function ProfilesView() {
                               {p.status}
                             </span>
                           </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <td className="p-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden shrink-0">
                                 <div className="h-full bg-cinema-amber-500 rounded-full" style={{ width: `${p.storyProgress}%` }} />
                               </div>
-                              <span className="font-mono text-[10px] font-bold text-foreground/75">{p.storyProgress}%</span>
+                              <span className="font-mono text-[10px] font-bold text-foreground/75 shrink-0">{p.storyProgress}%</span>
                             </div>
                           </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-3 font-mono text-[10px] text-muted-foreground">
-                              <span title="Timeline events">{p.timelineEventsCount}M</span>
-                              <span>•</span>
-                              <span title="Uploaded media">{p.mediaCount}P</span>
+                          <td className="p-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
+                              <span title="Timeline events" className="shrink-0">{p.timelineEventsCount}M</span>
+                              <span className="text-muted-foreground/40">•</span>
+                              <span title="Uploaded media" className="shrink-0">{p.mediaCount}P</span>
                             </div>
                           </td>
-                          <td className="p-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button id={`btn-row-explore-${p.id}`} onClick={() => handleSelectProfile(p.id)} variant="ghost" size="xs" className="p-1.5 border border-border">
+                          <td className="p-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button id={`btn-row-explore-${p.id}`} onClick={() => handleSelectProfile(p.id)} variant="ghost" size="xs" className="py-1 px-2 border border-border text-[10px] h-7 shrink-0">
                                 Explore
                               </Button>
-                              <Button id={`btn-row-edit-${p.id}`} onClick={() => handleEditProfile(p.id)} variant="ghost" size="xs" className="p-1.5 border border-border">
+                              <Button id={`btn-row-edit-${p.id}`} onClick={() => handleEditProfile(p.id)} variant="ghost" size="xs" className="py-1 px-2 border border-border text-[10px] h-7 shrink-0">
                                 Edit
                               </Button>
-                              <Button id={`btn-row-delete-${p.id}`} onClick={() => handleDeleteProfile(p.id)} variant="ghost" size="xs" className="p-1.5 text-red-500 hover:text-red-400">
-                                <Trash2 className="w-4 h-4" />
+                              <Button id={`btn-row-delete-${p.id}`} onClick={() => handleDeleteProfile(p.id)} variant="ghost" size="xs" className="p-1 text-red-500 hover:text-red-400 h-7 shrink-0 flex items-center justify-center">
+                                <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </div>
                           </td>
@@ -763,12 +794,74 @@ export function ProfilesView() {
         isOpen={deleteConfirmation.isOpen}
         onClose={() => setDeleteConfirmation({ isOpen: false })}
         onConfirm={executeDelete}
-        title={deleteConfirmation.isBulk ? 'Bulk Delete Profiles' : 'Delete Legacy Profile'}
-        message={
+        title={
           deleteConfirmation.isBulk
-            ? `Are you absolutely sure you want to permanently delete the ${selectedRowIds.length} selected legacy profiles? This action is completely irreversible and will purge all associated stories, metadata, and files.`
-            : `Are you absolutely sure you want to permanently delete the Legacy Profile of "${deleteConfirmation.profileName}"? This action is irreversible.`
+            ? (selectedRowIds.length === 1 ? 'Delete Selected Profile' : 'Bulk Delete Profiles')
+            : 'Delete Legacy Profile'
         }
+        message={(() => {
+          if (deleteConfirmation.isBulk) {
+            const selectedProfiles = profiles.filter(p => selectedRowIds.includes(p.id));
+            const archivedCount = selectedProfiles.filter(p => p.status === 'archived').length;
+            const count = selectedRowIds.length;
+            const isSingular = count === 1;
+
+            if (archivedCount > 0) {
+              return (
+                <div className="space-y-2.5">
+                  <p>
+                    Are you absolutely sure you want to permanently delete {isSingular ? 'the 1 selected legacy profile' : `the ${count} selected legacy profiles`}?
+                  </p>
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-amber-600 dark:text-amber-400 text-xs flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+                    <div className="space-y-1">
+                      <span className="font-bold uppercase tracking-wider text-[10px] block text-amber-500">
+                        {isSingular ? 'Notice: Contains Archived Profile' : 'Notice: Contains Archived Profiles'}
+                      </span>
+                      <p className="leading-snug">
+                        {isSingular ? (
+                          <>The <strong>1 selected profile</strong> is <strong>archived</strong>. Proceeding will permanently purge it from storage.</>
+                        ) : archivedCount === count ? (
+                          <>All <strong>{count}</strong> selected profiles are <strong>archived</strong>. Proceeding will permanently purge them from storage.</>
+                        ) : (
+                          <><strong>{archivedCount}</strong> of the {count} selected profiles are currently <strong>archived</strong>. Proceeding will permanently purge all selected items, including archived profiles.</>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return isSingular
+              ? `Are you absolutely sure you want to permanently delete the 1 selected legacy profile? This action is completely irreversible and will purge all associated stories, metadata, and files.`
+              : `Are you absolutely sure you want to permanently delete the ${count} selected legacy profiles? This action is completely irreversible and will purge all associated stories, metadata, and files.`;
+          }
+
+          const target = profiles.find(p => p.id === deleteConfirmation.profileId);
+          const isArchived = target?.status === 'archived';
+
+          if (isArchived) {
+            return (
+              <div className="space-y-2.5">
+                <p>
+                  Are you absolutely sure you want to permanently delete the Legacy Profile of "{deleteConfirmation.profileName}"?
+                </p>
+                <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-amber-600 dark:text-amber-400 text-xs flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="font-bold uppercase tracking-wider text-[10px] block text-amber-500">Notice: Archived Profile</span>
+                    <p className="leading-snug">
+                      This profile is currently <strong>archived</strong>. Deleting it will permanently purge it from storage.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          return `Are you absolutely sure you want to permanently delete the Legacy Profile of "${deleteConfirmation.profileName}"? This action is irreversible.`;
+        })()}
       />
     </div>
   );

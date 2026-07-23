@@ -41,7 +41,8 @@ import {
   CheckSquare,
   Square,
   Check,
-  ChevronDown
+  ChevronDown,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useToast } from '../../context/ToastContext';
@@ -140,17 +141,17 @@ export function StoriesView() {
 
   // Render stats computed from stories state
   const stats = useMemo(() => {
-    const total = stories.filter(s => s.status !== 'Archived').length;
-    const readyForAI = stories.filter(s => s.aiReady && s.status !== 'Archived').length;
-    const inProgress = stories.filter(s => s.status === 'In Progress').length;
-    const published = stories.filter(s => s.status === 'Published').length;
+    const total = stories.length;
+    const active = stories.filter(s => s.status !== 'Archived').length;
+    const inProgress = stories.filter(s => (s.status === 'In Progress' || s.status === 'Draft') && s.status !== 'Archived').length;
+    const archived = stories.filter(s => s.status === 'Archived').length;
 
     // Average story compilation progress
     const activeStories = stories.filter(s => s.status !== 'Archived');
-    const totalProgress = activeStories.reduce((sum, s) => sum + s.completionProgress, 0);
+    const totalProgress = activeStories.reduce((sum, s) => sum + (s.completionProgress || 0), 0);
     const avgProgress = activeStories.length > 0 ? Math.round(totalProgress / activeStories.length) : 0;
 
-    return { total, readyForAI, inProgress, published, avgProgress };
+    return { total, active, inProgress, archived, avgProgress };
   }, [stories]);
 
   // Handle opening subviews
@@ -225,10 +226,9 @@ export function StoriesView() {
   const executeDeleteStory = async () => {
     if (deleteConfirmation.isBulk) {
       try {
-        for (const id of selectedRowIds) {
-          await StoryService.deleteStory(id);
-        }
+        await StoryService.deleteStories(selectedRowIds);
         await refreshStories();
+        window.dispatchEvent(new Event('reellegacy-data-changed'));
         showToast('error', 'Stories Deleted', `${selectedRowIds.length} stories have been permanently purged.`);
         setSelectedRowIds([]);
       } catch (error: any) {
@@ -239,6 +239,7 @@ export function StoriesView() {
       try {
         await StoryService.deleteStory(id);
         await refreshStories();
+        window.dispatchEvent(new Event('reellegacy-data-changed'));
         setSelectedRowIds(prev => prev.filter(rowId => rowId !== id));
         showToast('error', 'Story Permanently Deleted', `"${deleteConfirmation.storyTitle}" has been purged from system memory.`);
       } catch (error: any) {
@@ -562,16 +563,17 @@ export function StoriesView() {
                 id: 'story-stat-total',
                 label: 'Total Stories',
                 value: stats.total,
-                subValue: 'Active',
-                subValueColor: 'text-emerald-500 bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10',
+                subValue: 'All Records',
+                subValueColor: 'text-blue-500 bg-blue-500/5 px-1.5 py-0.5 rounded border border-blue-500/10',
+                onClick: () => { setShowArchivedOnly(false); setStatusFilter('all'); },
               },
               {
-                id: 'story-stat-ready',
-                label: 'Ready for AI',
-                value: stats.readyForAI,
-                valueClassName: 'text-indigo-500', // support text-indigo-500 if we want, or just rely on default
-                subValue: 'Scripts',
-                subValueColor: 'text-indigo-500 bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10',
+                id: 'story-stat-active',
+                label: 'Active Stories',
+                value: stats.active,
+                subValue: 'In Library',
+                subValueColor: 'text-emerald-500 bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10',
+                onClick: () => { setShowArchivedOnly(false); setStatusFilter('all'); },
               },
               {
                 id: 'story-stat-progress',
@@ -579,13 +581,15 @@ export function StoriesView() {
                 value: stats.inProgress,
                 subValue: 'Drafting',
                 subValueColor: 'text-amber-500 bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10',
+                onClick: () => { setShowArchivedOnly(false); setStatusFilter('In Progress'); },
               },
               {
-                id: 'story-stat-published',
-                label: 'Completed',
-                value: stats.published,
-                subValue: 'Released',
-                subValueColor: 'text-emerald-500 bg-emerald-500/5 px-1.5 py-0.5 rounded border border-emerald-500/10',
+                id: 'story-stat-archived',
+                label: 'Archived',
+                value: stats.archived,
+                subValue: 'Vaulted',
+                subValueColor: 'text-rose-500 bg-rose-500/5 px-1.5 py-0.5 rounded border border-rose-500/10',
+                onClick: () => { setShowArchivedOnly(true); },
               },
               {
                 id: 'story-stat-avg',
@@ -686,7 +690,8 @@ export function StoriesView() {
             <BulkOperationsBar
               id="stories-bulk-operations-bar"
               selectedCount={selectedRowIds.length}
-              labelText={`${selectedRowIds.length} Stories selected for batch processing`}
+              itemTypeSingular="Story"
+              itemTypePlural="Stories"
               actions={[
                 {
                   id: 'btn-bulk-archive-stories',
@@ -864,11 +869,11 @@ export function StoriesView() {
           {/* LIST VIEW PORTAL TABLE */}
           {viewMode === 'list' && (
             <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm" id="stories-table-wrapper" style={{ contentVisibility: 'auto' }}>
-              <div className="overflow-x-auto">
+              <div className="overflow-y-auto overflow-x-hidden max-h-[500px] relative scrollbar-thin">
                 <table className="w-full text-left border-collapse" id="stories-list-table">
                   <thead>
-                    <tr className="border-b border-border bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      <th className="p-4 w-10">
+                    <tr className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <th className="sticky top-0 bg-card z-20 p-4 w-10 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">
                         <input
                           id="bulk-all-stories-select-checkbox"
                           type="checkbox"
@@ -883,13 +888,13 @@ export function StoriesView() {
                           className="w-3.5 h-3.5 rounded border-border bg-muted cursor-pointer"
                         />
                       </th>
-                      <th className="p-4">Commemorative Story</th>
-                      <th className="p-4">Profile Link</th>
-                      <th className="p-4">Style</th>
-                      <th className="p-4">Stage Status</th>
-                      <th className="p-4">Draft Progress</th>
-                      <th className="p-4">Linked Assets</th>
-                      <th className="p-4 text-right">Production Suite</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Commemorative Story</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Profile Link</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Style</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Stage Status</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Draft Progress</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Linked Assets</th>
+                      <th className="sticky top-0 bg-card z-20 p-4 text-right border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">Production Suite</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -901,7 +906,7 @@ export function StoriesView() {
                           id={`story-table-row-${story.id}`}
                           className={`border-b border-border text-xs hover:bg-muted/40 transition-colors ${isChecked ? 'bg-cinema-amber-500/5' : ''}`}
                         >
-                          <td className="p-4">
+                          <td className="p-4 w-10">
                             <input
                               id={`select-story-checkbox-${story.id}`}
                               type="checkbox"
@@ -916,49 +921,49 @@ export function StoriesView() {
                               className="w-3.5 h-3.5 rounded border-border bg-muted cursor-pointer"
                             />
                           </td>
-                          <td className="p-4">
+                          <td className="p-4 min-w-0 max-w-[200px]">
                             <button
                               id={`btn-row-story-trigger-${story.id}`}
                               onClick={() => handleSelectStory(story.id)}
-                              className="flex items-center gap-3 cursor-pointer group text-left"
+                              className="flex items-center gap-3 cursor-pointer group text-left w-full min-w-0"
                             >
                               <img
                                 src={story.coverImage}
-                                className="w-12 h-9 rounded object-cover border border-border shrink-0"
+                                className="w-10 h-7 rounded object-cover border border-border shrink-0"
                                 alt={story.title}
                                 referrerPolicy="no-referrer"
                               />
-                              <div>
-                                <h4 className="font-bold text-foreground truncate max-w-sm group-hover:text-cinema-amber-600 dark:group-hover:text-cinema-amber-400 transition-colors">
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-bold text-foreground truncate max-w-[140px] group-hover:text-cinema-amber-600 dark:group-hover:text-cinema-amber-400 transition-colors">
                                   {story.title}
                                 </h4>
-                                <span className="text-[10px] text-muted-foreground leading-normal font-semibold line-clamp-1">
+                                <span className="text-[10px] text-muted-foreground leading-normal font-semibold truncate max-w-[140px] block">
                                   {story.subtitle}
                                 </span>
                               </div>
                             </button>
                           </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-2">
+                          <td className="p-4 min-w-0 max-w-[130px]">
+                            <div className="flex items-center gap-2 min-w-0">
                               <img
                                 src={story.associatedProfilePhoto}
-                                className="w-6 h-6 rounded-full object-cover border border-border"
+                                className="w-6 h-6 rounded-full object-cover border border-border shrink-0"
                                 alt={story.associatedProfileName}
                                 referrerPolicy="no-referrer"
                               />
-                              <span className="font-semibold text-foreground/80">
+                              <span className="font-semibold text-foreground/80 truncate max-w-[90px]" title={story.associatedProfileName}>
                                 {story.associatedProfileName}
                               </span>
                             </div>
                           </td>
-                          <td className="p-4">
-                            <span className="font-mono text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
-                              {renderTypeIcon(story.category)}
-                              <span>{story.category}</span>
+                          <td className="p-4 min-w-0 max-w-[110px]">
+                            <span className="font-mono text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5 truncate" title={story.category}>
+                              <span className="shrink-0">{renderTypeIcon(story.category)}</span>
+                              <span className="truncate">{story.category}</span>
                             </span>
                           </td>
-                          <td className="p-4">
-                            <span className={`inline-flex items-center text-[9px] font-bold font-mono uppercase px-2 py-0.5 rounded ${
+                          <td className="p-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center text-[9px] font-bold font-mono uppercase px-2 py-0.5 rounded shrink-0 ${
                               story.status === 'Published'
                                 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25'
                                 : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25'
@@ -966,33 +971,33 @@ export function StoriesView() {
                               {story.status}
                             </span>
                           </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <td className="p-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden shrink-0">
                                 <div className="h-full bg-cinema-amber-500 rounded-full" style={{ width: `${story.completionProgress}%` }} />
                               </div>
-                              <span className="font-mono text-[10px] font-bold text-foreground/75">
+                              <span className="font-mono text-[10px] font-bold text-foreground/75 shrink-0">
                                 {story.completionProgress}%
                               </span>
                             </div>
                           </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-3 font-mono text-[10px] text-muted-foreground">
-                              <span title="Chapters">{story.chapterCount}C</span>
-                              <span>•</span>
-                              <span title="Media files">{story.mediaCount}M</span>
-                              <span>•</span>
-                              <span title="Timeline events">{story.timelineEventCount}E</span>
+                          <td className="p-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
+                              <span title="Chapters" className="shrink-0">{story.chapterCount}C</span>
+                              <span className="text-muted-foreground/40">•</span>
+                              <span title="Media files" className="shrink-0">{story.mediaCount}M</span>
+                              <span className="text-muted-foreground/40">•</span>
+                              <span title="Timeline events" className="shrink-0">{story.timelineEventCount}E</span>
                             </div>
                           </td>
-                          <td className="p-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+                          <td className="p-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
                               <Button
                                 id={`btn-row-explore-${story.id}`}
                                 onClick={() => handleSelectStory(story.id)}
                                 variant="ghost"
                                 size="xs"
-                                className="p-1.5 border border-border text-xs"
+                                className="py-1 px-2 border border-border text-[10px] h-7 shrink-0"
                               >
                                 Explore
                               </Button>
@@ -1001,7 +1006,7 @@ export function StoriesView() {
                                 onClick={() => handleSimulateEdit(story.title)}
                                 variant="ghost"
                                 size="xs"
-                                className="p-1.5 border border-border text-xs text-cinema-amber-600 dark:text-cinema-amber-400"
+                                className="py-1 px-2 border border-border text-[10px] text-cinema-amber-600 dark:text-cinema-amber-400 h-7 shrink-0"
                               >
                                 Studio
                               </Button>
@@ -1010,9 +1015,9 @@ export function StoriesView() {
                                 onClick={() => handleDeleteStory(story.id)}
                                 variant="ghost"
                                 size="xs"
-                                className="p-1.5 text-red-500 hover:text-red-400"
+                                className="p-1 text-red-500 hover:text-red-400 h-7 shrink-0 flex items-center justify-center"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </div>
                           </td>
@@ -1100,12 +1105,74 @@ export function StoriesView() {
         isOpen={deleteConfirmation.isOpen}
         onClose={() => setDeleteConfirmation({ isOpen: false })}
         onConfirm={executeDeleteStory}
-        title={deleteConfirmation.isBulk ? 'Bulk Delete Stories' : 'Delete Story Project'}
-        message={
+        title={
           deleteConfirmation.isBulk
-            ? `Are you absolutely sure you want to permanently delete ${selectedRowIds.length} selected story projects? This action is completely irreversible and will purge all narrative materials.`
-            : `Are you absolutely sure you want to permanently delete "${deleteConfirmation.storyTitle}"? This will dissolve all chapters, narrative drafts, and references.`
+            ? (selectedRowIds.length === 1 ? 'Delete Selected Story' : 'Bulk Delete Stories')
+            : 'Delete Story Project'
         }
+        message={(() => {
+          if (deleteConfirmation.isBulk) {
+            const selectedStories = stories.filter(s => selectedRowIds.includes(s.id));
+            const archivedCount = selectedStories.filter(s => s.status === 'Archived').length;
+            const count = selectedRowIds.length;
+            const isSingular = count === 1;
+
+            if (archivedCount > 0) {
+              return (
+                <div className="space-y-2.5">
+                  <p>
+                    Are you absolutely sure you want to permanently delete {isSingular ? 'the 1 selected story project' : `${count} selected story projects`}?
+                  </p>
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-amber-600 dark:text-amber-400 text-xs flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+                    <div className="space-y-1">
+                      <span className="font-bold uppercase tracking-wider text-[10px] block text-amber-500">
+                        {isSingular ? 'Notice: Contains Archived Story' : 'Notice: Contains Archived Stories'}
+                      </span>
+                      <p className="leading-snug">
+                        {isSingular ? (
+                          <>The <strong>1 selected story</strong> is <strong>archived</strong>. Proceeding will permanently purge it from storage.</>
+                        ) : archivedCount === count ? (
+                          <>All <strong>{count}</strong> selected stories are <strong>archived</strong>. Proceeding will permanently purge them from storage.</>
+                        ) : (
+                          <><strong>{archivedCount}</strong> of the {count} selected stories are currently <strong>archived</strong>. Proceeding will permanently purge all selected items, including archived records.</>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return isSingular
+              ? `Are you absolutely sure you want to permanently delete the 1 selected story project? This action is completely irreversible and will purge all narrative materials.`
+              : `Are you absolutely sure you want to permanently delete ${count} selected story projects? This action is completely irreversible and will purge all narrative materials.`;
+          }
+
+          const story = stories.find(s => s.id === deleteConfirmation.storyId);
+          const isArchived = story?.status === 'Archived';
+
+          if (isArchived) {
+            return (
+              <div className="space-y-2.5">
+                <p>
+                  Are you absolutely sure you want to permanently delete "{deleteConfirmation.storyTitle}"?
+                </p>
+                <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-amber-600 dark:text-amber-400 text-xs flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="font-bold uppercase tracking-wider text-[10px] block text-amber-500">Notice: Archived Story Record</span>
+                    <p className="leading-snug">
+                      This story is currently <strong>archived</strong>. Deleting it will permanently remove it from storage and history.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          return `Are you absolutely sure you want to permanently delete "${deleteConfirmation.storyTitle}"? This will dissolve all chapters, narrative drafts, and references.`;
+        })()}
       />
 
       <PromptModal

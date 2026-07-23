@@ -18,7 +18,7 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, size = 'md', children, id }: ModalProps) {
-  const generatedId = id || `modal-${Math.random().toString(36).substring(2, 9)}`;
+  const generatedId = React.useMemo(() => id || `modal-${Math.random().toString(36).substring(2, 9)}`, [id]);
   const { registerModalOpen, unregisterModalClose } = useOverlay();
 
   // Handle modal registration with central Overlay & Modal Manager
