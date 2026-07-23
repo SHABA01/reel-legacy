@@ -49,6 +49,7 @@ import { persistenceService } from '../../storage';
 interface StoryWizardProps {
   onClose: () => void;
   onSave: (newStory: ExtendedStory) => void;
+  initialCategory?: string;
 }
 
 const STORY_TYPE_DETAILS = [
@@ -189,7 +190,7 @@ const AI_PREP_OPTIONS = [
   { id: 'ai-trailer', label: 'Draft Promo Spotlight Trailer', desc: 'Create a 1-minute highlight script of main milestones.' }
 ];
 
-export function StoryWizard({ onClose, onSave }: StoryWizardProps) {
+export function StoryWizard({ onClose, onSave, initialCategory }: StoryWizardProps) {
   const { showToast } = useToast();
   const [step, setStep] = useState(1);
   const totalSteps = 8;
@@ -232,7 +233,7 @@ export function StoryWizard({ onClose, onSave }: StoryWizardProps) {
     language: 'English',
     visibility: 'Private',
     internalNotes: '',
-    category: 'Biography',
+    category: initialCategory || 'Biography',
     audiences: [] as string[],
     tone: 'Inspirational',
     style: 'Modern',

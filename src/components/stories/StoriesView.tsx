@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
   Grid,
@@ -62,13 +63,13 @@ import {
   STORY_STATUSES,
   STORY_TYPE_ICONS
 } from './mockStoriesData';
-import { StoryWizard } from './StoryWizard';
 import { StoryDetails } from './StoryDetails';
 import { StoryWorkspace } from './StoryWorkspace';
 import { persistenceService, StoryService } from '../../storage';
 import { useTheme } from '../../context/ThemeContext';
 
 export function StoriesView() {
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const { resolvedTheme } = useTheme();
 
@@ -89,10 +90,13 @@ export function StoriesView() {
 
   useEffect(() => {
     refreshStories();
+    const handleDataChanged = () => refreshStories();
+    window.addEventListener('reellegacy-data-changed', handleDataChanged);
+    return () => window.removeEventListener('reellegacy-data-changed', handleDataChanged);
   }, []);
 
   // Subview controls
-  const [activeSubView, setActiveSubView] = useState<'catalog' | 'details' | 'create-wizard' | 'workspace'>('catalog');
+  const [activeSubView, setActiveSubView] = useState<'catalog' | 'details' | 'workspace'>('catalog');
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
 
   // Search & Filters controls
@@ -131,12 +135,6 @@ export function StoriesView() {
     isBulk?: boolean;
   }>({ isOpen: false });
 
-  const [renameModal, setRenameModal] = useState<{
-    isOpen: boolean;
-    storyId?: string;
-    storyTitle?: string;
-  }>({ isOpen: false });
-
 
 
   // Render stats computed from stories state
@@ -167,13 +165,7 @@ export function StoriesView() {
     }
     if (!target) return;
 
-    setSelectedStoryId(target.id);
-    setActiveSubView('workspace');
-    showToast(
-      'success',
-      'Opening Story Studio',
-      `Initializing narrative assets & archives for "${target.title}".`
-    );
+    navigate(`/workspace/story-studio?id=${target.id}`);
   };
 
   // Actions for stories
@@ -249,29 +241,6 @@ export function StoriesView() {
     setDeleteConfirmation({ isOpen: false });
   };
 
-  const handleRenameStory = async (id: string) => {
-    const target = stories.find(s => s.id === id);
-    if (!target) return;
-
-    setRenameModal({
-      isOpen: true,
-      storyId: id,
-      storyTitle: target.title,
-    });
-  };
-
-  const executeRenameStory = async (newTitle: string) => {
-    if (!renameModal.storyId) return;
-    try {
-      await StoryService.updateStory(renameModal.storyId, { title: newTitle.trim() });
-      await refreshStories();
-      showToast('success', 'Story Renamed', `Project is now titled "${newTitle.trim()}".`);
-    } catch (error: any) {
-      showToast('error', 'Rename Failed', error.message || 'Could not rename story.');
-    }
-    setRenameModal({ isOpen: false });
-  };
-
   const handleTogglePin = async (id: string) => {
     const target = stories.find(s => s.id === id);
     if (!target) return;
@@ -327,19 +296,6 @@ export function StoriesView() {
       isOpen: true,
       isBulk: true,
     });
-  };
-
-  // Create wizard save callback
-  const handleWizardSave = async (newStory: ExtendedStory) => {
-    try {
-      // In F4, the wizard outputs a complete Story schema. We can save it via createStory.
-      await StoryService.createStory(newStory as any);
-      await refreshStories();
-      setActiveSubView('catalog');
-      showToast('success', 'Story Created', `"${newStory.title}" is now ready in your production library.`);
-    } catch (error: any) {
-      showToast('error', 'Creation Failed', error.message || 'Could not save new story.');
-    }
   };
 
   // Clear query filters helper
@@ -491,13 +447,6 @@ export function StoriesView() {
     >
       
       {/* Subview router orchestration */}
-      {activeSubView === 'create-wizard' && (
-        <StoryWizard
-          onClose={() => setActiveSubView('catalog')}
-          onSave={handleWizardSave}
-        />
-      )}
-
       {activeSubView === 'details' && selectedStory && (
         <StoryDetails
           story={selectedStory}
@@ -538,20 +487,9 @@ export function StoriesView() {
                   <Film className="w-5.5 h-5.5 text-cinema-amber-500 animate-pulse" /> Story Production Library
                 </h2>
                 <p className="text-xs text-muted-foreground mt-1 max-w-2xl font-medium">
-                  Organize, filter, structure, and prepare collaborative documentary projects for your legacy ancestors.
+                  Organize, search, filter, and access your complete catalog of legacy story projects.
                 </p>
               </div>
-
-              <Button
-                id="btn-create-story-trigger"
-                variant="accent"
-                size="sm"
-                leftIcon={<Plus className="w-4 h-4 text-slate-950" />}
-                onClick={() => setActiveSubView('create-wizard')}
-                className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold self-start md:self-auto shadow-sm hover:scale-105 transition-all"
-              >
-                Create New Story
-              </Button>
             </div>
           </div>
 
@@ -747,8 +685,7 @@ export function StoriesView() {
                         <KebabMenu
                           id={`story-${story.id}`}
                           items={[
-                            { id: `dropdown-action-studio-${story.id}`, label: 'Story Studio', onClick: () => handleSimulateEdit(story.title), icon: <Film className="w-3.5 h-3.5 text-muted-foreground" /> },
-                            { id: `dropdown-action-rename-${story.id}`, label: 'Rename Project', onClick: () => handleRenameStory(story.id), icon: <FileText className="w-3.5 h-3.5 text-muted-foreground" /> },
+                            { id: `dropdown-action-studio-${story.id}`, label: 'Edit', onClick: () => handleSimulateEdit(story.title), icon: <Film className="w-3.5 h-3.5 text-muted-foreground" /> },
                             { id: `dropdown-action-duplicate-${story.id}`, label: 'Duplicate', onClick: () => handleDuplicateStory(story.id), icon: <Copy className="w-3.5 h-3.5 text-muted-foreground" /> },
                             { id: `dropdown-action-archive-${story.id}`, label: story.status === 'Archived' ? 'Unarchive' : 'Archive', onClick: () => handleArchiveStory(story.id), icon: <Archive className="w-3.5 h-3.5 text-muted-foreground" /> },
                             { id: `dropdown-action-delete-${story.id}`, label: 'Delete Project', onClick: () => handleDeleteStory(story.id), isDestructive: true, hasDividerBefore: true, icon: <Trash2 className="w-3.5 h-3.5 text-red-500" /> },
@@ -1008,7 +945,7 @@ export function StoriesView() {
                                 size="xs"
                                 className="py-1 px-2 border border-border text-[10px] text-cinema-amber-600 dark:text-cinema-amber-400 h-7 shrink-0"
                               >
-                                Studio
+                                Edit
                               </Button>
                               <Button
                                 id={`btn-row-delete-${story.id}`}
@@ -1173,17 +1110,6 @@ export function StoriesView() {
 
           return `Are you absolutely sure you want to permanently delete "${deleteConfirmation.storyTitle}"? This will dissolve all chapters, narrative drafts, and references.`;
         })()}
-      />
-
-      <PromptModal
-        isOpen={renameModal.isOpen}
-        onClose={() => setRenameModal({ isOpen: false })}
-        onConfirm={executeRenameStory}
-        title="Rename Story Project"
-        message="Enter a new title for this storytelling narrative record:"
-        defaultValue={renameModal.storyTitle}
-        placeholder="e.g. Life of Arthur"
-        confirmLabel="Rename Project"
       />
     </div>
   );

@@ -114,7 +114,7 @@ export function StoryDetails({
             onClick={() => onSimulateEdit(story.title)}
             className="text-xs"
           >
-            Open in Story Studio
+            Edit
           </Button>
         </div>
       </div>

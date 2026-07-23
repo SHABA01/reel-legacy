@@ -35,6 +35,7 @@
 23. Legacy Profiles Filters & Controls Synchronization
 24. Story Studio Architectural Redesign & Production Pipeline Strategy
 25. Story Studio Top Navigation Tabs & Full-Width Workspace Implementation
+26. Timeline Chronology Architectural Refactor into Story Studio (July 2026)
 
 ---
 
@@ -655,6 +656,37 @@ We completed the implementation of the Top Horizontal Navigation Tabs in `StoryW
 - **Render Engine Controls**: Added interactive render presets (16:9 Cinematic Video Reel, 9:16 Social Story Short, Audio Memoir Podcast, and Printable Memoir Booklet).
 - **Live Progress Synthesis**: Added animated render progress bars with simulated script scene synthesis, media asset alignment, and high-res package ZIP exporting.
 - **Pipeline Asset Tracker**: Displays live asset counts for the biography manuscript word count, linked timeline milestones, scanned photos, and supporting PDF documents.
+
+---
+
+# 26. Timeline Chronology Architectural Refactor into Story Studio (July 2026)
+
+We refactored Timeline Chronology from a standalone global application page into an internal, dedicated workspace section within Story Studio.
+
+## 1. Architectural Relocation & Ownership
+- **Project-Level Ownership**: Timeline Chronology no longer exists as an independent top-level tool. Every timeline belongs exclusively to a single Story Project within Story Studio.
+- **Removed Standalone Navigation**: Removed the standalone "Timeline Chronology" item from the global application sidebar (`Sidebar.tsx`).
+- **Route Consolidation**: Updated application routing in `App.tsx` so `/workspace/timeline-chronology` automatically redirects to `/workspace/story-studio`.
+
+## 2. Story Studio Navigation Expansion
+- **Updated Tab Taxonomy**: Expanded Story Studio's top navigation bar to support the full workspace section lineup:
+  1. **Overview**: Completion metrics, narrative brief, AI readiness verification.
+  2. **Story**: Core narrative metadata, tone parameters, biography manuscript.
+  3. **Timeline**: Chronological milestone event builder with event editing, search, category filters, and decade groupings.
+  4. **Characters**: Associated family members, co-authors, and interviewees.
+  5. **Assets**: Archival photos, media assets, and scanned historical document ledgers.
+  6. **Scenes**: Director scene breakdowns, visual storyboards, and camera shot directions.
+  7. **Narration**: AI voiceover synthesis, voice personas, and script cues.
+  8. **Music**: Soundtrack selection, acoustic scores, and ambient audio layers.
+  9. **Preview**: Interactive draft player with synchronized voiceover, video reels, and timeline overlays.
+  10. **Render**: Production studio, resolution options, progress simulation, and export package generation.
+
+## 3. Context & Breadcrumb Integration
+- **Context-Aware Timeline**: When navigating to Timeline inside Story Studio, it automatically binds to the currently opened Story Project.
+- **Global Breadcrumbs**: Synchronized with `BreadcrumbContext` to display proper workspace hierarchy (e.g., `Story Studio > [Story Title] > Timeline`).
+- **Project-Specific Empty State**: Updated empty state messaging when a Story Project has no timeline events, prompting the user to document milestones for the specific story project without referencing the old standalone page.
+- **Data Preservation**: Fully preserved all existing timeline functionality, local storage persistence, autosave, event creation/editing/deletion, decade grouping, and media/people links.
+
 
 
 

@@ -39,8 +39,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     const path = location.pathname;
     if (path.startsWith('/workspace/dashboard')) return 'dashboard';
     if (path.startsWith('/workspace/story-library')) return 'stories';
+    if (path.startsWith('/workspace/story-studio')) return 'studio';
     if (path.startsWith('/workspace/legacy-profiles')) return 'profiles';
-    if (path.startsWith('/workspace/timeline-chronology')) return 'timeline';
+    if (path.startsWith('/workspace/timeline-chronology')) return 'studio';
     if (path.startsWith('/workspace/media-library')) return 'media';
     if (path.startsWith('/workspace/narration-studio')) return 'narration';
     if (path.startsWith('/workspace/story-templates')) return 'templates';
@@ -65,8 +66,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const viewPaths: Record<ActiveView, string> = useMemo(() => ({
     dashboard: '/workspace/dashboard',
     stories: '/workspace/story-library',
+    studio: '/workspace/story-studio',
     profiles: '/workspace/legacy-profiles',
-    timeline: '/workspace/timeline-chronology',
+    timeline: '/workspace/story-studio',
     media: '/workspace/media-library',
     narration: '/workspace/narration-studio',
     templates: '/workspace/story-templates',

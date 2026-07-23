@@ -96,9 +96,10 @@ export function Sidebar() {
 
   const viewPaths: Record<ActiveView, string> = {
     dashboard: '/workspace/dashboard',
-    stories: '/workspace/story-library',
     profiles: '/workspace/legacy-profiles',
-    timeline: '/workspace/timeline-chronology',
+    stories: '/workspace/story-library',
+    studio: '/workspace/story-studio',
+    timeline: '/workspace/story-studio',
     media: '/workspace/media-library',
     narration: '/workspace/narration-studio',
     templates: '/workspace/story-templates',
@@ -113,9 +114,9 @@ export function Sidebar() {
 
   const navigationItems: SidebarItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, category: 'home' },
-    { id: 'stories', label: 'Story Library', icon: BookOpen, category: 'storytelling' },
     { id: 'profiles', label: 'Legacy Profiles', icon: Users, category: 'storytelling' },
-    { id: 'timeline', label: 'Timeline Chronology', icon: History, category: 'storytelling' },
+    { id: 'stories', label: 'Story Library', icon: BookOpen, category: 'storytelling' },
+    { id: 'studio', label: 'Story Studio', icon: Film, category: 'storytelling' },
     { id: 'media', label: 'Media Library', icon: Image, category: 'assets' },
     { id: 'narration', label: 'Narration Studio', icon: Mic, category: 'assets' },
     { id: 'templates', label: 'Story Templates', icon: LayoutTemplate, category: 'production' },

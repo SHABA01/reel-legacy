@@ -37,6 +37,7 @@ import { ProtectedRoute, GuestRoute } from './components/auth/AuthGuards';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { ProfilesView } from './components/profiles/ProfilesView';
 import { StoriesView } from './components/stories/StoriesView';
+import { StoryStudioView } from './components/stories/StoryStudioView';
 import { MediaLibrary } from './components/media/MediaLibrary';
 import { NotificationsView } from './components/supporting/NotificationsView';
 import { GlobalSearchView } from './components/supporting/GlobalSearchView';
@@ -168,6 +169,8 @@ function RenderActiveView() {
       return <ProfilesView />;
     case 'stories':
       return <StoriesView />;
+    case 'studio':
+      return <StoryStudioView />;
     case 'media':
       return <MediaView />;
     case 'narration':
@@ -405,6 +408,14 @@ function AppContent() {
         }
       />
       <Route
+        path="/workspace/story-studio"
+        element={
+          <ProtectedRoute>
+            <WorkspaceLayout />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/workspace/legacy-profiles"
         element={
           <ProtectedRoute>
@@ -414,11 +425,7 @@ function AppContent() {
       />
       <Route
         path="/workspace/timeline-chronology"
-        element={
-          <ProtectedRoute>
-            <WorkspaceLayout />
-          </ProtectedRoute>
-        }
+        element={<Navigate to="/workspace/story-studio" replace />}
       />
       <Route
         path="/workspace/media-library"
@@ -515,6 +522,8 @@ function AppContent() {
   );
 }
 
+import { BreadcrumbProvider } from './context/BreadcrumbContext';
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -522,7 +531,9 @@ export default function App() {
         <ToastProvider>
           <OverlayProvider>
             <AuthProvider>
-              <AppContent />
+              <BreadcrumbProvider>
+                <AppContent />
+              </BreadcrumbProvider>
             </AuthProvider>
           </OverlayProvider>
         </ToastProvider>

@@ -8,6 +8,7 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type ActiveView =
   | 'dashboard'
   | 'stories'
+  | 'studio'
   | 'timeline'
   | 'profiles'
   | 'media'

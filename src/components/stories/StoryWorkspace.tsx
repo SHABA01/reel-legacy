@@ -76,9 +76,12 @@ import { Select } from '../ui/Select';
 import { EmptyState } from '../ui/EmptyState';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { PromptModal } from '../ui/PromptModal';
+import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
+import { useBreadcrumbs } from '../../context/BreadcrumbContext';
 import { ExtendedStory } from './mockStoriesData';
-import { TimelineService, persistenceService, MediaService, DocumentService, DocumentSchema, ImportSchema, ImportService, LegacyProfileSchema, StorySchema } from '../../storage';
+import { StoryWizard } from './StoryWizard';
+import { TimelineService, persistenceService, MediaService, DocumentService, DocumentSchema, ImportSchema, ImportService, LegacyProfileSchema, StorySchema, StoryService } from '../../storage';
 
 interface StoryWorkspaceProps {
   story: ExtendedStory;
@@ -154,6 +157,8 @@ interface LocalDocument {
 export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWorkspaceProps) {
   const { showToast } = useToast();
 
+  const [isCreationWizardOpen, setIsCreationWizardOpen] = useState<boolean>(false);
+
   // Dynamic Workspace delete and rename modal state
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
@@ -183,8 +188,72 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
     defaultValue: '',
   });
 
-  // 1. NAVIGATION & LAYOUT CONTROLS
-  const [activeSection, setActiveSection] = useState<string>('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { setBreadcrumbs } = useBreadcrumbs();
+
+  const initialSectionParam = searchParams.get('section') || searchParams.get('tab');
+  const [activeSection, setActiveSection] = useState<string>(() => {
+    if (initialSectionParam) {
+      if (initialSectionParam === 'story') return 'info';
+      if (initialSectionParam === 'characters') return 'people';
+      if (initialSectionParam === 'assets') return 'media';
+      return initialSectionParam;
+    }
+    return 'overview';
+  });
+
+  // Sync breadcrumbs with active section and story project title
+  useEffect(() => {
+    const sectionLabelMap: Record<string, string> = {
+      overview: 'Overview',
+      story: 'Story',
+      info: 'Story',
+      biography: 'Story',
+      timeline: 'Timeline',
+      characters: 'Characters',
+      people: 'Characters',
+      assets: 'Assets',
+      media: 'Assets',
+      documents: 'Assets',
+      scenes: 'Scenes',
+      narration: 'Narration',
+      music: 'Music',
+      preview: 'Preview',
+      render: 'Render',
+    };
+
+    const label = sectionLabelMap[activeSection] || 'Overview';
+
+    if (activeSection === 'overview') {
+      setBreadcrumbs([
+        {
+          label: 'Story Studio',
+          onClick: onClose,
+        },
+        {
+          label: initialStory.title || 'Untitled Story',
+        },
+      ]);
+    } else {
+      setBreadcrumbs([
+        {
+          label: 'Story Studio',
+          onClick: onClose,
+        },
+        {
+          label: initialStory.title || 'Untitled Story',
+          onClick: () => {
+            setActiveSection('overview');
+            setSearchParams({ id: initialStory.id, section: 'overview' });
+          },
+        },
+        {
+          label,
+        },
+      ]);
+    }
+  }, [activeSection, initialStory.title, initialStory.id, onClose, setBreadcrumbs, setSearchParams]);
+
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState<boolean>(false);
   const [isRightInspectorCollapsed, setIsRightInspectorCollapsed] = useState<boolean>(false);
   
@@ -914,11 +983,15 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   // Active sub-sections & Streamlined Top Horizontal Tabs
   const studioTabs = [
     { id: 'overview', label: 'Overview', icon: Film, description: 'Completion score, narrative brief & AI readiness' },
-    { id: 'info', label: 'Story Info & Bio', icon: BookOpen, description: 'Core metadata, tone parameters & manuscript biography' },
-    { id: 'timeline', label: 'Timeline Chronology', icon: Calendar, description: 'Milestones & chronological event builder' },
-    { id: 'media', label: 'Media & Documents', icon: Camera, description: 'Photos, scanned historical records & documents' },
-    { id: 'people', label: 'People & Relationships', icon: Users, description: 'Associated family members, co-authors & interviewees' },
-    { id: 'render', label: 'Production & Render Studio', icon: Layers, description: 'Video reels, podcast audio & digital memoir exports' },
+    { id: 'story', label: 'Story', icon: BookOpen, description: 'Core metadata, tone parameters & manuscript biography' },
+    { id: 'timeline', label: 'Timeline', icon: Calendar, description: 'Milestones & chronological event builder' },
+    { id: 'characters', label: 'Characters', icon: Users, description: 'Associated family members, co-authors & interviewees' },
+    { id: 'assets', label: 'Assets', icon: Camera, description: 'Photos, scanned historical records & documents' },
+    { id: 'scenes', label: 'Scenes', icon: Wand2, description: 'Director scene breakdowns & script structure' },
+    { id: 'narration', label: 'Narration', icon: Mic, description: 'AI voiceover synthesis & narration cues' },
+    { id: 'music', label: 'Music', icon: Sliders, description: 'Soundtrack score & ambient audio layers' },
+    { id: 'preview', label: 'Preview', icon: Eye, description: 'Interactive draft preview & test player' },
+    { id: 'render', label: 'Render', icon: Layers, description: 'Video reels, podcast audio & digital memoir exports' },
   ];
   const sidebarSections = studioTabs; // Backward compatibility fallback
 
@@ -1456,6 +1529,17 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
           </Button>
 
           <Button
+            id="btn-workspace-create-story"
+            variant="outline"
+            size="xs"
+            leftIcon={<Plus className="w-3.5 h-3.5 text-cinema-amber-500" />}
+            onClick={() => setIsCreationWizardOpen(true)}
+            className="border border-cinema-amber-500/40 text-cinema-amber-600 dark:text-cinema-amber-400 hover:bg-cinema-amber-500/10 text-xs font-bold"
+          >
+            New Story
+          </Button>
+
+          <Button
             id="btn-workspace-save-manual"
             variant="accent"
             size="xs"
@@ -1474,17 +1558,23 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
           {studioTabs.map((tab) => {
             const isActive =
               activeSection === tab.id ||
-              (tab.id === 'info' && activeSection === 'biography') ||
-              (tab.id === 'media' && activeSection === 'documents') ||
-              (tab.id === 'render' && ['templates', 'narration', 'music', 'history', 'review', 'production'].includes(activeSection));
+              (tab.id === 'story' && (activeSection === 'info' || activeSection === 'biography')) ||
+              (tab.id === 'characters' && activeSection === 'people') ||
+              (tab.id === 'assets' && (activeSection === 'media' || activeSection === 'documents')) ||
+              (tab.id === 'render' && ['templates', 'history', 'review', 'production'].includes(activeSection));
             const IconComp = tab.icon;
             return (
               <button
                 key={tab.id}
                 id={`top-tab-btn-${tab.id}`}
                 onClick={() => {
-                  setActiveSection(tab.id);
-                  if (tab.id === 'info') {
+                  let targetSection = tab.id;
+                  if (tab.id === 'story') targetSection = 'info';
+                  if (tab.id === 'characters') targetSection = 'people';
+                  if (tab.id === 'assets') targetSection = 'media';
+                  setActiveSection(targetSection);
+                  setSearchParams({ id: initialStory.id, section: tab.id });
+                  if (tab.id === 'story' || tab.id === 'info') {
                     setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
                   }
                 }}
@@ -2141,9 +2231,9 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 {eventsToRender.length === 0 ? (
                   <EmptyState
                     id="timeline-empty-state"
-                    title="No Timeline Events Found"
-                    description="This biographical story's chronology is empty or no events match your filter options. Create your first timeline event, log an elegant life milestone, or try adjusting your search/filters."
-                    primaryActionLabel="Create First Event"
+                    title="No Timeline Events for this Story Project"
+                    description="Begin documenting this Story Project by adding key life milestones, dates, and historical events. Your project's timeline helps structure the narrative for scripting, narration, and video production."
+                    primaryActionLabel="Add First Milestone Event"
                     onPrimaryAction={() => handleOpenTimelineModal('create')}
                     secondaryActionLabel="Learn About Timelines"
                     onSecondaryAction={() => showToast('info', 'Guided Entry Help', 'Timelines structure chronological highlights such as Birth, Education, Marriage or Community Service to create a cohesive narrative.')}
@@ -3692,8 +3782,224 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
               </motion.div>
             )}
 
+            {/* SCENES & STORYBOARD WORKSPACE */}
+            {activeSection === 'scenes' && (
+              <motion.div
+                key="workspace-scenes"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-6 md:p-8 space-y-6 w-full"
+                id="pane-scenes"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
+                  <div>
+                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Wand2 className="w-4 h-4 text-cinema-amber-500" /> Director Scene Breakdown
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Structure your story timeline into dramatic cinematic scenes, visual storyboards, and camera directions.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => showToast('info', 'AI Director Auto-Scene', 'Synthesizing scene cuts from timeline milestones...')}
+                    className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-400 text-black font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer uppercase tracking-wider shrink-0"
+                  >
+                    <Sparkles className="w-4 h-4" /> Auto-Generate Scenes
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {timelineEvents.slice(0, 6).map((evt, idx) => (
+                    <div key={evt.id || idx} className="p-5 bg-card border border-border rounded-2xl space-y-3 relative group hover:border-cinema-amber-500/50 transition-all">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono font-bold text-cinema-amber-500 uppercase tracking-wider">Scene #{idx + 1}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">{evt.year}</span>
+                      </div>
+                      <h4 className="font-display font-bold text-sm text-foreground">{evt.title}</h4>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{evt.description}</p>
+                      <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px] text-muted-foreground font-mono">
+                        <span>Shot: Slow Ken Burns Pan</span>
+                        <span>Duration: 12s</span>
+                      </div>
+                    </div>
+                  ))}
+                  {timelineEvents.length === 0 && (
+                    <div className="col-span-full py-12 text-center text-xs text-muted-foreground">
+                      Add timeline milestones to automatically map story scenes.
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* NARRATION STUDIO WORKSPACE */}
+            {activeSection === 'narration' && (
+              <motion.div
+                key="workspace-narration"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-6 md:p-8 space-y-6 w-full"
+                id="pane-narration"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
+                  <div>
+                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Mic className="w-4 h-4 text-cinema-amber-500" /> AI Narration & Voice Synthesis Studio
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Configure narrator voices, speech cadence, emotional inflection, and generate spoken audio for story manuscript.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => showToast('success', 'Voice Synthesis Initialized', 'Synthesizing chapter 1 voiceover track...')}
+                    className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-400 text-black font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer uppercase tracking-wider shrink-0"
+                  >
+                    <Mic className="w-4 h-4" /> Synthesize All Voiceover
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="p-5 bg-card border border-border rounded-2xl space-y-4">
+                    <h4 className="font-display font-bold text-sm text-foreground">Narrator Voice Profile</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[10px] font-mono font-bold text-muted-foreground uppercase block mb-1">Voice Persona</label>
+                        <select className="w-full h-9 bg-muted border border-border rounded-xl px-3 text-xs font-semibold">
+                          <option>Warm Legacy Memoirist (Deep Male)</option>
+                          <option>Warm Family Biographer (Gentle Female)</option>
+                          <option>Documentary Broadcaster (Classic)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-mono font-bold text-muted-foreground uppercase block mb-1">Pacing Speed</label>
+                        <input type="range" min="0.8" max="1.2" step="0.05" defaultValue="1.0" className="w-full accent-cinema-amber-500" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-2 p-5 bg-card border border-border rounded-2xl space-y-4">
+                    <h4 className="font-display font-bold text-sm text-foreground">Script Voice Cues</h4>
+                    <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                      <div className="p-3 bg-muted/40 border border-border rounded-xl space-y-1">
+                        <span className="text-[10px] font-mono text-cinema-amber-500 font-bold">Intro Cut • Scene #1</span>
+                        <p className="text-xs text-foreground italic">"{storyMeta.subtitle || 'Every life holds a saga worth preserving...'}"</p>
+                      </div>
+                      <div className="p-3 bg-muted/40 border border-border rounded-xl space-y-1">
+                        <span className="text-[10px] font-mono text-cinema-amber-500 font-bold">Childhood Roots • Scene #2</span>
+                        <p className="text-xs text-foreground italic">"{biographyText ? biographyText.slice(0, 120) + '...' : 'In the early chapters of life, roots were planted that would shape decades to come...'}"</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* MUSIC & SOUNDTRACK WORKSPACE */}
+            {activeSection === 'music' && (
+              <motion.div
+                key="workspace-music"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-6 md:p-8 space-y-6 w-full"
+                id="pane-music"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
+                  <div>
+                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-cinema-amber-500" /> Soundtrack & Ambient Score
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Pair orchestral scores, acoustic guitar, nostalgia pianos, and ambient soundscapes to elevate story emotion.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    { title: 'Acoustic Nostalgia', genre: 'Acoustic Guitar', mood: 'Warm & Intimate', duration: '3m 45s' },
+                    { title: 'Orchestral Heritage', genre: 'Strings & Piano', mood: 'Majestic & Emotional', duration: '4m 12s' },
+                    { title: 'Golden Hour Piano', genre: 'Solo Piano', mood: 'Reflective', duration: '2m 50s' },
+                    { title: 'Vintage Folk Ballad', genre: 'Americana Folk', mood: 'Historical Roots', duration: '3m 20s' },
+                  ].map((track, idx) => (
+                    <div key={idx} className="p-4 bg-card border border-border rounded-2xl space-y-3 hover:border-cinema-amber-500/50 transition-all cursor-pointer">
+                      <div className="w-10 h-10 rounded-xl bg-cinema-amber-500/10 flex items-center justify-center text-cinema-amber-500 font-bold">
+                        🎵
+                      </div>
+                      <div>
+                        <h4 className="font-display font-bold text-xs text-foreground">{track.title}</h4>
+                        <p className="text-[10px] font-mono text-muted-foreground">{track.genre} • {track.mood}</p>
+                      </div>
+                      <button
+                        onClick={() => showToast('info', 'Track Selected', `Assigned "${track.title}" to background score.`)}
+                        className="w-full py-1.5 bg-muted hover:bg-cinema-amber-500 hover:text-black text-foreground text-[10px] font-bold uppercase rounded-lg transition-all"
+                      >
+                        Select Soundtrack
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* INTERACTIVE PREVIEW WORKSPACE */}
+            {activeSection === 'preview' && (
+              <motion.div
+                key="workspace-preview"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-6 md:p-8 space-y-6 w-full"
+                id="pane-preview"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
+                  <div>
+                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-cinema-amber-500" /> Interactive Story Preview Player
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Preview compiled documentary video reel with synchronized voiceover narration, photos, and timeline overlays.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="w-full max-w-4xl mx-auto bg-black rounded-2xl overflow-hidden border border-border aspect-video relative flex flex-col justify-end p-6 shadow-2xl">
+                  {mediaItems.length > 0 ? (
+                    <img src={mediaItems[0].url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                  ) : (
+                    <div className="absolute inset-0 bg-gradient-to-br from-cinema-slate-900 to-black flex items-center justify-center">
+                      <Film className="w-16 h-16 text-cinema-amber-500/40" />
+                    </div>
+                  )}
+
+                  <div className="relative z-10 space-y-3 bg-gradient-to-t from-black via-black/80 to-transparent p-4 rounded-xl">
+                    <span className="text-[10px] font-mono font-bold text-cinema-amber-400 bg-cinema-amber-500/20 px-2 py-0.5 rounded border border-cinema-amber-500/30 uppercase">
+                      Preview Player • 1080p Full HD
+                    </span>
+                    <h2 className="font-display text-lg font-bold text-white">{storyMeta.title}</h2>
+                    <p className="text-xs text-cinema-slate-300 italic">{storyMeta.subtitle || storyMeta.description}</p>
+                    
+                    <div className="flex items-center gap-3 pt-2">
+                      <button
+                        onClick={() => showToast('info', 'Playback Started', 'Simulating video reel playback...')}
+                        className="px-4 py-2 bg-cinema-amber-500 text-black font-bold text-xs rounded-xl hover:bg-cinema-amber-400 transition-all cursor-pointer uppercase tracking-wider"
+                      >
+                        ▶ Play Preview
+                      </button>
+                      <div className="flex-grow h-1.5 bg-white/20 rounded-full overflow-hidden">
+                        <div className="w-1/3 h-full bg-cinema-amber-500" />
+                      </div>
+                      <span className="text-[10px] font-mono text-cinema-slate-400">01:24 / 04:30</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* PRODUCTION & RENDER STUDIO VIEW */}
-            {['render', 'production', 'templates', 'narration', 'music', 'history', 'review'].includes(activeSection) && (
+            {['render', 'production', 'templates', 'history', 'review'].includes(activeSection) && (
               <motion.div
                 key="workspace-render-studio"
                 initial={{ opacity: 0, y: 10 }}
@@ -4822,6 +5128,23 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
         placeholder="Enter value..."
         confirmLabel="Rename"
       />
+
+      {isCreationWizardOpen && (
+        <StoryWizard
+          onClose={() => setIsCreationWizardOpen(false)}
+          onSave={async (newStory) => {
+            try {
+              await StoryService.createStory(newStory as any);
+              window.dispatchEvent(new Event('reellegacy-data-changed'));
+              showToast('success', 'Story Project Created', `"${newStory.title}" is saved as a Story Project.`);
+              setIsCreationWizardOpen(false);
+              onSave(newStory as ExtendedStory);
+            } catch (err: any) {
+              showToast('error', 'Creation Failed', err.message || 'Could not save new story project.');
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

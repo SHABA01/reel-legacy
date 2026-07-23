@@ -9,6 +9,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { Breadcrumb } from './Breadcrumb';
 import {
   Film,
   Search,
@@ -112,15 +113,9 @@ export function Header() {
       id="app-header"
       className="sticky top-0 z-40 h-16 w-full border-b border-border bg-background/80 backdrop-blur-md flex items-center justify-between px-4 md:px-6"
     >
-      {/* Left side: Page Title */}
+      {/* Left side: Universal Breadcrumbs */}
       <div id="header-left" className="flex items-center gap-4 min-w-0">
-        {/* Current Page Title */}
-        <h1
-          id="header-page-title"
-          className="font-display font-bold text-base md:text-lg text-foreground truncate"
-        >
-          {getPageTitle()}
-        </h1>
+        <Breadcrumb />
       </div>
 
       {/* Right side: Triggers, Search, Themes, Account */}
