@@ -195,7 +195,7 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
                 rightIcon={<ArrowUpRight className="h-3.5 w-3.5" />}
                 className="text-xs animate-fade-in"
               >
-                Go to Studio
+                Go to Workspace
               </Button>
             ) : (
               <>
@@ -321,7 +321,7 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
                     }}
                     rightIcon={<ArrowUpRight className="h-4 w-4" />}
                   >
-                    Go to Studio
+                    Go to Workspace
                   </Button>
                 ) : (
                   <>

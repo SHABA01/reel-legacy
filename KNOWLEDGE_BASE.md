@@ -36,6 +36,8 @@
 24. Story Studio Architectural Redesign & Production Pipeline Strategy
 25. Story Studio Top Navigation Tabs & Full-Width Workspace Implementation
 26. Timeline Chronology Architectural Refactor into Story Studio (July 2026)
+27. Render Studio Modularization & Production Workspace Extraction (July 2026)
+28. Application Scrollbar Architecture & Workspace Scroll Stability Refactor (July 2026)
 
 ---
 
@@ -686,6 +688,41 @@ We refactored Timeline Chronology from a standalone global application page into
 - **Global Breadcrumbs**: Synchronized with `BreadcrumbContext` to display proper workspace hierarchy (e.g., `Story Studio > [Story Title] > Timeline`).
 - **Project-Specific Empty State**: Updated empty state messaging when a Story Project has no timeline events, prompting the user to document milestones for the specific story project without referencing the old standalone page.
 - **Data Preservation**: Fully preserved all existing timeline functionality, local storage persistence, autosave, event creation/editing/deletion, decade grouping, and media/people links.
+
+---
+
+# 27. Render Studio Modularization & Production Workspace Extraction (July 2026)
+
+We extracted and modularized the Render & Production Studio into a standalone, reusable workspace component (`RenderWorkspace.tsx`).
+
+## 1. Component Extraction & Scope Isolation
+- **Extracted Component (`RenderWorkspace.tsx`)**: Replaced the monolithic inline production studio JSX block inside `StoryWorkspace.tsx` with a dedicated, modular `RenderWorkspace` component located at `src/components/stories/RenderWorkspace.tsx`.
+- **Clean Component Interface**: Encapsulated render presets, voiceover configuration, progress simulation timers, asset tracking ledgers, and download triggers into a clean props contract receiving `storyId`, `storyTitle`, `scenes`, `characters`, `timelineEvents`, `mediaItems`, `onNavigateToQueue`, and `showToast`.
+
+## 2. Export Presets & Media Synthesis
+- **Target Export Formats**:
+  1. **16:9 Cinematic Video Reel**: 4K Ultra-HD documentary reel with voiceover and Ken Burns pan-zoom motion.
+  2. **9:16 Social Story Short**: Vertical story reel optimized for mobile sharing with animated text captions.
+  3. **Audio Memoir Podcast**: High-fidelity audio recording with acoustic music backing tracks.
+  4. **Printable Memoir Booklet**: Full-color PDF eBook with high-res document scans and bio chapters.
+- **Asset Pipeline Allocation**: Live metrics reflecting the biography manuscript word count, linked timeline milestones, scanned archival media assets, and supporting PDF documents.
+- **Narrator & Music Score Controls**: Configurable narrator AI voice profiles (Arthur, Evelyn, Archival Preset) and background score tracks (Piano & Cello, Acoustic Guitar, Minimal Ambient).
+
+---
+
+# 28. Application Scrollbar Architecture & Workspace Scroll Stability Refactor (July 2026)
+
+We established a clean architectural distinction between public landing pages and internal workspace screens regarding scrollbar presentation and behavior.
+
+## 1. Floating Ephemeral Scrollbar for Public Aspect (`EphemeralScrollbar.tsx`)
+- **Public Page Floating Widget**: Maintained `EphemeralScrollbar` (`#ephemeral-gold-scrollbar`) strictly on public-facing routes (`/`, `/about`, `/contact`, `/pricing`, `/terms`, `/privacy`, `/login`, `/register`, etc.) rendered via `App.tsx`.
+- **Dynamic Auto-Hide & Quick Controls**: Features auto-hiding after 1.5s of inactivity, scroll-to-top/bottom action triggers (`ChevronUp`, `ChevronDown`), draggable thumb handle, and smooth fade transitions.
+
+## 2. Permanently Visible Custom Scrollbars for Workspace Aspect (`index.css`)
+- **Workspace Layout Stability**: Configured all internal workspace containers (`/workspace/*`) to use permanently visible, 5px thin custom scrollbars (`scrollbar-width: thin !important`, `background: rgba(245, 158, 11, 0.65)` amber thumb on dark track).
+- **Elimination of Reflow & Element Shifting**: Prevented visual jumps and horizontal layout reflows caused by scrollbars dynamically appearing or disappearing as items were added or content exceeded viewport dimensions.
+- **Unified Global Target Rules**: Applied standard CSS rules across `.scrollbar-ephemeral`, `.custom-scrollbar`, `.scrollbar-thin`, and all Tailwind overflow utilities (`[class*="overflow-y-auto"]`, `[class*="overflow-x-auto"]`, `[class*="overflow-auto"]`) to guarantee consistent scrollbar styling across sidebars, timeline panels, media grids, scene breakdowns, overlays, and dialogs.
+
 
 
 

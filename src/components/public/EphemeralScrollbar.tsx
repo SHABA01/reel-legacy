@@ -8,7 +8,7 @@ export function EphemeralScrollbar() {
   const [isDragging, setIsDragging] = useState(false);
   const [isScrolling, setIsScrolling] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  
+
   const trackRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ mouseStyleY: number; scrollStyleY: number }>({ mouseStyleY: 0, scrollStyleY: 0 });
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);

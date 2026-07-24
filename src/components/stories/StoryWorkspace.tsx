@@ -42,6 +42,7 @@ import {
   MessageSquare,
   Share2,
   ExternalLink,
+  Link2,
   ChevronLeft,
   ChevronRight,
   TrendingUp,
@@ -81,6 +82,10 @@ import { useToast } from '../../context/ToastContext';
 import { useBreadcrumbs } from '../../context/BreadcrumbContext';
 import { ExtendedStory } from './mockStoriesData';
 import { StoryWizard } from './StoryWizard';
+import { CharactersWorkspace, StoryCharacter } from './CharactersWorkspace';
+import { ScenesWorkspace, StoryScene } from './ScenesWorkspace';
+import { PreviewWorkspace } from './PreviewWorkspace';
+import { RenderWorkspace } from './RenderWorkspace';
 import { TimelineService, persistenceService, MediaService, DocumentService, DocumentSchema, ImportSchema, ImportService, LegacyProfileSchema, StorySchema, StoryService } from '../../storage';
 
 interface StoryWorkspaceProps {
@@ -484,68 +489,305 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   const [mediaFilter, setMediaFilter] = useState<'All' | 'image' | 'video' | 'audio' | 'document'>('All');
   const [mediaSearchQuery, setMediaSearchQuery] = useState<string>('');
 
-  // 7. PEOPLE STATE
-  const [people, setPeople] = useState<LocalPerson[]>(() => {
-    const cached = localStorage.getItem(`rl_people_${initialStory.id}`);
-    if (cached) {
-      try { return JSON.parse(cached); } catch (e) {}
+  // 7. STORY CHARACTERS STATE
+  const [characters, setCharacters] = useState<StoryCharacter[]>(() => {
+    const cachedChar = localStorage.getItem(`rl_characters_${initialStory.id}`);
+    if (cachedChar) {
+      try { return JSON.parse(cachedChar); } catch (e) {}
     }
+    const cachedPeople = localStorage.getItem(`rl_people_${initialStory.id}`);
+    if (cachedPeople) {
+      try {
+        const parsed = JSON.parse(cachedPeople);
+        return parsed.map((p: any) => ({
+          id: p.id || `char-${Math.random()}`,
+          storyId: initialStory.id,
+          legacyProfileId: p.legacyProfileId,
+          name: p.name,
+          storyRole: p.relationship || 'Family Member',
+          relationship: p.relationship || 'Relative',
+          importance: p.importance || 'Medium',
+          avatar: p.avatar,
+          shortBio: p.shortBio || '',
+          notes: p.notes || '',
+          tags: p.tags || [],
+          lifetime: p.lifetime || '',
+          status: p.status || 'Active',
+          timelineReferences: p.timelineReferences || [],
+          mediaReferences: p.mediaReferences || [],
+          scenesCount: 1,
+          quotesCount: 0,
+          narrationSegmentsCount: 1,
+          estimatedScreenTime: '4m 00s',
+          narrativeWeight: 70
+        }));
+      } catch (e) {}
+    }
+
     return [
       {
-        id: 'per-1',
+        id: 'char-1',
+        storyId: initialStory.id,
         name: 'Arthur Miller',
+        storyRole: 'Parent',
         relationship: 'Parent',
+        importance: 'High',
         avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
         shortBio: 'Public high school history master and vocational gardener. Inspiring source of Elizabeth’s academic interests.',
         lifetime: '1912 – 1994',
+        status: 'Active',
         timelineReferences: ['evt-1'],
-        mediaReferences: ['med-1']
+        mediaReferences: ['med-1'],
+        scenesCount: 2,
+        estimatedScreenTime: '5m 30s',
+        narrativeWeight: 80
       },
       {
-        id: 'per-2',
+        id: 'char-2',
+        storyId: initialStory.id,
         name: 'Martha Miller',
+        storyRole: 'Parent',
         relationship: 'Parent',
+        importance: 'High',
         avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
         shortBio: 'Elementary school reading specialist and local botanical artist. Taught Elizabeth basic watercolor wash rules.',
         lifetime: '1918 – 2002',
+        status: 'Active',
         timelineReferences: ['evt-1'],
-        mediaReferences: ['med-1']
+        mediaReferences: ['med-1'],
+        scenesCount: 2,
+        estimatedScreenTime: '4m 45s',
+        narrativeWeight: 75
       },
       {
-        id: 'per-3',
+        id: 'char-3',
+        storyId: initialStory.id,
+        legacyProfileId: 'profile-philip-vance',
         name: 'Philip Vance',
+        storyRole: 'Spouse',
         relationship: 'Spouse',
+        importance: 'High',
         avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
         shortBio: 'Boston civic architect, structural historian, and lifelong supportive partner. Documented Cape Cod studio painting projects.',
         lifetime: '1942 – Present',
+        status: 'Active',
         timelineReferences: ['evt-3', 'evt-5', 'evt-6'],
-        mediaReferences: ['med-3', 'med-6']
+        mediaReferences: ['med-3', 'med-6'],
+        scenesCount: 4,
+        estimatedScreenTime: '12m 10s',
+        narrativeWeight: 90
       },
       {
-        id: 'per-4',
+        id: 'char-4',
+        storyId: initialStory.id,
         name: 'Clara Jenkins',
+        storyRole: 'Colleague',
         relationship: 'Colleague',
+        importance: 'Medium',
         avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=150&q=80',
         shortBio: 'Co-Founder of Salem Literacy Center. Pioneered adult dyslexia tutoring resources in Massachusetts alongside Elizabeth.',
         lifetime: '1946 – Present',
+        status: 'Active',
         timelineReferences: ['evt-4'],
-        mediaReferences: ['med-4']
+        mediaReferences: ['med-4'],
+        scenesCount: 2,
+        estimatedScreenTime: '3m 15s',
+        narrativeWeight: 60
       },
       {
-        id: 'per-5',
+        id: 'char-5',
+        storyId: initialStory.id,
         name: 'Robert Vance',
+        storyRole: 'Child',
         relationship: 'Child',
+        importance: 'Medium',
         avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
         shortBio: 'Professional cellist and landscape photographer living in Maine. Active co-producer on this heritage documentary project.',
         lifetime: '1982 – Present',
+        status: 'Active',
         timelineReferences: ['evt-5', 'evt-6'],
-        mediaReferences: ['med-5', 'med-6']
+        mediaReferences: ['med-5', 'med-6'],
+        scenesCount: 3,
+        estimatedScreenTime: '6m 20s',
+        narrativeWeight: 70
       }
     ];
   });
 
+  // Backward compatibility alias for people
+  const people = characters;
+  const setPeople = setCharacters;
+
   const [peopleFilter, setPeopleFilter] = useState<string>('All');
   const [peopleSearchQuery, setPeopleSearchQuery] = useState<string>('');
+
+  // 7. SCENES WORKSPACE STATE
+  const [scenes, setScenes] = useState<StoryScene[]>(() => {
+    const saved = localStorage.getItem(`rl_scenes_${initialStory.id}`);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    return [
+      {
+        id: 'scene-1',
+        storyId: initialStory.id,
+        sceneNumber: 1,
+        title: 'Prologue: Heritage & Early Foundations',
+        subtitle: 'Introduction to family lineage and ancestral roots',
+        description: 'Establishes the heritage backdrop, introductory quotes, and ancestral roots before the main journey begins.',
+        purpose: 'Set the emotional tone and historical context for the documentary.',
+        storySegment: 'Opening Sequence',
+        type: 'Title Card',
+        estimatedDuration: '0m 45s',
+        notes: 'Use historical sepia tone styling with gentle ambient guitar.',
+        status: 'Ready',
+        timelineEventIds: ['evt-1'],
+        characterIds: ['char-1', 'char-2'],
+        mediaIds: ['med-1', 'med-2'],
+        narrationText: 'Every great story begins with roots. Before the journey unfolded, the foundation was laid by those who came before.',
+        narrationStatus: 'Scripted',
+        assignedVoice: 'Warm Legacy Memoirist (Deep Male)',
+        estimatedReadingTime: '0m 45s',
+        musicTrack: 'Orchestral Heritage (Strings & Piano)',
+        musicMood: 'Warm & Intimate',
+        musicVolume: 70,
+        fadeIn: true,
+        fadeOut: true,
+        cameraMovement: 'Slow Ken Burns Pan',
+        zoomStyle: 'Subtle (1.05x)',
+        panDirection: 'Left to Right',
+        focusPoint: 'Center',
+        transitionType: 'Cross Dissolve'
+      },
+      {
+        id: 'scene-2',
+        storyId: initialStory.id,
+        sceneNumber: 2,
+        title: 'Formative Years & Early Mentors',
+        subtitle: 'Childhood memories and guiding influences',
+        description: 'Explores early childhood milestones, botanical watercolor lessons, and formative schooling.',
+        purpose: 'Highlight key childhood figures who inspired Elizabeth’s academic and artistic path.',
+        storySegment: 'Childhood & Roots',
+        type: 'Documentary',
+        estimatedDuration: '1m 30s',
+        notes: 'Focus camera pan on vintage childhood family portraits.',
+        status: 'Needs Media',
+        timelineEventIds: ['evt-2', 'evt-3'],
+        characterIds: ['char-1', 'char-2', 'char-3'],
+        mediaIds: ['med-2', 'med-3'],
+        narrationText: 'Growing up in Salem, early days were filled with curiosity, botanical sketches, and quiet lessons in history.',
+        narrationStatus: 'Draft',
+        assignedVoice: 'Warm Family Biographer (Gentle Female)',
+        estimatedReadingTime: '1m 20s',
+        musicTrack: 'Acoustic Nostalgia (Guitar)',
+        musicMood: 'Reflective',
+        musicVolume: 60,
+        fadeIn: true,
+        fadeOut: true,
+        cameraMovement: 'Zoom In',
+        zoomStyle: 'Medium (1.15x)',
+        panDirection: 'Center In',
+        focusPoint: 'Face Detect',
+        transitionType: 'Cross Dissolve'
+      },
+      {
+        id: 'scene-3',
+        storyId: initialStory.id,
+        sceneNumber: 3,
+        title: 'Career Breakthrough & Literacy Center',
+        subtitle: 'Founding Salem Literacy Center & adult education pioneer',
+        description: 'Highlights the establishment of adult dyslexia tutoring resources and community leadership.',
+        purpose: 'Showcase civic contribution and career achievements.',
+        storySegment: 'Career & Breakthrough',
+        type: 'Interview Cut',
+        estimatedDuration: '2m 10s',
+        notes: 'Pair soundbite interviews with archival news clippings.',
+        status: 'Draft',
+        timelineEventIds: ['evt-4'],
+        characterIds: ['char-3', 'char-4'],
+        mediaIds: ['med-4'],
+        narrationText: 'In the heart of Massachusetts, a revolutionary effort took shape—bringing literacy and voice to hundreds.',
+        narrationStatus: 'Scripted',
+        assignedVoice: 'Documentary Broadcaster (Classic)',
+        estimatedReadingTime: '2m 00s',
+        musicTrack: 'Orchestral Heritage (Strings & Piano)',
+        musicMood: 'Majestic & Emotional',
+        musicVolume: 75,
+        fadeIn: true,
+        fadeOut: true,
+        cameraMovement: 'Pan Right',
+        zoomStyle: 'Subtle (1.05x)',
+        panDirection: 'Left to Right',
+        focusPoint: 'Center',
+        transitionType: 'Fade to Black'
+      },
+      {
+        id: 'scene-4',
+        storyId: initialStory.id,
+        sceneNumber: 4,
+        title: 'Cape Cod Studio & Personal Turning Point',
+        subtitle: 'Architectural history partnership and watercolor studio years',
+        description: 'Captures the peaceful Cape Cod painting retreat, family gatherings, and historic preservation.',
+        purpose: 'Provide personal depth and artistic serenity.',
+        storySegment: 'Life Pivot & Turning Point',
+        type: 'Photo Montage',
+        estimatedDuration: '1m 45s',
+        notes: 'Soft cross dissolve between Cape Cod watercolor paintings.',
+        status: 'Ready',
+        timelineEventIds: ['evt-5'],
+        characterIds: ['char-3', 'char-5'],
+        mediaIds: ['med-5'],
+        narrationText: 'Between the salt marshes and the quiet studio light of Cape Cod, life found a harmonious balance.',
+        narrationStatus: 'Synthesized',
+        assignedVoice: 'Warm Legacy Memoirist (Deep Male)',
+        estimatedReadingTime: '1m 40s',
+        musicTrack: 'Golden Hour Piano (Solo)',
+        musicMood: 'Nostalgic',
+        musicVolume: 65,
+        fadeIn: true,
+        fadeOut: true,
+        cameraMovement: 'Focus Drift',
+        zoomStyle: 'Subtle (1.05x)',
+        panDirection: 'Top to Bottom',
+        focusPoint: 'Top Left',
+        transitionType: 'Cross Dissolve'
+      },
+      {
+        id: 'scene-5',
+        storyId: initialStory.id,
+        sceneNumber: 5,
+        title: 'Epitaph & Lasting Heritage Legacy',
+        subtitle: 'Closing summary and family co-producers',
+        description: 'Summarizes the enduring influence on future generations, family cellist contributions, and memoir preservation.',
+        purpose: 'Deliver an inspiring, high-impact emotional conclusion.',
+        storySegment: 'Legacy & Reflections',
+        type: 'Archival Spotlight',
+        estimatedDuration: '1m 15s',
+        notes: 'End with full family portrait and slow fade to dark slate.',
+        status: 'Completed',
+        timelineEventIds: ['evt-6'],
+        characterIds: ['char-1', 'char-2', 'char-3', 'char-4', 'char-5'],
+        mediaIds: ['med-6'],
+        narrationText: 'The legacy lived on not only in books and paintings, but in the hearts and memories of family.',
+        narrationStatus: 'Recorded',
+        assignedVoice: 'Warm Legacy Memoirist (Deep Male)',
+        estimatedReadingTime: '1m 15s',
+        musicTrack: 'Orchestral Heritage (Strings & Piano)',
+        musicMood: 'Majestic & Emotional',
+        musicVolume: 80,
+        fadeIn: true,
+        fadeOut: true,
+        cameraMovement: 'Slow Ken Burns Pan',
+        zoomStyle: 'Dramatic (1.30x)',
+        panDirection: 'Center In',
+        focusPoint: 'Center',
+        transitionType: 'Slow Hold'
+      }
+    ];
+  });
 
   // 8. CAREER HISTORY STATE
   const [careerSubTab, setCareerSubTab] = useState<'employment' | 'imports'>('imports');
@@ -977,8 +1219,13 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   // Sync to database triggers (Local persistence fallback)
 
   useEffect(() => {
-    localStorage.setItem(`rl_people_${initialStory.id}`, JSON.stringify(people));
-  }, [people, initialStory.id]);
+    localStorage.setItem(`rl_characters_${initialStory.id}`, JSON.stringify(characters));
+    localStorage.setItem(`rl_people_${initialStory.id}`, JSON.stringify(characters));
+  }, [characters, initialStory.id]);
+
+  useEffect(() => {
+    localStorage.setItem(`rl_scenes_${initialStory.id}`, JSON.stringify(scenes));
+  }, [scenes, initialStory.id]);
 
   // Active sub-sections & Streamlined Top Horizontal Tabs
   const studioTabs = [
@@ -2797,84 +3044,36 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
               </motion.div>
             )}
 
-            {/* ASSOCIATED PEOPLE WORKSPACE */}
-            {activeSection === 'people' && (
+            {/* CHARACTERS WORKSPACE */}
+            {(activeSection === 'characters' || activeSection === 'people') && (
               <motion.div
-                key="workspace-people"
+                key="workspace-characters"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6"
-                id="pane-people"
+                className="w-full"
+                id="pane-characters"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider">
-                      Associated Legacy People Registry
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Identify relatives, comrades, co-teachers, and interviewees. Linking individuals connects proper narrative threads.
-                    </p>
-                  </div>
-
-                  <div className="p-1.5 bg-muted rounded-xl border border-border flex items-center gap-1 shrink-0 self-start sm:self-auto">
-                    {['All', 'Parent', 'Spouse', 'Child', 'Colleague'].map(rel => (
-                      <button
-                        key={rel}
-                        onClick={() => setPeopleFilter(rel)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          peopleFilter === rel 
-                            ? 'bg-card text-foreground border border-border shadow-xs' 
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {rel === 'All' ? 'All Roles' : rel}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Person card grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5" id="people-cards-mesh">
-                  {filteredPeople.map((p) => {
-                    const isSelected = selectedInspectorItem.type === 'person' && selectedInspectorItem.id === p.id;
-                    return (
-                      <div
-                        key={p.id}
-                        id={`person-card-${p.id}`}
-                        onClick={() => setSelectedInspectorItem({ type: 'person', id: p.id, data: p })}
-                        className={`p-5 bg-card border rounded-2xl cursor-pointer hover:shadow-md transition-all flex items-start gap-4 ${
-                          isSelected 
-                            ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03]' 
-                            : 'border-border hover:border-muted-foreground/30'
-                        }`}
-                      >
-                        <img
-                          src={p.avatar}
-                          alt={p.name}
-                          className="w-16 h-16 rounded-full object-cover border-2 border-muted shrink-0"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="space-y-1 text-xs">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-foreground text-sm">{p.name}</h4>
-                            <span className="font-mono text-[9px] font-bold uppercase bg-muted border border-border text-muted-foreground px-1.5 py-0.2 rounded">
-                              {p.relationship}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-muted-foreground font-semibold font-mono block">{p.lifetime}</span>
-                          <p className="text-[11px] text-muted-foreground leading-relaxed mt-1 font-semibold">{p.shortBio}</p>
-
-                          <div className="flex items-center gap-3 pt-2 font-mono text-[9px] text-muted-foreground font-black">
-                            <span>{p.timelineReferences.length} Milestones linked</span>
-                            <span>•</span>
-                            <span>{p.mediaReferences.length} Media linked</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <CharactersWorkspace
+                  storyId={initialStory.id}
+                  storyTitle={storyMeta.title || initialStory.title}
+                  characters={characters}
+                  onUpdateCharacters={(updated) => {
+                    setCharacters(updated);
+                    triggerAutoSave({ characters: updated });
+                  }}
+                  timelineEvents={timelineEvents}
+                  mediaItems={mediaItems}
+                  selectedCharacterId={selectedInspectorItem.type === 'person' ? selectedInspectorItem.id : undefined}
+                  onSelectCharacter={(char) => {
+                    setSelectedInspectorItem({
+                      type: 'person',
+                      id: char.id,
+                      data: char,
+                    });
+                  }}
+                  showToast={showToast}
+                />
               </motion.div>
             )}
 
@@ -3789,47 +3988,19 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6 w-full"
+                className="w-full"
                 id="pane-scenes"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                      <Wand2 className="w-4 h-4 text-cinema-amber-500" /> Director Scene Breakdown
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Structure your story timeline into dramatic cinematic scenes, visual storyboards, and camera directions.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => showToast('info', 'AI Director Auto-Scene', 'Synthesizing scene cuts from timeline milestones...')}
-                    className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-400 text-black font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer uppercase tracking-wider shrink-0"
-                  >
-                    <Sparkles className="w-4 h-4" /> Auto-Generate Scenes
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {timelineEvents.slice(0, 6).map((evt, idx) => (
-                    <div key={evt.id || idx} className="p-5 bg-card border border-border rounded-2xl space-y-3 relative group hover:border-cinema-amber-500/50 transition-all">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-mono font-bold text-cinema-amber-500 uppercase tracking-wider">Scene #{idx + 1}</span>
-                        <span className="text-[10px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">{evt.year}</span>
-                      </div>
-                      <h4 className="font-display font-bold text-sm text-foreground">{evt.title}</h4>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{evt.description}</p>
-                      <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px] text-muted-foreground font-mono">
-                        <span>Shot: Slow Ken Burns Pan</span>
-                        <span>Duration: 12s</span>
-                      </div>
-                    </div>
-                  ))}
-                  {timelineEvents.length === 0 && (
-                    <div className="col-span-full py-12 text-center text-xs text-muted-foreground">
-                      Add timeline milestones to automatically map story scenes.
-                    </div>
-                  )}
-                </div>
+                <ScenesWorkspace
+                  storyId={initialStory.id}
+                  storyTitle={storyMeta.title}
+                  scenes={scenes}
+                  onUpdateScenes={setScenes}
+                  timelineEvents={timelineEvents}
+                  characters={characters}
+                  mediaItems={mediaItems}
+                  showToast={showToast}
+                />
               </motion.div>
             )}
 
@@ -3951,50 +4122,19 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6 w-full"
+                className="w-full p-6 md:p-8"
                 id="pane-preview"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                      <Eye className="w-4 h-4 text-cinema-amber-500" /> Interactive Story Preview Player
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Preview compiled documentary video reel with synchronized voiceover narration, photos, and timeline overlays.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="w-full max-w-4xl mx-auto bg-black rounded-2xl overflow-hidden border border-border aspect-video relative flex flex-col justify-end p-6 shadow-2xl">
-                  {mediaItems.length > 0 ? (
-                    <img src={mediaItems[0].url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" />
-                  ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-cinema-slate-900 to-black flex items-center justify-center">
-                      <Film className="w-16 h-16 text-cinema-amber-500/40" />
-                    </div>
-                  )}
-
-                  <div className="relative z-10 space-y-3 bg-gradient-to-t from-black via-black/80 to-transparent p-4 rounded-xl">
-                    <span className="text-[10px] font-mono font-bold text-cinema-amber-400 bg-cinema-amber-500/20 px-2 py-0.5 rounded border border-cinema-amber-500/30 uppercase">
-                      Preview Player • 1080p Full HD
-                    </span>
-                    <h2 className="font-display text-lg font-bold text-white">{storyMeta.title}</h2>
-                    <p className="text-xs text-cinema-slate-300 italic">{storyMeta.subtitle || storyMeta.description}</p>
-                    
-                    <div className="flex items-center gap-3 pt-2">
-                      <button
-                        onClick={() => showToast('info', 'Playback Started', 'Simulating video reel playback...')}
-                        className="px-4 py-2 bg-cinema-amber-500 text-black font-bold text-xs rounded-xl hover:bg-cinema-amber-400 transition-all cursor-pointer uppercase tracking-wider"
-                      >
-                        ▶ Play Preview
-                      </button>
-                      <div className="flex-grow h-1.5 bg-white/20 rounded-full overflow-hidden">
-                        <div className="w-1/3 h-full bg-cinema-amber-500" />
-                      </div>
-                      <span className="text-[10px] font-mono text-cinema-slate-400">01:24 / 04:30</span>
-                    </div>
-                  </div>
-                </div>
+                <PreviewWorkspace
+                  storyId={initialStory.id}
+                  storyTitle={storyMeta.title}
+                  scenes={scenes}
+                  characters={characters}
+                  timelineEvents={timelineEvents}
+                  mediaItems={mediaItems}
+                  onNavigateToTab={(tabId) => setActiveSection(tabId)}
+                  showToast={showToast}
+                />
               </motion.div>
             )}
 
@@ -4008,215 +4148,18 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 className="p-6 md:p-8 space-y-6 w-full"
                 id="pane-render-studio"
               >
-                {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-cinema-amber-500 animate-pulse" /> Production & Render Studio
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Synthesize biographical manuscript text, scanned photo archives, and voiceover audio into exportable media packages.
-                    </p>
-                  </div>
-
-                  <button
-                    id="btn-trigger-production-render"
-                    onClick={handleStartRender}
-                    disabled={isRendering}
-                    className="px-5 py-2.5 bg-cinema-amber-500 hover:bg-cinema-amber-600 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer uppercase tracking-wider"
-                  >
-                    {isRendering ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Rendering ({renderProgress}%)
-                      </>
-                    ) : (
-                      <>
-                        <Wand2 className="w-4 h-4 stroke-[2.5]" />
-                        Compile Media Package
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Render Progress Bar */}
-                {isRendering && (
-                  <div className="p-5 bg-card border border-cinema-amber-500/30 rounded-2xl shadow-sm space-y-3 animate-pulse">
-                    <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-foreground flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-cinema-amber-500" /> Synthesizing Cinema Timeline...
-                      </span>
-                      <span className="font-mono text-cinema-amber-500">{renderProgress}%</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden border border-border">
-                      <div className="bg-cinema-amber-500 h-full transition-all duration-300" style={{ width: `${renderProgress}%` }} />
-                    </div>
-                    <p className="text-[11px] text-muted-foreground font-mono">
-                      Aligning {mediaItems.length} scanned photos with {timelineEvents.length} chronological milestones and AI narration cues...
-                    </p>
-                  </div>
-                )}
-
-                {renderComplete && !isRendering && (
-                  <div className="p-5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="w-6 h-6 text-emerald-500 shrink-0" />
-                      <div>
-                        <h4 className="text-xs font-bold text-foreground">Production Package Compiled Successfully!</h4>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">High-definition 16:9 documentary reel with embedded subtitle cues is ready.</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => showToast('success', 'Package Downloaded', 'Media reel zip exported to downloads.')}
-                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition-all shrink-0 cursor-pointer"
-                    >
-                      Export Package Zip
-                    </button>
-                  </div>
-                )}
-
-                {/* Grid of Export Format Presets */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-black uppercase text-foreground tracking-wider font-mono">
-                    Select Target Export Format
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[
-                      {
-                        id: 'video-16-9',
-                        title: '16:9 Cinematic Video Reel',
-                        description: '4K Ultra-HD documentary reel with voiceover & Ken Burns pan-zoom.',
-                        badge: 'Recommended',
-                        icon: Video
-                      },
-                      {
-                        id: 'video-9-16',
-                        title: '9:16 Social Story Short',
-                        description: 'Vertical story reel optimized for mobile sharing with animated captions.',
-                        badge: 'Mobile',
-                        icon: Film
-                      },
-                      {
-                        id: 'audio-podcast',
-                        title: 'Audio Memoir Podcast',
-                        description: 'High-fidelity audio recording with acoustic music backing tracks.',
-                        badge: 'Audio Only',
-                        icon: Mic
-                      },
-                      {
-                        id: 'pdf-memoir',
-                        title: 'Printable Memoir Booklet',
-                        description: 'Full-color PDF eBook with high-res document scans and bio chapters.',
-                        badge: 'Print Ready',
-                        icon: FileText
-                      }
-                    ].map((preset) => {
-                      const isSelected = selectedRenderPreset === preset.id;
-                      const IconComp = preset.icon;
-                      return (
-                        <div
-                          key={preset.id}
-                          onClick={() => setSelectedRenderPreset(preset.id as any)}
-                          className={`p-5 bg-card border rounded-2xl cursor-pointer transition-all flex flex-col justify-between space-y-4 hover:shadow-md ${
-                            isSelected
-                              ? 'border-cinema-amber-500 ring-1 ring-cinema-amber-500 bg-cinema-amber-500/[0.03]'
-                              : 'border-border hover:border-muted-foreground/30'
-                          }`}
-                        >
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className={`p-2.5 rounded-xl ${isSelected ? 'bg-cinema-amber-500/15 text-cinema-amber-500' : 'bg-muted text-muted-foreground'}`}>
-                                <IconComp className="w-5 h-5" />
-                              </div>
-                              <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 bg-muted rounded-md border border-border text-muted-foreground">
-                                {preset.badge}
-                              </span>
-                            </div>
-                            <div>
-                              <h5 className="text-xs font-bold text-foreground">{preset.title}</h5>
-                              <p className="text-[11px] text-muted-foreground mt-1 leading-normal font-medium">{preset.description}</p>
-                            </div>
-                          </div>
-
-                          <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[10px] font-mono font-bold text-muted-foreground">
-                            <span>Status: Ready</span>
-                            <span className={isSelected ? 'text-cinema-amber-500' : ''}>{isSelected ? 'SELECTED ✓' : 'Select'}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Production Configuration Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
-                  {/* Left: Included Assets */}
-                  <div className="p-5 bg-card border border-border rounded-2xl shadow-sm space-y-4">
-                    <h4 className="text-xs font-black uppercase text-foreground tracking-wider flex items-center justify-between">
-                      <span>Pipeline Asset Allocation</span>
-                      <Sparkles className="w-3.5 h-3.5 text-cinema-amber-500" />
-                    </h4>
-
-                    <div className="space-y-3 text-xs">
-                      <div className="p-3 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
-                        <span className="font-medium text-foreground flex items-center gap-2">
-                          <BookOpen className="w-3.5 h-3.5 text-cinema-amber-500" /> Biography Manuscript
-                        </span>
-                        <span className="font-mono text-[10px] text-emerald-500 font-bold">READY ({biographyText.split(/\s+/).filter(Boolean).length} WORDS)</span>
-                      </div>
-
-                      <div className="p-3 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
-                        <span className="font-medium text-foreground flex items-center gap-2">
-                          <Calendar className="w-3.5 h-3.5 text-blue-400" /> Milestone Events
-                        </span>
-                        <span className="font-mono text-[10px] text-blue-400 font-bold">{timelineEvents.length} EVENTS LINKED</span>
-                      </div>
-
-                      <div className="p-3 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
-                        <span className="font-medium text-foreground flex items-center gap-2">
-                          <Camera className="w-3.5 h-3.5 text-emerald-400" /> Scanned Photos & Media
-                        </span>
-                        <span className="font-mono text-[10px] text-emerald-400 font-bold">{mediaItems.length} HIGH-RES ASSETS</span>
-                      </div>
-
-                      <div className="p-3 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
-                        <span className="font-medium text-foreground flex items-center gap-2">
-                          <FileText className="w-3.5 h-3.5 text-purple-400" /> Supporting Archival Documents
-                        </span>
-                        <span className="font-mono text-[10px] text-purple-400 font-bold">{documents.length} DOCUMENTS</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: AI Voiceover & Music Options */}
-                  <div className="p-5 bg-card border border-border rounded-2xl shadow-sm space-y-4">
-                    <h4 className="text-xs font-black uppercase text-foreground tracking-wider flex items-center justify-between">
-                      <span>Audio & Voiceover Parameters</span>
-                      <Mic className="w-3.5 h-3.5 text-cinema-amber-500" />
-                    </h4>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-xs font-bold text-foreground block mb-1">Narrator AI Voice Profile</label>
-                        <select className="w-full h-9 px-3 bg-muted border border-border text-foreground text-xs font-semibold rounded-xl focus:outline-none focus:border-cinema-amber-500">
-                          <option>Warm Documentary Male (Arthur - Warm, Measured)</option>
-                          <option>Empathetic Female Reader (Evelyn - Gentle, Nostalgic)</option>
-                          <option>Classic Heritage Voice (Archival Recording Preset)</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-bold text-foreground block mb-1">Background Acoustic Score</label>
-                        <select className="w-full h-9 px-3 bg-muted border border-border text-foreground text-xs font-semibold rounded-xl focus:outline-none focus:border-cinema-amber-500">
-                          <option>Soft Piano & Coastal Cello Ensemble</option>
-                          <option>Acoustic Guitar & Gentle Strings</option>
-                          <option>Minimal Ambient Atmosphere</option>
-                          <option>None (Voiceover & Original Audio Clips Only)</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <RenderWorkspace
+                  storyId={initialStory.id}
+                  storyTitle={initialStory.title}
+                  scenes={scenes}
+                  characters={characters}
+                  timelineEvents={timelineEvents}
+                  mediaItems={mediaItems}
+                  onNavigateToQueue={() => {
+                    showToast('info', 'Render Queue', 'Opening global render queue...');
+                  }}
+                  showToast={showToast}
+                />
               </motion.div>
             )}
 
@@ -4399,19 +4342,68 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                     referrerPolicy="no-referrer"
                   />
                   <h4 className="font-bold text-foreground text-sm mt-3">{selectedInspectorItem.data.name}</h4>
-                  <span className="text-cinema-amber-600 dark:text-cinema-amber-400 font-mono text-[10px] uppercase font-black block mt-0.5">
-                    {selectedInspectorItem.data.relationship}
-                  </span>
+                  
+                  <div className="flex items-center justify-center gap-1.5 mt-1.5 flex-wrap">
+                    <span className="text-[9px] font-mono font-bold uppercase bg-cinema-amber-500/15 text-cinema-amber-600 dark:text-cinema-amber-400 border border-cinema-amber-500/30 px-2 py-0.5 rounded">
+                      {selectedInspectorItem.data.storyRole || selectedInspectorItem.data.relationship}
+                    </span>
+                    <span className="text-[9px] font-mono font-bold uppercase bg-muted text-muted-foreground border border-border px-1.5 py-0.5 rounded">
+                      {selectedInspectorItem.data.relationship}
+                    </span>
+                    {selectedInspectorItem.data.importance && (
+                      <span className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded border ${
+                        selectedInspectorItem.data.importance === 'High'
+                          ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                          : selectedInspectorItem.data.importance === 'Medium'
+                          ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                          : 'bg-muted text-muted-foreground border-border'
+                      }`}>
+                        {selectedInspectorItem.data.importance} Priority
+                      </span>
+                    )}
+                  </div>
+
+                  {selectedInspectorItem.data.legacyProfileId && (
+                    <div className="mt-2.5">
+                      <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-emerald-500 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+                        <Link2 className="w-2.5 h-2.5" /> Master Profile Linked
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Biographical Brief</span>
-                  <p className="text-muted-foreground leading-relaxed font-semibold">{selectedInspectorItem.data.shortBio}</p>
+                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Story Narrative Summary</span>
+                  <p className="text-muted-foreground leading-relaxed font-semibold text-xs">{selectedInspectorItem.data.shortBio}</p>
                 </div>
 
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Lifespan Limits</span>
-                  <strong className="text-foreground font-mono block text-xs">{selectedInspectorItem.data.lifetime}</strong>
+                {selectedInspectorItem.data.lifetime && (
+                  <div className="border-t border-border pt-4 space-y-1.5">
+                    <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Lifespan</span>
+                    <strong className="text-foreground font-mono block text-xs">{selectedInspectorItem.data.lifetime}</strong>
+                  </div>
+                )}
+
+                <div className="border-t border-border pt-4 space-y-3">
+                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Production Footprint</span>
+                  <div className="grid grid-cols-2 gap-2 text-center text-[10px]">
+                    <div className="p-2.5 bg-muted/40 border border-border rounded-xl">
+                      <strong className="block text-foreground text-xs font-mono">{selectedInspectorItem.data.timelineReferences?.length || 0}</strong>
+                      <span className="text-muted-foreground font-semibold">Milestones</span>
+                    </div>
+                    <div className="p-2.5 bg-muted/40 border border-border rounded-xl">
+                      <strong className="block text-foreground text-xs font-mono">{selectedInspectorItem.data.mediaReferences?.length || 0}</strong>
+                      <span className="text-muted-foreground font-semibold">Media Files</span>
+                    </div>
+                    <div className="p-2.5 bg-muted/40 border border-border rounded-xl">
+                      <strong className="block text-foreground text-xs font-mono">{selectedInspectorItem.data.scenesCount || 1}</strong>
+                      <span className="text-muted-foreground font-semibold">Scenes</span>
+                    </div>
+                    <div className="p-2.5 bg-muted/40 border border-border rounded-xl">
+                      <strong className="block text-foreground text-xs font-mono">{selectedInspectorItem.data.estimatedScreenTime || '4m 00s'}</strong>
+                      <span className="text-muted-foreground font-semibold">Screen Time</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -4648,11 +4640,19 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
       {/* 3. BOTTOM WORKSPACE STATUS BAR */}
       <footer className="px-6 py-2.5 border-t border-border bg-muted/40 flex items-center justify-between text-xs font-mono text-muted-foreground shrink-0" id="workspace-status-dock">
         <div className="flex items-center gap-4">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">ReelLegacy Sandbox Suite v0.7.0</span>
+          <span 
+            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-help"
+            title="v0.7.0"
+          >
+            ReelLegacy Story Studio
+          </span>
           <span className="text-border hidden sm:inline">|</span>
-          <div className="hidden sm:flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="font-semibold text-[10px] uppercase">Cloud Sync Node Online</span>
+          <div 
+            className="hidden sm:flex items-center gap-2 hover:text-foreground transition-colors cursor-help"
+            title="Cloud sync: ONLINE"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-sm shadow-emerald-500/50" />
+            <span className="font-semibold text-[10px] uppercase">Auto-saved</span>
           </div>
         </div>
 
