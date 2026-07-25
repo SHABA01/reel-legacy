@@ -25,6 +25,7 @@ import {
   Plus
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { ReelMediaPlayer } from '../ui/ReelMediaPlayer';
 import { TabNavigation } from '../ui/TabNavigation';
 import { useToast } from '../../context/ToastContext';
 import { ExtendedLegacyProfile } from './mockData';
@@ -38,6 +39,7 @@ interface ProfileDetailsProps {
 export function ProfileDetails({ profile, onBack, onEdit }: ProfileDetailsProps) {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'bio' | 'timeline' | 'media' | 'documents'>('bio');
+  const [activeVideoModal, setActiveVideoModal] = useState<{ id: string; title: string; type: string } | null>(null);
 
   // Compute stats or years
   const birthYearNum = profile.dateOfBirth ? new Date(profile.dateOfBirth).getFullYear() : null;
@@ -328,19 +330,30 @@ export function ProfileDetails({ profile, onBack, onEdit }: ProfileDetailsProps)
                 {profile.mediaPreviews && profile.mediaPreviews.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" id="details-media-grid">
                     {profile.mediaPreviews.map((m) => (
-                      <div key={m.id} className="p-3 border border-border rounded-xl bg-muted/30 space-y-2 flex flex-col justify-between" id={`media-preview-card-${m.id}`}>
+                      <div
+                        key={m.id}
+                        className="p-3 border border-border rounded-xl bg-muted/30 space-y-2 flex flex-col justify-between hover:border-cinema-amber-500/50 transition-all cursor-pointer group"
+                        id={`media-preview-card-${m.id}`}
+                        onClick={() => {
+                          if (m.type === 'video' || m.type === 'audio') {
+                            setActiveVideoModal({ id: m.id, title: m.title, type: m.type });
+                          }
+                        }}
+                      >
                         {m.type === 'image' ? (
                           <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted relative border border-border">
                             <img src={m.url} className="w-full h-full object-cover" alt={m.title} referrerPolicy="no-referrer" />
                           </div>
                         ) : (
-                          <div className="aspect-video w-full rounded-lg bg-sidebar/60 border border-border flex flex-col items-center justify-center p-3 text-center space-y-1">
-                            <PlayCircle className="w-8 h-8 text-indigo-500" />
-                            <span className="text-[9px] font-mono text-muted-foreground uppercase">{m.type} Attachment</span>
+                          <div className="aspect-video w-full rounded-lg bg-slate-950 border border-border flex flex-col items-center justify-center p-3 text-center space-y-1 relative group-hover:border-red-500/50 transition-all">
+                            <div className="w-10 h-10 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                              <PlayCircle className="w-6 h-6 text-white" />
+                            </div>
+                            <span className="text-[9px] font-mono text-white/70 uppercase tracking-wider">{m.type} Attachment</span>
                           </div>
                         )}
                         <div>
-                          <h4 className="text-xs font-bold text-foreground truncate">{m.title}</h4>
+                          <h4 className="text-xs font-bold text-foreground truncate group-hover:text-cinema-amber-500 transition-colors">{m.title}</h4>
                           <span className="text-[9px] font-mono text-muted-foreground block mt-0.5">{m.size || '3.4 MB'}</span>
                         </div>
                       </div>
@@ -541,6 +554,31 @@ export function ProfileDetails({ profile, onBack, onEdit }: ProfileDetailsProps)
           </div>
         </div>
       </div>
+
+      {/* VIDEO PREVIEW MODAL */}
+      {activeVideoModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative w-full max-w-3xl bg-slate-950 border border-white/10 rounded-2xl p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+              <span className="text-xs font-mono font-bold text-red-500 uppercase tracking-wider">
+                {activeVideoModal.type} Media Player
+              </span>
+              <button
+                onClick={() => setActiveVideoModal(null)}
+                className="p-1.5 text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <ReelMediaPlayer
+              title={activeVideoModal.title}
+              subTitle={`${profile.preferredName || 'Legacy Profile'} • Archived Attachment`}
+              durationSec={150}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

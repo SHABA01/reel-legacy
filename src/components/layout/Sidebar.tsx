@@ -52,6 +52,8 @@ export function Sidebar() {
     notifications: 0,
   });
 
+  const [hoveredTooltip, setHoveredTooltip] = useState<{ id: string; top: number; label: string } | null>(null);
+
   const updateCounts = async () => {
     try {
       const [allStories, allProfiles, timelineCount, mediaCount, unreadNotifs] = await Promise.all([
@@ -210,7 +212,13 @@ export function Sidebar() {
       </div>
 
       {/* Navigation list */}
-      <div id="sidebar-nav" className="flex-1 overflow-y-auto scrollbar-ephemeral px-4 py-6 space-y-6">
+      <div 
+        id="sidebar-nav" 
+        className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-ephemeral px-4 py-6 space-y-6"
+        onScroll={() => {
+          if (hoveredTooltip) setHoveredTooltip(null);
+        }}
+      >
         {(Object.keys(categories) as Array<keyof typeof categories>).map((catKey) => {
           const itemsInCat = navigationItems.filter((item) => item.category === catKey);
           if (itemsInCat.length === 0) return null;
@@ -234,8 +242,26 @@ export function Sidebar() {
                     <button
                       key={item.id}
                       id={`sidebar-item-${item.id}`}
-                      onClick={() => handleNavigate(item.id)}
+                      onClick={() => {
+                        setHoveredTooltip(null);
+                        handleNavigate(item.id);
+                      }}
                       onKeyDown={(e) => handleKeyDown(e, item.id)}
+                      onMouseEnter={(e) => {
+                        if (!sidebarExpanded) {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setHoveredTooltip({
+                            id: item.id,
+                            top: rect.top + rect.height / 2,
+                            label: item.label,
+                          });
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        if (!sidebarExpanded) {
+                          setHoveredTooltip(null);
+                        }
+                      }}
                       className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group custom-focus cursor-pointer ${
                         isActive
                           ? 'bg-cinema-amber-500 text-cinema-slate-950 font-semibold shadow-sm shadow-amber-500/10'
@@ -291,16 +317,6 @@ export function Sidebar() {
                           className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-cinema-amber-500" 
                         />
                       )}
-
-                      {/* Tooltip on collapsed state */}
-                      {!sidebarExpanded && (
-                        <div
-                          id={`sidebar-item-${item.id}-tooltip`}
-                          className="absolute left-16 scale-0 group-hover:scale-100 bg-sidebar-primary text-sidebar-primary-foreground text-xs px-2.5 py-1.5 rounded-lg shadow-lg transition-transform duration-150 origin-left z-50 pointer-events-none font-semibold whitespace-nowrap"
-                        >
-                          {item.label}
-                        </div>
-                      )}
                     </button>
                   );
                 })}
@@ -345,6 +361,17 @@ export function Sidebar() {
           </div>
         </div>
       </div>
+
+      {/* Floating Collapsed Tooltip */}
+      {!sidebarExpanded && hoveredTooltip && (
+        <div
+          id={`sidebar-item-${hoveredTooltip.id}-tooltip`}
+          className="fixed left-20 ml-2 -translate-y-1/2 z-50 pointer-events-none font-semibold text-xs px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap bg-slate-900 text-slate-100 border border-slate-800 dark:bg-white dark:text-slate-950 dark:border-slate-200 transition-all duration-150 animate-in fade-in-50 zoom-in-95"
+          style={{ top: `${hoveredTooltip.top}px` }}
+        >
+          {hoveredTooltip.label}
+        </div>
+      )}
     </aside>
   );
 }

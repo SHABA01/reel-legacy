@@ -23,6 +23,7 @@ interface SelectProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  dropPosition?: 'bottom' | 'top';
 }
 
 export function Select({
@@ -36,6 +37,7 @@ export function Select({
   placeholder = 'Select option...',
   className = '',
   disabled = false,
+  dropPosition = 'bottom',
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -85,7 +87,9 @@ export function Select({
 
         {isOpen && (
           <div
-            className="absolute top-full left-0 w-full mt-1.5 bg-card border border-border rounded-lg shadow-xl p-1.5 z-50 text-left text-sm max-h-60 overflow-y-auto flex flex-col gap-1"
+            className={`absolute left-0 w-full bg-card border border-border rounded-lg shadow-xl p-1.5 z-50 text-left text-sm max-h-60 overflow-y-auto flex flex-col gap-1 ${
+              dropPosition === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+            }`}
             id={`${id}-dropdown`}
           >
             {options.map((option) => {

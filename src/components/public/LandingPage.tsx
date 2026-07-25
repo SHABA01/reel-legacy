@@ -24,6 +24,7 @@ import {
   FileCheck2
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { ReelMediaPlayer } from '../ui/ReelMediaPlayer';
 
 interface LandingPageProps {
   setCurrentPage: (page: string) => void;
@@ -132,47 +133,14 @@ export function LandingPage({ setCurrentPage, onOpenAuth }: LandingPageProps) {
                 transition={{ duration: 0.6 }}
                 className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-2xl p-4 space-y-4"
               >
-                {/* Visual Video frame */}
-                <div className="relative aspect-[21/10] rounded-xl bg-black flex items-center justify-center overflow-hidden border border-cinema-slate-900 group">
-                  <video
-                    ref={videoRef}
-                    src="https://assets.mixkit.co/videos/preview/mixkit-vintage-movie-projector-running-34321-large.mp4"
-                    className="absolute inset-0 w-full h-full object-cover"
-                    loop
-                    playsInline
-                    onClick={handlePlayToggle}
-                  />
-                  
-                  {!isPlaying && (
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center z-10 transition-all duration-300">
-                      <Clapperboard className="w-16 h-16 text-cinema-amber-500/20 absolute group-hover:scale-105 transition-transform duration-500" />
-                      <button
-                        onClick={handlePlayToggle}
-                        id="hero-preview-play-btn"
-                        className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-cinema-amber-500 text-cinema-slate-950 hover:bg-cinema-amber-400 shadow-xl cursor-pointer transform hover:scale-110 transition-all z-20"
-                      >
-                        <Play className="h-6 w-6 fill-cinema-slate-950 ml-1" />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Red pulsing animation beside label */}
-                  <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/75 backdrop-blur-sm px-3 py-1 rounded-md border border-white/10 z-20">
-                    <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-                    <span className="font-mono text-[9px] text-white font-bold uppercase tracking-widest">
-                      {isPlaying ? "PLAYING DEMO" : "PLATFORM WALKTHROUGH"}
-                    </span>
-                  </div>
-
-                  {isPlaying && (
-                    <button
-                      onClick={handlePlayToggle}
-                      className="absolute bottom-3 right-3 bg-black/75 hover:bg-black/90 text-white font-mono text-[10px] px-2.5 py-1 rounded border border-white/10 z-20 cursor-pointer"
-                    >
-                      PAUSE
-                    </button>
-                  )}
-                </div>
+                {/* Visual YouTube-styled Video player */}
+                <ReelMediaPlayer
+                  src="https://assets.mixkit.co/videos/preview/mixkit-vintage-movie-projector-running-34321-large.mp4"
+                  title="ReelLegacy Platform Walkthrough"
+                  subTitle="Broadcast Quality Documentary Reel Compiler"
+                  durationSec={300}
+                  captionsText="Compiling family archives, aligning geographic timeline maps, and generating high-definition video memoirs."
+                />
 
                 {/* Walkthrough Description */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-muted/40 p-4 rounded-xl border border-border/60 text-left">
@@ -349,7 +317,7 @@ export function LandingPage({ setCurrentPage, onOpenAuth }: LandingPageProps) {
             <div className="pt-4 flex justify-center w-full">
               <Button
                 id="learn-types-btn"
-                variant="primary"
+                variant="secondary"
                 size="lg"
                 className="w-full sm:w-[210px] justify-center text-center"
                 onClick={() => handlePageNavigation('story-types')}

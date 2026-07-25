@@ -38,6 +38,8 @@
 26. Timeline Chronology Architectural Refactor into Story Studio (July 2026)
 27. Render Studio Modularization & Production Workspace Extraction (July 2026)
 28. Application Scrollbar Architecture & Workspace Scroll Stability Refactor (July 2026)
+29. Global Reel Media Player (ReelMediaPlayer.tsx) & Cinema Gold Styling (July 2026)
+30. Story Studio Workspace Complete Feature Matrix & Navigation Breadcrumb Synchronization (July 2026)
 
 ---
 
@@ -722,6 +724,59 @@ We established a clean architectural distinction between public landing pages an
 - **Workspace Layout Stability**: Configured all internal workspace containers (`/workspace/*`) to use permanently visible, 5px thin custom scrollbars (`scrollbar-width: thin !important`, `background: rgba(245, 158, 11, 0.65)` amber thumb on dark track).
 - **Elimination of Reflow & Element Shifting**: Prevented visual jumps and horizontal layout reflows caused by scrollbars dynamically appearing or disappearing as items were added or content exceeded viewport dimensions.
 - **Unified Global Target Rules**: Applied standard CSS rules across `.scrollbar-ephemeral`, `.custom-scrollbar`, `.scrollbar-thin`, and all Tailwind overflow utilities (`[class*="overflow-y-auto"]`, `[class*="overflow-x-auto"]`, `[class*="overflow-auto"]`) to guarantee consistent scrollbar styling across sidebars, timeline panels, media grids, scene breakdowns, overlays, and dialogs.
+
+---
+
+# 29. Global Reel Media Player (`ReelMediaPlayer.tsx`) & Cinema Gold Styling (July 2026)
+
+We extracted and centralized all video playback interfaces into a unified, standalone media player component `ReelMediaPlayer.tsx` (`src/components/ui/ReelMediaPlayer.tsx`), replacing legacy inline video controls across the application.
+
+## 1. Cinema Gold Aesthetic & Custom Theme Styling
+- **Replaced Default Red Accents**: Replaced all default video player red color accents with ReelLegacy's signature cinema amber/gold aesthetic (`bg-cinema-amber-500`, `#f59e0b`):
+  - Golden progress/seek track and glowing scrubber knob.
+  - Golden volume control sliders and active mute indicators.
+  - Golden selection highlights in the playback speed settings menu.
+  - Golden animated on-screen ripple feedback icons.
+
+## 2. On-Screen Animated Feedback & Shortcuts
+- **YouTube-Style On-Screen Feedback**: Built an interactive center-screen feedback ripple (`overlayFeedback`) that triggers on play, pause, rewind (-5s), and fast-forward (+5s) actions, complete with backdrop blur, golden borders, and auto-fading keyframe animations.
+- **Comprehensive Keyboard Shortcuts**:
+  - `Space` / `k`: Toggle Play / Pause.
+  - `f`: Toggle Fullscreen mode (and `Escape` to exit).
+  - `m`: Toggle Mute / Unmute.
+  - `c`: Toggle Closed Captions / Subtitles.
+  - `t`: Toggle Theater Mode.
+  - `ArrowLeft` / `j`: Rewind 5 seconds.
+  - `ArrowRight` / `l`: Fast forward 5 seconds.
+  - `ArrowUp` / `ArrowDown`: Increase / Decrease volume by 10%.
+  - `0`–`9`: Jump to corresponding percentage timecodes on the timeline (0% to 90%).
+  - Left-Mouse Double-Click: Toggle Fullscreen mode directly on video viewports.
+
+## 3. Application-Wide Deployment
+- **Global Deployment**: Integrated `ReelMediaPlayer` across `LandingPage.tsx`, `PreviewWorkspace.tsx`, `MediaLibrary.tsx`, and `ProfileDetails.tsx`.
+- **Backward Compatibility**: Added re-export aliases (`YouTubeVideoPlayer`) inside `YouTubeVideoPlayer.tsx` to maintain seamless backward compatibility with existing imports.
+
+---
+
+# 30. Story Studio Workspace Complete Feature Matrix & Navigation Breadcrumb Synchronization (July 2026)
+
+We synchronized workspace sub-section routing with `BreadcrumbContext` and documented the full feature matrix for the 11 Story Studio sections.
+
+## 1. Navigation Breadcrumb Synchronization
+- **Breadcrumb Context Alignment**: Synchronized `StoryWorkspace.tsx` section states with `BreadcrumbContext`. Fixed breadcrumb resolution mapping so navigating to any sub-section (e.g. `Scripts`, `Timeline`, `Scenes`, `Narration`, `Preview`, `Render`) dynamically updates the application header breadcrumb (e.g. `Story Studio > [Story Title] > Scripts`) instead of defaulting to `Overview`.
+
+## 2. Story Studio Workspace Feature Matrix
+1. **Overview**: Project health score, AI readiness verification, completion metrics, quick actions, and linked profile details.
+2. **Story Info & Bio**: Core narrative parameters (title, subtitle, logline, target length, tone), legacy profile links, and dual sub-tab manuscript writing editor.
+3. **Timeline Chronology**: Chronological milestone builder with decade groupings, importance weights, category tags, search filters, and direct links to media assets and characters.
+4. **Scripts**: AI script preparation, screenplay treatment generator, scene narration drafts, and voiceover cue editing.
+5. **Characters & Relationships**: Associated family members, co-authors, historical figures, and interviewees linked to story events and scenes.
+6. **Media Assets & Documents**: Centralized repository for archival photos, digitized video reels, voice notes, and scanned PDF document ledgers mapped to timeline events.
+7. **Scenes Workspace**: Director scene breakdown canvas, visual storyboards, camera motion parameters (Zoom In, Zoom Out, Pan Left, Pan Right, Tracking), duration timing, and narration alignment.
+8. **Narration Studio**: AI voice persona configuration (Arthur, Evelyn, Archival Preset), vocal speed/pitch parameters, audio wave preview, and synchronized voiceover cue assignment.
+9. **Music & Audio Scoring**: Acoustic score selector, soundtrack backing tracks, volume ducking controls, and background audio layering.
+10. **Preview Workspace**: Program monitor powered by `ReelMediaPlayer`, interactive timeline tracks, subtitle overlay toggles, shot camera guides, and runtime statistics.
+11. **Render Workspace**: Standalone production studio (`RenderWorkspace.tsx`) featuring 4K Cinematic Reel, 9:16 Social Short, Audio Podcast, and PDF Booklet export presets with live progress synthesis and package ZIP export.
 
 
 

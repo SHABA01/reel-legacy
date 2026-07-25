@@ -523,6 +523,7 @@ function AppContent() {
 }
 
 import { BreadcrumbProvider } from './context/BreadcrumbContext';
+import { InspectorProvider } from './context/InspectorContext';
 
 export default function App() {
   return (
@@ -530,11 +531,13 @@ export default function App() {
       <ThemeProvider>
         <ToastProvider>
           <OverlayProvider>
-            <AuthProvider>
-              <BreadcrumbProvider>
-                <AppContent />
-              </BreadcrumbProvider>
-            </AuthProvider>
+            <InspectorProvider>
+              <AuthProvider>
+                <BreadcrumbProvider>
+                  <AppContent />
+                </BreadcrumbProvider>
+              </AuthProvider>
+            </InspectorProvider>
           </OverlayProvider>
         </ToastProvider>
       </ThemeProvider>

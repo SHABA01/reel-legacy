@@ -52,6 +52,7 @@ import {
   Volume2
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { ReelMediaPlayer } from '../ui/ReelMediaPlayer';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { ViewModeToggle } from '../ui/ViewModeToggle';
@@ -1684,41 +1685,15 @@ export function MediaLibrary() {
                 )}
 
                 {previewAsset.type === 'video' && (
-                  <div className="w-full max-w-xl aspect-video bg-black rounded-xl border border-white/10 overflow-hidden relative flex flex-col justify-end p-4">
-                    <img 
-                      src={previewAsset.thumbnailUrl} 
-                      alt="frame" 
-                      className="absolute inset-0 w-full h-full object-cover opacity-60" 
-                      referrerPolicy="no-referrer"
+                  <div className="w-full max-w-2xl">
+                    <ReelMediaPlayer
+                      src={previewAsset.url?.startsWith('http') || previewAsset.url?.startsWith('data:') || previewAsset.url?.startsWith('blob:') ? previewAsset.url : undefined}
+                      poster={previewAsset.thumbnailUrl}
+                      title={previewAsset.name}
+                      subTitle={`Media Asset • ${previewAsset.size || '78 MB'}`}
+                      durationSec={120}
+                      captionsText={`Digitized vintage reel: ${previewAsset.name}`}
                     />
-                    
-                    {/* Centered play button */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <button
-                        onClick={() => setIsPlaying(!isPlaying)}
-                        className="w-14 h-14 rounded-full bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 flex items-center justify-center shadow-lg transform active:scale-95 transition-all cursor-pointer"
-                      >
-                        {isPlaying ? <Pause className="w-6 h-6 fill-slate-950" /> : <Play className="w-6 h-6 fill-slate-950 ml-1" />}
-                      </button>
-                    </div>
-
-                    {/* Timeline markers placeholder */}
-                    <div className="w-full space-y-2 bg-slate-950/70 p-3 rounded-lg backdrop-blur relative z-10">
-                      <div className="flex items-center justify-between text-[10px] font-mono text-white/80">
-                        <span>{isPlaying ? '00:15' : '00:00'}</span>
-                        <div className="flex gap-2">
-                          <span className="text-cinema-amber-400">● Marker Intro (1940s)</span>
-                          <span className="text-slate-400">● Marker School (1950s)</span>
-                        </div>
-                        <span>{previewAsset.duration}</span>
-                      </div>
-                      <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-cinema-amber-500 rounded-full" 
-                          style={{ width: isPlaying ? '15%' : '0%' }}
-                        />
-                      </div>
-                    </div>
                   </div>
                 )}
 

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft,
@@ -80,6 +80,7 @@ import { PromptModal } from '../ui/PromptModal';
 import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { useBreadcrumbs } from '../../context/BreadcrumbContext';
+import { useInspector } from '../../context/InspectorContext';
 import { ExtendedStory } from './mockStoriesData';
 import { StoryWizard } from './StoryWizard';
 import { CharactersWorkspace, StoryCharacter } from './CharactersWorkspace';
@@ -207,14 +208,25 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
     return 'overview';
   });
 
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   // Sync breadcrumbs with active section and story project title
   useEffect(() => {
+    const handleBackClick = () => {
+      onCloseRef.current?.();
+    };
+
     const sectionLabelMap: Record<string, string> = {
       overview: 'Overview',
       story: 'Story',
       info: 'Story',
       biography: 'Story',
       timeline: 'Timeline',
+      scripts: 'Scripts',
+      script: 'Scripts',
       characters: 'Characters',
       people: 'Characters',
       assets: 'Assets',
@@ -233,7 +245,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
       setBreadcrumbs([
         {
           label: 'Story Studio',
-          onClick: onClose,
+          onClick: handleBackClick,
         },
         {
           label: initialStory.title || 'Untitled Story',
@@ -243,7 +255,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
       setBreadcrumbs([
         {
           label: 'Story Studio',
-          onClick: onClose,
+          onClick: handleBackClick,
         },
         {
           label: initialStory.title || 'Untitled Story',
@@ -257,11 +269,13 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
         },
       ]);
     }
-  }, [activeSection, initialStory.title, initialStory.id, onClose, setBreadcrumbs, setSearchParams]);
+  }, [activeSection, initialStory.title, initialStory.id, setBreadcrumbs, setSearchParams]);
 
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState<boolean>(false);
   const [isRightInspectorCollapsed, setIsRightInspectorCollapsed] = useState<boolean>(false);
   
+  const { setSelection } = useInspector();
+
   // Selected item inside workspaces which populates the dynamic right inspector
   const [selectedInspectorItem, setSelectedInspectorItem] = useState<{
     type: 'story' | 'timeline' | 'media' | 'person' | 'career' | 'document';
@@ -272,6 +286,23 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
     id: initialStory.id,
     data: initialStory
   });
+
+  // Synchronize selection with global Context Engine
+  useEffect(() => {
+    if (selectedInspectorItem) {
+      const typeMap: Record<string, any> = {
+        person: 'character',
+        story: 'story',
+        timeline: 'timeline',
+        media: 'media',
+        career: 'career',
+        document: 'document',
+        import: 'import',
+      };
+      const targetType = typeMap[selectedInspectorItem.type] || 'story';
+      setSelection(targetType, selectedInspectorItem.data, { id: selectedInspectorItem.id });
+    }
+  }, [selectedInspectorItem, setSelection]);
 
   // 2. SAVING & TRANSACTION STATE
   const [saveStatus, setSaveStatus] = useState<'Saved' | 'Unsaved Changes' | 'Saving...'>('Saved');
@@ -1232,6 +1263,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
     { id: 'overview', label: 'Overview', icon: Film, description: 'Completion score, narrative brief & AI readiness' },
     { id: 'story', label: 'Story', icon: BookOpen, description: 'Core metadata, tone parameters & manuscript biography' },
     { id: 'timeline', label: 'Timeline', icon: Calendar, description: 'Milestones & chronological event builder' },
+    { id: 'scripts', label: 'Scripts', icon: FileText, description: 'AI Script prep, screenplay treatments & draft outlines' },
     { id: 'characters', label: 'Characters', icon: Users, description: 'Associated family members, co-authors & interviewees' },
     { id: 'assets', label: 'Assets', icon: Camera, description: 'Photos, scanned historical records & documents' },
     { id: 'scenes', label: 'Scenes', icon: Wand2, description: 'Director scene breakdowns & script structure' },
@@ -1271,39 +1303,36 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   };
 
   // REAL-TIME AUTO SAVE PROCESS
-  const triggerAutoSave = (updatedFields: any) => {
-    setSaveStatus('Saving...');
-    setTimeout(() => {
-      const time = new Date();
-      setLastSaved(time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      setSaveStatus('Saved');
-    }, 1000);
-  };
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSavePendingRef = useRef<boolean>(false);
 
-  const handleMetaChange = (field: string, value: string) => {
-    const updatedMeta = { ...storyMeta, [field]: value };
-    setStoryMeta(updatedMeta);
-    setSaveStatus('Unsaved Changes');
-    triggerAutoSave(updatedMeta);
-  };
+  const saveWorkspaceDataImmediately = useCallback((
+    metaToSave = storyMeta,
+    bioToSave = biographyText,
+    eventsToSave = timelineEvents
+  ) => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
+    autoSavePendingRef.current = false;
 
-  const handleSaveWorkspaceData = () => {
     setSaveStatus('Saving...');
-    
+
     // Save biography text
-    localStorage.setItem(`rl_biography_${initialStory.id}`, biographyText);
+    localStorage.setItem(`rl_biography_${initialStory.id}`, bioToSave);
 
     // Reconstruct updated story structure
     const updatedStory: ExtendedStory = {
       ...initialStory,
-      title: storyMeta.title,
-      subtitle: storyMeta.subtitle,
-      description: storyMeta.description,
-      tags: [initialStory.category, storyMeta.visibility, 'Workspace'],
+      title: metaToSave.title,
+      subtitle: metaToSave.subtitle,
+      description: metaToSave.description,
+      tags: [initialStory.category, metaToSave.visibility, 'Workspace'],
       mediaCount: mediaItems.length,
-      timelineEventCount: timelineEvents.length,
+      timelineEventCount: eventsToSave.length,
       lastEdited: new Date().toISOString(),
-      timelineEvents: timelineEvents.map(evt => ({
+      timelineEvents: eventsToSave.map(evt => ({
         id: evt.id,
         year: evt.year,
         title: evt.title,
@@ -1311,13 +1340,62 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
       }))
     };
 
-    setTimeout(() => {
-      onSave(updatedStory);
-      const time = new Date();
-      setLastSaved(time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      setSaveStatus('Saved');
-      showToast('success', 'Workspace Saved Successfully', `Story workspace database for "${storyMeta.title}" synced.`);
-    }, 800);
+    onSave(updatedStory);
+    const time = new Date();
+    setLastSaved(time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    setSaveStatus('Saved');
+  }, [initialStory, mediaItems.length, onSave, storyMeta, biographyText, timelineEvents]);
+
+  const scheduleAutoSave = useCallback((
+    metaToSave = storyMeta,
+    bioToSave = biographyText,
+    eventsToSave = timelineEvents
+  ) => {
+    autoSavePendingRef.current = true;
+    setSaveStatus('Saving...');
+
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      saveWorkspaceDataImmediately(metaToSave, bioToSave, eventsToSave);
+    }, 600);
+  }, [saveWorkspaceDataImmediately, storyMeta, biographyText, timelineEvents]);
+
+  // Unmount cleanup to flush pending auto-save immediately
+  useEffect(() => {
+    return () => {
+      if (autoSavePendingRef.current) {
+        saveWorkspaceDataImmediately();
+      }
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [saveWorkspaceDataImmediately]);
+
+  const triggerAutoSave = (updatedFields?: any) => {
+    scheduleAutoSave(storyMeta, biographyText, timelineEvents);
+  };
+
+  const handleMetaChange = (field: string, value: string) => {
+    const updatedMeta = { ...storyMeta, [field]: value };
+    setStoryMeta(updatedMeta);
+    setSaveStatus('Unsaved Changes');
+    scheduleAutoSave(updatedMeta, biographyText, timelineEvents);
+  };
+
+  const handleSaveWorkspaceData = () => {
+    saveWorkspaceDataImmediately();
+    showToast('success', 'Workspace Saved Successfully', `Story workspace database for "${storyMeta.title}" synced.`);
+  };
+
+  const handleCloseAndExit = () => {
+    if (autoSavePendingRef.current) {
+      saveWorkspaceDataImmediately();
+    }
+    onClose();
   };
 
   // TIMELINE ACTIONS
@@ -1700,7 +1778,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
             variant="ghost"
             size="sm"
             leftIcon={<ArrowLeft className="w-4 h-4 text-foreground" />}
-            onClick={onClose}
+            onClick={handleCloseAndExit}
             className="border border-border p-1.5"
             aria-label="Back to Library"
           >
@@ -1751,29 +1829,6 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
               <Redo2 className="w-4 h-4" />
             </button>
           </div>
-
-          <Button
-            id="btn-workspace-preview"
-            variant="ghost"
-            size="xs"
-            leftIcon={<Eye className="w-3.5 h-3.5 text-foreground" />}
-            onClick={() => showToast('info', 'Production Draft Preview', 'Pre-rendering film layout assets for high fidelity video test overlay...')}
-            className="border border-border text-xs hidden md:inline-flex"
-          >
-            Preview
-          </Button>
-
-          <Button
-            id="btn-workspace-ai-trigger"
-            variant="ghost"
-            size="xs"
-            disabled={!isAIReady}
-            leftIcon={<Sparkles className={`w-3.5 h-3.5 ${isAIReady ? 'text-indigo-500 animate-pulse' : 'text-muted-foreground'}`} />}
-            onClick={() => showToast('success', 'AI Director Ready', 'Narrative scripting pipelines initialized! Workspace ready to pass to Stage 8 generator.')}
-            className={`text-xs border ${isAIReady ? 'border-indigo-500/35 hover:bg-indigo-500/5' : 'border-border'}`}
-          >
-            AI Script Prep
-          </Button>
 
           <Button
             id="btn-workspace-create-story"
@@ -1837,24 +1892,6 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
               </button>
             );
           })}
-        </div>
-
-        {/* Workspace Inspector Toggle */}
-        <div className="flex items-center gap-2 shrink-0 border-l border-border/80 pl-3 md:pl-4">
-          <Button
-            id="btn-toggle-workspace-inspector"
-            variant="ghost"
-            size="xs"
-            leftIcon={<Sliders className="w-3.5 h-3.5 text-cinema-amber-500" />}
-            onClick={() => setIsRightInspectorCollapsed(!isRightInspectorCollapsed)}
-            className={`text-xs font-bold border transition-all ${
-              !isRightInspectorCollapsed
-                ? 'bg-cinema-amber-500/10 border-cinema-amber-500/30 text-cinema-amber-500'
-                : 'border-border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {isRightInspectorCollapsed ? 'Show Inspector' : 'Inspector'}
-          </Button>
         </div>
       </div>
 
@@ -2338,6 +2375,142 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                         <Wand2 className="w-20 h-20" />
                       </div>
                     </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* AI SCRIPT PREP WORKSPACE */}
+            {activeSection === 'scripts' && (
+              <motion.div
+                key="workspace-scripts"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-6 md:p-8 space-y-6 w-full"
+                id="pane-scripts"
+              >
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
+                  <div>
+                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-cinema-amber-500" /> AI Screenplay & Script Prep Studio
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Generate AI-assisted screenplay drafts, scene treatments, and dialogue cues based on story milestones and characters.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <Button
+                      variant="accent"
+                      size="sm"
+                      leftIcon={<Sparkles className="w-4 h-4 text-slate-950" />}
+                      onClick={() => showToast('success', 'AI Script Generated', 'Compiled 3-act narrative screenplay draft from story milestones.')}
+                      className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold uppercase tracking-wider text-xs"
+                    >
+                      Generate AI Script
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Status Badges */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3.5 bg-card border border-border rounded-xl flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-cinema-amber-500/10 border border-cinema-amber-500/20 flex items-center justify-center text-cinema-amber-500">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono text-muted-foreground uppercase font-bold block">Draft Status</span>
+                      <span className="text-xs font-bold text-foreground">Script Prep Pending</span>
+                    </div>
+                  </div>
+                  <div className="p-3.5 bg-card border border-border rounded-xl flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono text-muted-foreground uppercase font-bold block">Linked Milestones</span>
+                      <span className="text-xs font-bold text-foreground">{timelineEvents.length} Events Ready</span>
+                    </div>
+                  </div>
+                  <div className="p-3.5 bg-card border border-border rounded-xl flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono text-muted-foreground uppercase font-bold block">Key Profiles</span>
+                      <span className="text-xs font-bold text-foreground">{characters.length} Family Cast Members</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Empty State Card */}
+                <div className="p-8 md:p-12 border border-dashed border-border rounded-2xl bg-card/30 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="w-16 h-16 rounded-2xl bg-cinema-amber-500/10 border border-cinema-amber-500/20 flex items-center justify-center text-cinema-amber-500 shadow-inner">
+                    <Sparkles className="w-8 h-8" />
+                  </div>
+                  <div className="max-w-md space-y-1">
+                    <h4 className="font-display font-black text-base text-foreground uppercase tracking-wide">
+                      No Active Script Draft Found
+                    </h4>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Transform your story chronology, interview notes, and character profiles into a polished 3-act screenplay format with narration beats and scene cues.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                    <Button
+                      variant="accent"
+                      size="sm"
+                      leftIcon={<Wand2 className="w-4 h-4 text-slate-950" />}
+                      onClick={() => showToast('success', 'AI Script Prep Started', 'Generating narrative script outline...')}
+                      className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold"
+                    >
+                      Build AI Script Draft
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<UploadCloud className="w-4 h-4" />}
+                      onClick={() => showToast('info', 'Import Script', 'Select a .fountain or screenplay text file.')}
+                      className="border-border text-foreground hover:bg-muted"
+                    >
+                      Import Custom Script
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Script Template Presets */}
+                <div className="space-y-3">
+                  <h4 className="font-display font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-2">
+                    <BookOpen className="w-3.5 h-3.5 text-cinema-amber-500" /> Presets & Script Blueprints
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                      { title: 'Documentary Retrospective', badge: '3-Act Narrative', desc: 'Linear biographical narrative with narrator voiceover and photo overlay beats.' },
+                      { title: 'Family Keepsake Reel', badge: 'Short Format', desc: 'Emotional, warm highlight script optimized for short chapter videos and celebrations.' },
+                      { title: 'Interview Q&A Guide', badge: 'Conversational', desc: 'Structured prompt beats tailored for live recorded interview sessions with family members.' },
+                      { title: 'Cinematic Memoir Teaser', badge: '60s Teaser', desc: 'High-impact trailer draft capturing pivotal life turning points and legacy themes.' },
+                    ].map((tpl, i) => (
+                      <div
+                        key={i}
+                        className="p-4 bg-card border border-border rounded-xl space-y-2 hover:border-cinema-amber-500/50 transition-all cursor-pointer group"
+                        onClick={() => showToast('info', 'Script Template Loaded', `Selected "${tpl.title}" as baseline blueprint.`)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-mono font-bold bg-cinema-amber-500/10 text-cinema-amber-500 px-2 py-0.5 rounded border border-cinema-amber-500/20 uppercase">
+                            {tpl.badge}
+                          </span>
+                          <Sparkles className="w-3.5 h-3.5 text-muted-foreground group-hover:text-cinema-amber-500 transition-colors" />
+                        </div>
+                        <h5 className="font-display font-bold text-xs text-foreground group-hover:text-cinema-amber-500 transition-colors">
+                          {tpl.title}
+                        </h5>
+                        <p className="text-[11px] text-muted-foreground leading-snug">
+                          {tpl.desc}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </motion.div>
@@ -4166,13 +4339,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
           </AnimatePresence>
         </main>
 
-        {/* RIGHT INSPECTOR PANEL */}
-        <aside
-          id="workspace-right-inspector"
-          className={`h-full border-l border-border bg-card transition-all duration-300 flex flex-col justify-between shrink-0 ${
-            isRightInspectorCollapsed ? 'w-0 overflow-hidden border-l-0' : 'w-80'
-          }`}
-        >
+        <aside className="hidden">
           {/* Header */}
           <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center justify-between shrink-0">
             <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground font-mono">
@@ -4624,17 +4791,6 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
             <p className="text-[10px] text-muted-foreground font-medium mt-0.5">Focus: {selectedInspectorItem.type.toUpperCase()}</p>
           </div>
         </aside>
-
-        {/* FLOATING INSPECTOR TOGGLE (Visible when right sidebar is collapsed) */}
-        {isRightInspectorCollapsed && (
-          <button
-            onClick={() => setIsRightInspectorCollapsed(false)}
-            className="absolute right-4 top-4 z-30 p-2 rounded-full bg-cinema-amber-500 text-slate-950 shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            title="Open Inspector"
-          >
-            <SlidersHorizontal className="w-5 h-5" />
-          </button>
-        )}
       </div>
 
       {/* 3. BOTTOM WORKSPACE STATUS BAR */}
@@ -4669,13 +4825,13 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
 
       {/* 4. CHRONOLOGY MILESTONE EDITING MODAL */}
       {isTimelineModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4" id="timeline-event-editor-backdrop">
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden" id="timeline-event-editor-backdrop">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-xl overflow-hidden text-foreground"
+            className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-xl overflow-hidden text-foreground flex flex-col max-h-[85vh] my-auto"
           >
-            <div className="px-5 py-4 border-b border-border bg-muted/40 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-border bg-muted/40 flex items-center justify-between shrink-0">
               <h4 className="font-display font-black text-sm uppercase tracking-wide">
                 {timelineModalMode === 'create' ? 'Create Chronology Milestone' : 'Modify Chronology Milestone'}
               </h4>
@@ -4687,7 +4843,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
               </button>
             </div>
 
-            <div className="p-5 space-y-4 text-xs">
+            <div className="p-5 space-y-4 text-xs flex-1 overflow-y-auto scrollbar-ephemeral">
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-1 space-y-1">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase">Year point *</label>
@@ -4762,6 +4918,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                     label="Visual Priority"
                     value={activeTimelineEvent.importance || 'Medium'}
                     onChange={(val) => setActiveTimelineEvent({ ...activeTimelineEvent, importance: val as any })}
+                    dropPosition="top"
                     options={[
                       { value: 'High', label: 'High (Cinematic highlight)' },
                       { value: 'Medium', label: 'Medium (Standard chapter entry)' },

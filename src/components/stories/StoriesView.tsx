@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -134,6 +134,21 @@ export function StoriesView() {
     storyTitle?: string;
     isBulk?: boolean;
   }>({ isOpen: false });
+
+  // Memoized handlers for workspace view to prevent re-render loops
+  const handleCloseWorkspace = useCallback(() => {
+    setActiveSubView('catalog');
+  }, []);
+
+  const handleSaveWorkspace = useCallback(async (updatedStory: ExtendedStory) => {
+    try {
+      await StoryService.updateStory(updatedStory.id, updatedStory as any);
+      await refreshStories();
+      showToast('success', 'Changes Saved', `"${updatedStory.title}" updated successfully.`);
+    } catch (error: any) {
+      showToast('error', 'Save Failed', error.message || 'Could not save modifications.');
+    }
+  }, [refreshStories, showToast]);
 
 
 
@@ -461,16 +476,8 @@ export function StoriesView() {
       {activeSubView === 'workspace' && selectedStory && (
         <StoryWorkspace
           story={selectedStory}
-          onClose={() => setActiveSubView('catalog')}
-          onSave={async (updatedStory) => {
-            try {
-              await StoryService.updateStory(updatedStory.id, updatedStory as any);
-              await refreshStories();
-              showToast('success', 'Changes Saved', `"${updatedStory.title}" updated successfully.`);
-            } catch (error: any) {
-              showToast('error', 'Save Failed', error.message || 'Could not save modifications.');
-            }
-          }}
+          onClose={handleCloseWorkspace}
+          onSave={handleSaveWorkspace}
         />
       )}
 
@@ -484,7 +491,7 @@ export function StoriesView() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
               <div>
                 <h2 className="font-display text-xl font-black tracking-tight text-foreground flex items-center gap-2">
-                  <Film className="w-5.5 h-5.5 text-cinema-amber-500 animate-pulse" /> Story Production Library
+                  <BookOpen className="w-5.5 h-5.5 text-cinema-amber-500 animate-pulse" /> Story Production Library
                 </h2>
                 <p className="text-xs text-muted-foreground mt-1 max-w-2xl font-medium">
                   Organize, search, filter, and access your complete catalog of legacy story projects.

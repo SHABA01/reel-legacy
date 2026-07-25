@@ -37,6 +37,7 @@ import {
   Activity
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { ReelMediaPlayer } from '../ui/ReelMediaPlayer';
 import { StoryScene } from './ScenesWorkspace';
 import { StoryCharacter } from './CharactersWorkspace';
 
@@ -310,165 +311,40 @@ export function PreviewWorkspace({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT 2 COLS: PROGRAM MONITOR & PLAYBACK CONTROLS */}
         <div className="lg:col-span-2 space-y-4">
-          {/* CINEMATIC MONITOR FRAME */}
-          <div className="bg-slate-950 border-2 border-border/80 rounded-3xl overflow-hidden shadow-2xl relative group">
-            {/* Top Monitor Bar */}
-            <div className="px-4 py-2 bg-slate-900/90 border-b border-white/10 flex items-center justify-between text-[11px] font-mono text-slate-400">
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1.5 text-cinema-amber-400 font-bold uppercase tracking-wider">
-                  <span className="w-2 h-2 rounded-full bg-cinema-amber-500 animate-pulse" />
-                  Program Preview
-                </span>
-                <span>•</span>
-                <span>Scene #{currentScene?.sceneNumber || 1}: {currentScene?.title || 'Untitled'}</span>
-              </div>
+          {/* CINEMATIC YOUTUBE-STYLED PROGRAM MONITOR */}
+          <ReelMediaPlayer
+            poster={activeMediaUrl}
+            title={`Scene #${currentScene?.sceneNumber || 1}: ${currentScene?.title || 'Untitled'}`}
+            subTitle={`${storyTitle} • ${currentScene?.type || 'Documentary Cut'}`}
+            durationSec={totalRuntimeStats.totalSec || 180}
+            captionsText={showCaptions ? currentScene?.narrationText : undefined}
+            showNextPrev={true}
+            onNext={handleNextScene}
+            onPrev={handlePrevScene}
+            isTheater={isFullscreen}
+            onToggleTheater={() => setIsFullscreen(!isFullscreen)}
+            customOverlay={
+              <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between z-10">
+                <div className="flex items-center justify-between">
+                  {showCameraGuide && currentScene?.cameraMovement && (
+                    <div className="bg-black/75 backdrop-blur-md border border-white/15 px-3 py-1 rounded-full text-[10px] font-mono font-bold text-slate-200 flex items-center gap-1.5 shadow-md">
+                      <Video className="w-3.5 h-3.5 text-red-500" />
+                      Shot: {currentScene.cameraMovement} ({currentScene.zoomStyle || 'Subtle'})
+                    </div>
+                  )}
 
-              <div className="flex items-center gap-4">
-                <span className="text-white font-bold bg-black/50 px-2 py-0.5 rounded border border-white/10">
-                  {totalRuntimeStats.timecodeCurrent}
-                </span>
-                <span className="text-slate-500">/</span>
-                <span className="text-slate-400">{totalRuntimeStats.timecodeTotal}</span>
-              </div>
-            </div>
-
-            {/* Video / Photo Render Screen */}
-            <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
-              <img
-                src={activeMediaUrl}
-                alt={currentScene?.title}
-                className={`w-full h-full object-cover transition-transform duration-1000 ${
-                  currentScene?.cameraMovement === 'Zoom In'
-                    ? 'scale-110'
-                    : currentScene?.cameraMovement === 'Zoom Out'
-                    ? 'scale-100'
-                    : 'scale-105'
-                }`}
-                referrerPolicy="no-referrer"
-              />
-
-              {/* Dark Overlay Gradient */}
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent pointer-events-none" />
-
-              {/* Top Right Scene Badge */}
-              <div className="absolute top-4 right-4 flex items-center gap-2">
-                <span className="bg-black/70 backdrop-blur-md text-cinema-amber-400 border border-cinema-amber-500/30 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                  {currentScene?.type || 'Documentary Cut'}
-                </span>
-                <span className="bg-black/70 backdrop-blur-md text-white border border-white/20 text-[10px] font-mono font-bold px-2.5 py-1 rounded-full">
-                  {currentScene?.estimatedDuration || '1m 00s'}
-                </span>
-              </div>
-
-              {/* Camera Movement Direction Guide Overlay */}
-              {showCameraGuide && currentScene?.cameraMovement && (
-                <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-md border border-white/15 px-3 py-1 rounded-full text-[10px] font-mono font-bold text-slate-300 flex items-center gap-1.5">
-                  <Video className="w-3 h-3 text-cinema-amber-400" />
-                  Shot: {currentScene.cameraMovement} ({currentScene.zoomStyle || 'Subtle'})
-                </div>
-              )}
-
-              {/* Floating Caption / Subtitle Overlay */}
-              {showCaptions && currentScene?.narrationText && (
-                <div className="absolute bottom-6 left-6 right-6 text-center">
-                  <div className="inline-block bg-black/80 backdrop-blur-md border border-white/15 text-white text-xs md:text-sm font-serif italic px-5 py-2.5 rounded-2xl max-w-2xl shadow-xl leading-relaxed">
-                    "{currentScene.narrationText}"
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="bg-black/75 backdrop-blur-md text-red-400 border border-red-500/30 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-md">
+                      {currentScene?.type || 'Documentary Cut'}
+                    </span>
+                    <span className="bg-black/75 backdrop-blur-md text-white border border-white/20 text-[10px] font-mono font-bold px-2.5 py-1 rounded-full shadow-md">
+                      {currentScene?.estimatedDuration || '1m 00s'}
+                    </span>
                   </div>
                 </div>
-              )}
-            </div>
-
-            {/* Bottom Playback Control Bar */}
-            <div className="p-4 bg-slate-900 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-              {/* Play / Skip Buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleResetPlayback}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
-                  title="Reset to Start"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-
-                <button
-                  onClick={handlePrevScene}
-                  disabled={activeSceneIndex === 0}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors disabled:opacity-30 cursor-pointer"
-                  title="Previous Scene"
-                >
-                  <SkipBack className="w-4 h-4" />
-                </button>
-
-                <button
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  className="p-3 bg-cinema-amber-500 hover:bg-cinema-amber-400 text-slate-950 rounded-2xl transition-all shadow-md cursor-pointer font-bold"
-                  title={isPlaying ? 'Pause Preview' : 'Play Preview'}
-                >
-                  {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
-                </button>
-
-                <button
-                  onClick={handleNextScene}
-                  disabled={activeSceneIndex === scenes.length - 1}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors disabled:opacity-30 cursor-pointer"
-                  title="Next Scene"
-                >
-                  <SkipForward className="w-4 h-4" />
-                </button>
               </div>
-
-              {/* Seek Bar Simulation */}
-              <div className="flex-1 w-full max-w-xs space-y-1">
-                <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-                  <span>Scene Progress</span>
-                  <span>{Math.floor(currentTimeSec)}s / 12s</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="12"
-                  value={currentTimeSec}
-                  onChange={(e) => setCurrentTimeSec(parseFloat(e.target.value))}
-                  className="w-full accent-cinema-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
-                />
-              </div>
-
-              {/* Volume, Speed & Overlay Toggles */}
-              <div className="flex items-center gap-3 text-slate-400 text-xs">
-                {/* Audio Mute */}
-                <button
-                  onClick={() => setIsMuted(!isMuted)}
-                  className="p-2 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
-                  title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
-                >
-                  {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
-                </button>
-
-                {/* Captions Toggle */}
-                <button
-                  onClick={() => setShowCaptions(!showCaptions)}
-                  className={`p-2 rounded-xl transition-colors cursor-pointer border ${
-                    showCaptions ? 'bg-cinema-amber-500/20 text-cinema-amber-400 border-cinema-amber-500/30' : 'hover:text-white border-transparent'
-                  }`}
-                  title="Toggle Subtitle Overlay"
-                >
-                  <Subtitles className="w-4 h-4" />
-                </button>
-
-                {/* Speed Selector */}
-                <select
-                  value={playbackSpeed}
-                  onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
-                  className="bg-slate-800 border border-white/10 text-slate-300 text-[11px] font-mono rounded-lg px-2 py-1 focus:outline-none"
-                >
-                  <option value={0.5}>0.5x</option>
-                  <option value={1}>1.0x</option>
-                  <option value={1.5}>1.5x</option>
-                  <option value={2}>2.0x</option>
-                </select>
-              </div>
-            </div>
-          </div>
+            }
+          />
 
           {/* VISUAL PRODUCTION TIMELINE TRACKS */}
           <div className="bg-card border border-border p-5 rounded-3xl space-y-3">
