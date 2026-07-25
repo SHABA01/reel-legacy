@@ -30,7 +30,6 @@ import {
   Sliders,
   Layers,
   Subtitles,
-  Video,
   ArrowRight,
   ShieldCheck,
   Zap,
@@ -323,27 +322,6 @@ export function PreviewWorkspace({
             onPrev={handlePrevScene}
             isTheater={isFullscreen}
             onToggleTheater={() => setIsFullscreen(!isFullscreen)}
-            customOverlay={
-              <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between z-10">
-                <div className="flex items-center justify-between">
-                  {showCameraGuide && currentScene?.cameraMovement && (
-                    <div className="bg-black/75 backdrop-blur-md border border-white/15 px-3 py-1 rounded-full text-[10px] font-mono font-bold text-slate-200 flex items-center gap-1.5 shadow-md">
-                      <Video className="w-3.5 h-3.5 text-red-500" />
-                      Shot: {currentScene.cameraMovement} ({currentScene.zoomStyle || 'Subtle'})
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2 ml-auto">
-                    <span className="bg-black/75 backdrop-blur-md text-red-400 border border-red-500/30 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-md">
-                      {currentScene?.type || 'Documentary Cut'}
-                    </span>
-                    <span className="bg-black/75 backdrop-blur-md text-white border border-white/20 text-[10px] font-mono font-bold px-2.5 py-1 rounded-full shadow-md">
-                      {currentScene?.estimatedDuration || '1m 00s'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            }
           />
 
           {/* VISUAL PRODUCTION TIMELINE TRACKS */}

@@ -69,7 +69,8 @@ import {
   ArrowUp,
   ArrowDown,
   Star,
-  ListFilter
+  ListFilter,
+  Brain
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -87,6 +88,10 @@ import { CharactersWorkspace, StoryCharacter } from './CharactersWorkspace';
 import { ScenesWorkspace, StoryScene } from './ScenesWorkspace';
 import { PreviewWorkspace } from './PreviewWorkspace';
 import { RenderWorkspace } from './RenderWorkspace';
+import { ScriptStudio } from './scripts/ScriptStudio';
+import { CapCutTimeline } from './timeline/CapCutTimeline';
+import { AIDirectorPanel } from './director/AIDirectorPanel';
+import { LegacyIntelligencePanel } from './intelligence/LegacyIntelligencePanel';
 import { TimelineService, persistenceService, MediaService, DocumentService, DocumentSchema, ImportSchema, ImportService, LegacyProfileSchema, StorySchema, StoryService } from '../../storage';
 
 interface StoryWorkspaceProps {
@@ -354,7 +359,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   const [timelineCategoryFilter, setTimelineCategoryFilter] = useState<string>('All');
   const [timelineStatusFilter, setTimelineStatusFilter] = useState<string>('Active');
   const [timelineSortOrder, setTimelineSortOrder] = useState<'asc' | 'desc' | 'title' | 'importance'>('asc');
-  const [timelineViewMode, setTimelineViewMode] = useState<'chrono' | 'group-year' | 'group-decade' | 'milestones'>('chrono');
+  const [timelineViewMode, setTimelineViewMode] = useState<'chrono' | 'group-year' | 'group-decade' | 'milestones' | 'multitrack' | 'intelligence' | 'director'>('multitrack');
 
   const handleRefreshTimeline = async () => {
     try {
@@ -2380,7 +2385,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
               </motion.div>
             )}
 
-            {/* AI SCRIPT PREP WORKSPACE */}
+            {/* AI SCRIPT PREP & NARRATIVE INTELLIGENCE CENTER */}
             {activeSection === 'scripts' && (
               <motion.div
                 key="workspace-scripts"
@@ -2390,129 +2395,20 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 className="p-6 md:p-8 space-y-6 w-full"
                 id="pane-scripts"
               >
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-cinema-amber-500" /> AI Screenplay & Script Prep Studio
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Generate AI-assisted screenplay drafts, scene treatments, and dialogue cues based on story milestones and characters.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <Button
-                      variant="accent"
-                      size="sm"
-                      leftIcon={<Sparkles className="w-4 h-4 text-slate-950" />}
-                      onClick={() => showToast('success', 'AI Script Generated', 'Compiled 3-act narrative screenplay draft from story milestones.')}
-                      className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold uppercase tracking-wider text-xs"
-                    >
-                      Generate AI Script
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Status Badges */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3.5 bg-card border border-border rounded-xl flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-cinema-amber-500/10 border border-cinema-amber-500/20 flex items-center justify-center text-cinema-amber-500">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-mono text-muted-foreground uppercase font-bold block">Draft Status</span>
-                      <span className="text-xs font-bold text-foreground">Script Prep Pending</span>
-                    </div>
-                  </div>
-                  <div className="p-3.5 bg-card border border-border rounded-xl flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                      <Calendar className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-mono text-muted-foreground uppercase font-bold block">Linked Milestones</span>
-                      <span className="text-xs font-bold text-foreground">{timelineEvents.length} Events Ready</span>
-                    </div>
-                  </div>
-                  <div className="p-3.5 bg-card border border-border rounded-xl flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                      <Users className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-mono text-muted-foreground uppercase font-bold block">Key Profiles</span>
-                      <span className="text-xs font-bold text-foreground">{characters.length} Family Cast Members</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Empty State Card */}
-                <div className="p-8 md:p-12 border border-dashed border-border rounded-2xl bg-card/30 flex flex-col items-center justify-center text-center space-y-4">
-                  <div className="w-16 h-16 rounded-2xl bg-cinema-amber-500/10 border border-cinema-amber-500/20 flex items-center justify-center text-cinema-amber-500 shadow-inner">
-                    <Sparkles className="w-8 h-8" />
-                  </div>
-                  <div className="max-w-md space-y-1">
-                    <h4 className="font-display font-black text-base text-foreground uppercase tracking-wide">
-                      No Active Script Draft Found
-                    </h4>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Transform your story chronology, interview notes, and character profiles into a polished 3-act screenplay format with narration beats and scene cues.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                    <Button
-                      variant="accent"
-                      size="sm"
-                      leftIcon={<Wand2 className="w-4 h-4 text-slate-950" />}
-                      onClick={() => showToast('success', 'AI Script Prep Started', 'Generating narrative script outline...')}
-                      className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold"
-                    >
-                      Build AI Script Draft
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={<UploadCloud className="w-4 h-4" />}
-                      onClick={() => showToast('info', 'Import Script', 'Select a .fountain or screenplay text file.')}
-                      className="border-border text-foreground hover:bg-muted"
-                    >
-                      Import Custom Script
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Script Template Presets */}
-                <div className="space-y-3">
-                  <h4 className="font-display font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-2">
-                    <BookOpen className="w-3.5 h-3.5 text-cinema-amber-500" /> Presets & Script Blueprints
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[
-                      { title: 'Documentary Retrospective', badge: '3-Act Narrative', desc: 'Linear biographical narrative with narrator voiceover and photo overlay beats.' },
-                      { title: 'Family Keepsake Reel', badge: 'Short Format', desc: 'Emotional, warm highlight script optimized for short chapter videos and celebrations.' },
-                      { title: 'Interview Q&A Guide', badge: 'Conversational', desc: 'Structured prompt beats tailored for live recorded interview sessions with family members.' },
-                      { title: 'Cinematic Memoir Teaser', badge: '60s Teaser', desc: 'High-impact trailer draft capturing pivotal life turning points and legacy themes.' },
-                    ].map((tpl, i) => (
-                      <div
-                        key={i}
-                        className="p-4 bg-card border border-border rounded-xl space-y-2 hover:border-cinema-amber-500/50 transition-all cursor-pointer group"
-                        onClick={() => showToast('info', 'Script Template Loaded', `Selected "${tpl.title}" as baseline blueprint.`)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-mono font-bold bg-cinema-amber-500/10 text-cinema-amber-500 px-2 py-0.5 rounded border border-cinema-amber-500/20 uppercase">
-                            {tpl.badge}
-                          </span>
-                          <Sparkles className="w-3.5 h-3.5 text-muted-foreground group-hover:text-cinema-amber-500 transition-colors" />
-                        </div>
-                        <h5 className="font-display font-bold text-xs text-foreground group-hover:text-cinema-amber-500 transition-colors">
-                          {tpl.title}
-                        </h5>
-                        <p className="text-[11px] text-muted-foreground leading-snug">
-                          {tpl.desc}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <ScriptStudio
+                  story={initialStory}
+                  scenes={scenes}
+                  characters={characters}
+                  timelineEvents={timelineEvents}
+                  mediaItems={mediaItems}
+                  onOpenScene={(sceneId) => {
+                    setActiveSection('scenes');
+                    setSearchParams({ id: initialStory.id, section: 'scenes' });
+                  }}
+                  onUpdateScript={(blocks) => {
+                    setSaveStatus('Unsaved Changes');
+                  }}
+                />
               </motion.div>
             )}
 
@@ -2561,10 +2457,12 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                     {/* View Modes Selector tabs */}
                     <div className="flex flex-wrap items-center gap-1.5 p-1 bg-muted/60 border border-border/80 rounded-xl">
                       {[
+                        { id: 'multitrack', label: 'CapCut Multi-Track', icon: Film },
                         { id: 'chrono', label: 'Chronological', icon: Calendar },
+                        { id: 'intelligence', label: 'Legacy Intelligence', icon: Brain },
+                        { id: 'director', label: 'AI Director', icon: Sparkles },
                         { id: 'group-year', label: 'By Year', icon: ListFilter },
                         { id: 'group-decade', label: 'By Decade', icon: Layers },
-                        { id: 'milestones', label: 'Milestones Only', icon: Star }
                       ].map(mode => {
                         const ModeIcon = mode.icon;
                         return (
@@ -2573,8 +2471,8 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                             onClick={() => setTimelineViewMode(mode.id as any)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                               timelineViewMode === mode.id
-                                ? 'bg-card text-foreground border-border shadow-xs'
-                                : 'text-muted-foreground border-transparent hover:text-foreground'
+                                ? 'bg-cinema-amber-500 text-slate-950 border-cinema-amber-500 shadow-sm font-black'
+                                : 'text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/50'
                             }`}
                           >
                             <ModeIcon className="w-3.5 h-3.5" />
@@ -2660,6 +2558,25 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                   />
                 ) : (
                   <div>
+                    {/* Render CapCut Multi-Track Film Editor */}
+                    {timelineViewMode === 'multitrack' && (
+                      <CapCutTimeline storyTitle={initialStory.title} scenes={scenes} />
+                    )}
+
+                    {/* Render Legacy Intelligence Panel */}
+                    {timelineViewMode === 'intelligence' && (
+                      <LegacyIntelligencePanel
+                        storyTitle={initialStory.title}
+                        characters={characters}
+                        timelineEvents={timelineEvents}
+                      />
+                    )}
+
+                    {/* Render Active AI Director Panel */}
+                    {timelineViewMode === 'director' && (
+                      <AIDirectorPanel storyTitle={initialStory.title} />
+                    )}
+
                     {/* Render standard chronological list */}
                     {(timelineViewMode === 'chrono' || timelineViewMode === 'milestones') && (
                       <div className="relative border-l-2 border-border pl-6 ml-4 space-y-8" id="timeline-flow-list">
