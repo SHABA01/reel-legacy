@@ -1143,3 +1143,346 @@ New pages introduced into ReelLegacy must first be assigned one or more page arc
 Layout decisions should emerge from the assigned archetype rather than from copying an existing page.
 
 This ensures ReelLegacy grows as a coherent design system rather than as a collection of unrelated screens.
+
+---
+
+# CONTEXT_PANEL_ARCHITECTURE
+
+## Purpose
+
+The Global Context Panel is **not** a permanent structural element of every page.
+
+It is an adaptive workspace that provides additional information, tools, intelligence, and actions only when doing so improves the user's current task.
+
+Pages should **opt into** the Context Panel based on their functional requirements rather than inheriting it automatically.
+
+This prevents redundant UI, maximizes usable workspace, and ensures every page remains focused on its primary purpose.
+
+---
+
+# Core Principle
+
+The Context Panel exists to answer one question:
+
+> **"What additional information or tools would help the user complete their current task?"**
+
+If the answer is **nothing**, then the page should not display the Context Panel.
+
+The panel should never exist simply because other pages have one.
+
+---
+
+# Design Philosophy
+
+The Context Panel is an **Adaptive Context Workspace**, not a permanent sidebar.
+
+Unlike the Global Navigation Sidebar—which exists everywhere because navigation is universal—the Context Panel exists only when contextual assistance provides meaningful value.
+
+This distinction keeps ReelLegacy clean, intentional, and scalable.
+
+---
+
+# Context Modes
+
+Every page must explicitly declare one of three Context Modes.
+
+---
+
+## Required
+
+The Context Panel is an essential part of the workflow.
+
+The page depends on contextual tools, metadata, AI assistance, inspectors, or editing controls.
+
+The panel should be visible by default, while still allowing the user to collapse it if desired.
+
+Typical content includes:
+
+- AI Director
+- Metadata
+- Selected object properties
+- Scene inspector
+- Timeline intelligence
+- Voice analysis
+- Asset metadata
+- Collaboration
+- Related objects
+- AI recommendations
+
+---
+
+## Optional
+
+The page functions perfectly without the Context Panel.
+
+However, users may occasionally need additional contextual information.
+
+The panel should remain hidden by default and only appear when explicitly opened.
+
+Typical content includes:
+
+- Story summaries
+- Relationship information
+- Render logs
+- AI recommendations
+- Linked resources
+- Historical information
+- Activity details
+
+---
+
+## None
+
+The page should never display the Context Panel.
+
+The available horizontal space is significantly more valuable for the page's primary purpose.
+
+Any additional information should instead appear through:
+
+- modal dialogs
+- expandable cards
+- inline detail panels
+- overlays
+- drawers
+- tooltips
+
+rather than a permanent contextual workspace.
+
+---
+
+# Context Mode Classification
+
+| Page | Context Mode | Reason |
+|------|--------------|--------|
+| Dashboard | Optional | AI insights and activity are useful but not required. |
+| Legacy Profiles | Optional | Profile relationships and linked stories can be inspected on demand. |
+| Story Library | Optional | Metadata and story summaries are secondary to browsing. |
+| Story Studio Landing | None | Landing page should remain lightweight and action-oriented. |
+| Story Studio Workspace | Required | Editing requires continuous contextual intelligence and production controls. |
+| Media Library | Required | Selected asset metadata and AI analysis are central to media management. |
+| Narration Studio | Required | Voice properties, pronunciation, waveform analysis, and AI guidance require continuous context. |
+| Story Templates | Required | Template metadata, structure, requirements, and AI recommendations support template selection. |
+| Render Queue | Optional | Render diagnostics and export logs are occasionally useful but not constantly needed. |
+| Studio Analytics | None | Charts and visualizations should maximize screen real estate. |
+| Integrations | None | Configuration and connection management benefit from wider layouts rather than contextual panels. |
+| Advanced Search | None | Search results should utilize the full workspace width. |
+| Notifications Center | None | Activity feeds should maximize readability and scanning speed. |
+| Help Center | None | Documentation should prioritize reading comfort and content width. |
+| Settings | None | Configuration forms require uninterrupted horizontal space. |
+
+---
+
+# Page Categories
+
+## Category A — Context-Driven Workspaces
+
+These pages require continuous contextual assistance while users actively create or edit content.
+
+The Context Panel is considered part of the production workflow.
+
+### Pages
+
+- Story Studio Workspace
+- Media Library
+- Narration Studio
+- Story Templates
+
+### Typical Context
+
+- AI Director
+- Selected Item Inspector
+- Metadata
+- Story Intelligence
+- Scene Properties
+- Voice Analysis
+- Asset Intelligence
+- Collaboration
+- Timeline Intelligence
+- Related Objects
+
+---
+
+## Category B — Context-Enhanced Pages
+
+These pages benefit from contextual information, but only when users explicitly request it.
+
+The panel should remain hidden until opened.
+
+### Pages
+
+- Dashboard
+- Legacy Profiles
+- Story Library
+- Render Queue
+
+### Typical Context
+
+- Story Summary
+- Relationship Graph
+- AI Suggestions
+- Render Diagnostics
+- Linked Stories
+- Historical Timeline
+- Activity Details
+
+---
+
+## Category C — Context-Free Pages
+
+These pages should never allocate permanent screen space to the Context Panel.
+
+Their layouts should maximize focus on their primary interaction model.
+
+### Pages
+
+- Story Studio Landing
+- Studio Analytics
+- Integrations
+- Advanced Search
+- Notifications Center
+- Help Center
+- Settings
+
+### Alternative UI Patterns
+
+Instead of the Context Panel, these pages should use:
+
+- Inline expansion panels
+- Modal dialogs
+- Side drawers
+- Floating overlays
+- Tooltips
+- Popovers
+- Detail cards
+
+This preserves workspace width while still allowing advanced interactions when necessary.
+
+---
+
+# Workspace Classification
+
+Not every page represents the same kind of environment.
+
+ReelLegacy distinguishes between **Page Workspaces** and **Global Utilities**.
+
+This distinction determines how much interface complexity is appropriate.
+
+---
+
+## Page Workspaces
+
+Page Workspaces are environments where users actively create, edit, organize, review, or produce content.
+
+These pages prioritize productivity and frequently benefit from contextual assistance.
+
+### Characteristics
+
+- Long-duration user sessions
+- High interaction density
+- Frequent editing
+- AI-assisted workflows
+- Rich object selection
+- Context-sensitive controls
+- Production-oriented layouts
+
+### Pages
+
+- Story Studio Workspace
+- Story Studio Landing
+- Media Library
+- Narration Studio
+- Story Templates
+- Render Queue
+- Story Library
+- Legacy Profiles
+
+---
+
+## Global Utilities
+
+Global Utilities support the application itself rather than the creative production process.
+
+They are task-focused rather than workspace-focused.
+
+These pages should remain lightweight, uncluttered, and efficient.
+
+### Characteristics
+
+- Short interaction sessions
+- Administrative tasks
+- Configuration
+- Search
+- Learning
+- Monitoring
+- Navigation support
+
+### Pages
+
+- Dashboard
+- Studio Analytics
+- Integrations
+- Advanced Search
+- Notifications Center
+- Help Center
+- Settings
+
+---
+
+# Layout Rules by Classification
+
+## Page Workspaces
+
+Page Workspaces may use:
+
+- Context Panel
+- Floating inspectors
+- Canvas layouts
+- Timeline interfaces
+- Multi-pane editing
+- AI assistance
+- Production toolbars
+
+The interface should optimize for uninterrupted creative work.
+
+---
+
+## Global Utilities
+
+Global Utilities should prioritize:
+
+- Simplicity
+- Readability
+- Discoverability
+- Speed
+- Full-width layouts
+- Minimal visual complexity
+
+They should avoid introducing unnecessary workspace chrome or persistent contextual panels.
+
+---
+
+# Design Rules
+
+When designing any new page, answer the following questions before implementation:
+
+1. Is this page a **Workspace** or a **Global Utility**?
+2. Does the user actively create or simply consume/configure information?
+3. Would contextual assistance genuinely improve task completion?
+4. If yes, should that assistance be **Required** or **Optional**?
+5. If no, can the same functionality be delivered through inline components, overlays, or dialogs instead?
+
+Only after these questions are answered should the page layout be designed.
+
+---
+
+# Future Expansion
+
+Every new page introduced into ReelLegacy must declare:
+
+- Its Page Archetype(s)
+- Its Workspace Classification (Workspace or Global Utility)
+- Its Context Mode (Required, Optional, or None)
+
+These three declarations become mandatory architectural metadata before any UI or implementation work begins.
+
+This ensures that every future page integrates consistently into the ReelLegacy Design System while preventing unnecessary UI duplication, preserving workspace efficiency, and maintaining a coherent user experience across the platform.
