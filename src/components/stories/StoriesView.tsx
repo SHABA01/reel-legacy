@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { renderStoryGenreIcon } from '../../utils/storyGenreUtils';
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -431,23 +433,7 @@ export function StoriesView() {
   }, [stories, selectedStoryId]);
 
   // Helper for type icon lookup
-  const renderTypeIcon = (category: string) => {
-    const iconName = STORY_TYPE_ICONS[category] || 'BookOpen';
-    // Dynamically render Lucide components based on string lookup to match design systems
-    switch (iconName) {
-      case 'User': return <BookOpen className="w-4 h-4 text-cinema-amber-500" />;
-      case 'Heart': return <Heart className="w-4 h-4 text-cinema-amber-500" />;
-      case 'Sparkles': return <Sparkles className="w-4 h-4 text-cinema-amber-500" />;
-      case 'Briefcase': return <Briefcase className="w-4 h-4 text-cinema-amber-500" />;
-      case 'Users': return <Users className="w-4 h-4 text-cinema-amber-500" />;
-      case 'Globe': return <Globe className="w-4 h-4 text-cinema-amber-500" />;
-      case 'Calendar': return <Calendar className="w-4 h-4 text-cinema-amber-500" />;
-      case 'GraduationCap': return <GraduationCap className="w-4 h-4 text-cinema-amber-500" />;
-      case 'Wine': return <Wine className="w-4 h-4 text-cinema-amber-500" />;
-      case 'Gift': return <Gift className="w-4 h-4 text-cinema-amber-500" />;
-      default: return <BookOpen className="w-4 h-4 text-cinema-amber-500" />;
-    }
-  };
+  const renderTypeIcon = (category: string) => renderStoryGenreIcon(category);
 
 
 

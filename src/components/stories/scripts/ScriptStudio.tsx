@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { calculateStoryReadiness } from '../../../utils/storyReadiness';
+
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -204,25 +206,14 @@ export function ScriptStudio({
 
   // Calculate Story Readiness metrics
   const readinessMetrics = useMemo(() => {
-    const timelinePercent = Math.min(100, Math.round((timelineEvents.length / 5) * 100));
-    const characterPercent = Math.min(100, Math.round((characters.length / 3) * 100));
-    const scenesPercent = Math.min(100, Math.round((scenes.length / 4) * 100));
-    const mediaPercent = Math.min(100, Math.round((mediaItems.length / 6) * 100));
     const narrationCount = blocks.filter((b) => b.type === 'narration' || b.type === 'dialogue').length;
-    const narrationPercent = Math.min(100, Math.round((narrationCount / 5) * 100));
-
-    const overall = Math.round(
-      (timelinePercent + characterPercent + scenesPercent + mediaPercent + narrationPercent) / 5
-    );
-
-    return {
-      overall,
-      timelinePercent,
-      characterPercent,
-      scenesPercent,
-      mediaPercent,
-      narrationPercent,
-    };
+    return calculateStoryReadiness({
+      timelineEventsCount: timelineEvents.length,
+      charactersCount: characters.length,
+      scenesCount: scenes.length,
+      mediaItemsCount: mediaItems.length,
+      narrationBlocksCount: narrationCount,
+    });
   }, [timelineEvents.length, characters.length, scenes.length, mediaItems.length, blocks]);
 
   // AI Rewrite Handler for selected paragraph

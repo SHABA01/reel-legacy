@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InspectorTagBadges, InspectorActions } from './InspectorEntityCard';
+
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -4545,18 +4547,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                   </p>
                 </div>
 
-                {selectedInspectorItem.data.tags && selectedInspectorItem.data.tags.length > 0 && (
-                  <div className="border-t border-border pt-3 space-y-1.5">
-                    <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Tags</span>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedInspectorItem.data.tags.map((t: string, i: number) => (
-                        <span key={i} className="text-[9px] font-mono bg-muted/80 px-1.5 py-0.5 rounded text-muted-foreground">
-                          #{t}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <InspectorTagBadges tags={selectedInspectorItem.data.tags} />
 
                 <div className="border-t border-border pt-3 grid grid-cols-2 gap-2 text-[11px]">
                   <div>
@@ -4571,39 +4562,15 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                   </div>
                 </div>
 
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Actions</span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => handleToggleFavoriteDocument(selectedInspectorItem.data.id, !selectedInspectorItem.data.favorite)}
-                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
-                    >
-                      ★ {selectedInspectorItem.data.favorite ? 'Unfavorite' : 'Favorite'}
-                    </button>
-
-                    <a
-                      href={selectedInspectorItem.data.localStorageReference}
-                      download={selectedInspectorItem.data.originalFilename}
-                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
-                    >
-                      📥 Download
-                    </a>
-
-                    <button
-                      onClick={() => selectedInspectorItem.data.archived ? handleRestoreDocument(selectedInspectorItem.data.id) : handleArchiveDocument(selectedInspectorItem.data.id)}
-                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
-                    >
-                      📁 {selectedInspectorItem.data.archived ? 'Restore' : 'Archive'}
-                    </button>
-
-                    <button
-                      onClick={() => handleDeleteDocument(selectedInspectorItem.data.id)}
-                      className="p-2 text-xs font-bold border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10 rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1"
-                    >
-                      🗑 Delete
-                    </button>
-                  </div>
-                </div>
+                <InspectorActions
+                  favorite={selectedInspectorItem.data.favorite}
+                  archived={selectedInspectorItem.data.archived}
+                  downloadUrl={selectedInspectorItem.data.localStorageReference}
+                  downloadFilename={selectedInspectorItem.data.originalFilename}
+                  onToggleFavorite={() => handleToggleFavoriteDocument(selectedInspectorItem.data.id, !selectedInspectorItem.data.favorite)}
+                  onToggleArchive={() => selectedInspectorItem.data.archived ? handleRestoreDocument(selectedInspectorItem.data.id) : handleArchiveDocument(selectedInspectorItem.data.id)}
+                  onDelete={() => handleDeleteDocument(selectedInspectorItem.data.id)}
+                />
               </div>
             )}
 
@@ -4652,52 +4619,17 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                   </div>
                 </div>
 
-                {selectedInspectorItem.data.tags && selectedInspectorItem.data.tags.length > 0 && (
-                  <div className="border-t border-border pt-3 space-y-1.5">
-                    <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Tags</span>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedInspectorItem.data.tags.map((t: string, i: number) => (
-                        <span key={i} className="text-[9px] font-mono bg-muted/80 px-1.5 py-0.5 rounded text-muted-foreground">
-                          #{t}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <InspectorTagBadges tags={selectedInspectorItem.data.tags} />
 
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Actions</span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => handleToggleFavoriteImport(selectedInspectorItem.data.id, !selectedInspectorItem.data.favorite)}
-                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
-                    >
-                      ★ {selectedInspectorItem.data.favorite ? 'Unfavorite' : 'Favorite'}
-                    </button>
-
-                    <a
-                      href={selectedInspectorItem.data.localStorageReference}
-                      download={selectedInspectorItem.data.originalFilename}
-                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1 text-center"
-                    >
-                      📥 Download
-                    </a>
-
-                    <button
-                      onClick={() => selectedInspectorItem.data.archived ? handleRestoreImport(selectedInspectorItem.data.id) : handleArchiveImport(selectedInspectorItem.data.id)}
-                      className="p-2 text-xs font-bold border border-border bg-card rounded-xl text-foreground hover:bg-muted/50 cursor-pointer transition-colors flex items-center justify-center gap-1"
-                    >
-                      📁 {selectedInspectorItem.data.archived ? 'Restore' : 'Archive'}
-                    </button>
-
-                    <button
-                      onClick={() => handleDeleteImport(selectedInspectorItem.data.id)}
-                      className="p-2 text-xs font-bold border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10 rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1"
-                    >
-                      🗑 Delete
-                    </button>
-                  </div>
-                </div>
+                <InspectorActions
+                  favorite={selectedInspectorItem.data.favorite}
+                  archived={selectedInspectorItem.data.archived}
+                  downloadUrl={selectedInspectorItem.data.localStorageReference}
+                  downloadFilename={selectedInspectorItem.data.originalFilename}
+                  onToggleFavorite={() => handleToggleFavoriteImport(selectedInspectorItem.data.id, !selectedInspectorItem.data.favorite)}
+                  onToggleArchive={() => selectedInspectorItem.data.archived ? handleRestoreImport(selectedInspectorItem.data.id) : handleArchiveImport(selectedInspectorItem.data.id)}
+                  onDelete={() => handleDeleteImport(selectedInspectorItem.data.id)}
+                />
               </div>
             )}
           </div>

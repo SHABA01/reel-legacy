@@ -38,11 +38,16 @@ import {
   FileText,
   Play
 } from 'lucide-react';
+import { calculateSceneStatistics } from '../../utils/storyReadiness';
+import { useDeleteConfirmation } from '../../hooks/useDeleteConfirmation';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { Select } from '../ui/Select';
 import { EmptyState } from '../ui/EmptyState';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { SearchInput } from '../ui/SearchInput';
+import { FilterDropdown } from '../ui/FilterDropdown';
+import { ViewModeToggle } from '../ui/ViewModeToggle';
 import { StoryCharacter } from './CharactersWorkspace';
 
 export interface StoryScene {
@@ -261,43 +266,7 @@ export function ScenesWorkspace({
   }, [scenes, searchQuery, statusFilter, segmentFilter]);
 
   // Scene Statistics
-  const statistics = useMemo(() => {
-    const totalScenes = scenes.length;
-    let totalSeconds = 0;
-
-    scenes.forEach((s) => {
-      // parse "1m 30s" or "45s"
-      const minutesMatch = s.estimatedDuration.match(/(\d+)m/);
-      const secondsMatch = s.estimatedDuration.match(/(\d+)s/);
-      const m = minutesMatch ? parseInt(minutesMatch[1], 10) : 0;
-      const sec = secondsMatch ? parseInt(secondsMatch[1], 10) : 0;
-      totalSeconds += m * 60 + sec;
-    });
-
-    const totalMinutes = Math.floor(totalSeconds / 60);
-    const remSec = totalSeconds % 60;
-    const totalRuntimeFormatted = `${totalMinutes}m ${remSec < 10 ? '0' : ''}${remSec}s`;
-    const avgSeconds = totalScenes > 0 ? Math.round(totalSeconds / totalScenes) : 0;
-    const avgFormatted = `${Math.floor(avgSeconds / 60)}m ${avgSeconds % 60}s`;
-
-    const narratedCount = scenes.filter(
-      (s) => s.narrationText.trim().length > 0 || s.narrationStatus === 'Synthesized'
-    ).length;
-    const mediaCount = scenes.filter((s) => s.mediaIds.length > 0).length;
-    const readyCount = scenes.filter((s) => s.status === 'Ready' || s.status === 'Locked' || s.status === 'Completed').length;
-
-    return {
-      totalScenes,
-      totalRuntimeFormatted,
-      avgFormatted,
-      narratedCount,
-      narratedPct: totalScenes > 0 ? Math.round((narratedCount / totalScenes) * 100) : 0,
-      mediaCount,
-      mediaPct: totalScenes > 0 ? Math.round((mediaCount / totalScenes) * 100) : 0,
-      readyCount,
-      readyPct: totalScenes > 0 ? Math.round((readyCount / totalScenes) * 100) : 0,
-    };
-  }, [scenes]);
+  const statistics = useMemo(() => calculateSceneStatistics(scenes), [scenes]);
 
   // Actions
   const handleOpenCreateModal = () => {
@@ -708,43 +677,35 @@ export function ScenesWorkspace({
       <div className="p-4 bg-card border border-border rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
         {/* Search & Filter */}
         <div className="flex flex-1 flex-col sm:flex-row items-center gap-3 w-full">
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search scene title, purpose, script text, notes..."
-              className="w-full bg-muted/60 border border-border rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-cinema-amber-500 font-medium"
-            />
-          </div>
+          <SearchInput
+            id="scenes-search-input"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search scene title, purpose, script text, notes..."
+          />
 
           <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-            <select
+            <FilterDropdown
+              id="scenes-status-filter"
+              label="Status:"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 bg-muted/60 border border-border rounded-xl px-3 text-xs font-semibold text-foreground focus:outline-none focus:border-cinema-amber-500"
-            >
-              <option value="All">All Statuses</option>
-              {SCENE_STATUSES.map((st) => (
-                <option key={st} value={st}>
-                  {st}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: 'All', label: 'All Statuses' },
+                ...SCENE_STATUSES.map((st) => ({ value: st, label: st })),
+              ]}
+              onChange={setStatusFilter}
+            />
 
-            <select
+            <FilterDropdown
+              id="scenes-segment-filter"
+              label="Segment:"
               value={segmentFilter}
-              onChange={(e) => setSegmentFilter(e.target.value)}
-              className="h-9 bg-muted/60 border border-border rounded-xl px-3 text-xs font-semibold text-foreground focus:outline-none focus:border-cinema-amber-500"
-            >
-              <option value="All">All Story Segments</option>
-              {STORY_SEGMENTS.map((seg) => (
-                <option key={seg} value={seg}>
-                  {seg}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: 'All', label: 'All Story Segments' },
+                ...STORY_SEGMENTS.map((seg) => ({ value: seg, label: seg })),
+              ]}
+              onChange={setSegmentFilter}
+            />
           </div>
         </div>
 
@@ -763,30 +724,11 @@ export function ScenesWorkspace({
             {isReorderMode ? 'Reorder Active' : 'Reorder Sequence'}
           </button>
 
-          <div className="p-1 bg-muted rounded-xl border border-border flex items-center gap-1">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'list'
-                  ? 'bg-card text-foreground border border-border shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              title="Sequence List View"
-            >
-              <List className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'grid'
-                  ? 'bg-card text-foreground border border-border shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              title="Storyboard Grid View"
-            >
-              <Grid className="w-4 h-4" />
-            </button>
-          </div>
+          <ViewModeToggle
+            id="scenes-view-mode-toggle"
+            viewMode={viewMode}
+            onChange={setViewMode}
+          />
         </div>
       </div>
 

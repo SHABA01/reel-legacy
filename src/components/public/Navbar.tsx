@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { Menu, X, Sun, Moon, Laptop, Film, Sparkles, ArrowUpRight, HelpCircle } from 'lucide-react';
+import { Menu, X, Sun, Moon, Laptop, Film, Sparkles, ArrowRight, HelpCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 interface NavbarProps {
@@ -192,7 +192,7 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
                 variant="accent"
                 size="sm"
                 onClick={() => navigate('/workspace/dashboard')}
-                rightIcon={<ArrowUpRight className="h-3.5 w-3.5" />}
+                rightIcon={<ArrowRight className="h-3.5 w-3.5" />}
                 className="text-xs animate-fade-in"
               >
                 Go to Workspace
@@ -212,7 +212,7 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
                   variant="accent"
                   size="sm"
                   onClick={() => onOpenAuth('register')}
-                  rightIcon={<ArrowUpRight className="h-3.5 w-3.5" />}
+                  rightIcon={<ArrowRight className="h-3.5 w-3.5" />}
                   className="text-xs"
                 >
                   Get Started
@@ -319,7 +319,7 @@ export function Navbar({ currentPage, setCurrentPage, onOpenAuth }: NavbarProps)
                       setMobileMenuOpen(false);
                       navigate('/workspace/dashboard');
                     }}
-                    rightIcon={<ArrowUpRight className="h-4 w-4" />}
+                    rightIcon={<ArrowRight className="h-4 w-4" />}
                   >
                     Go to Workspace
                   </Button>

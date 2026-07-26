@@ -38,6 +38,9 @@ import { Modal } from '../ui/Modal';
 import { Select } from '../ui/Select';
 import { EmptyState } from '../ui/EmptyState';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { SearchInput } from '../ui/SearchInput';
+import { ViewModeToggle } from '../ui/ViewModeToggle';
+import { useDeleteConfirmation } from '../../hooks/useDeleteConfirmation';
 import { persistenceService } from '../../storage';
 import { INITIAL_PROFILES, ExtendedLegacyProfile } from '../profiles/mockData';
 
@@ -123,16 +126,8 @@ export function CharactersWorkspace({
   const [masterProfiles, setMasterProfiles] = useState<ExtendedLegacyProfile[]>([]);
   const [masterProfileSearch, setMasterProfileSearch] = useState('');
 
-  // Delete confirmation
-  const [deleteConfirmation, setDeleteConfirmation] = useState<{
-    isOpen: boolean;
-    characterId: string;
-    characterName: string;
-  }>({
-    isOpen: false,
-    characterId: '',
-    characterName: '',
-  });
+  // Delete confirmation hook
+  const deleteConfirmation = useDeleteConfirmation<StoryCharacter>();
 
   // Load master profiles when modal opens
   useEffect(() => {
@@ -278,13 +273,13 @@ export function CharactersWorkspace({
 
   // Handle Delete Character
   const handleConfirmDeleteCharacter = () => {
-    if (!deleteConfirmation.characterId) return;
+    if (!deleteConfirmation.item) return;
 
-    const updated = characters.filter((c) => c.id !== deleteConfirmation.characterId);
+    const updated = characters.filter((c) => c.id !== deleteConfirmation.item?.id);
     onUpdateCharacters(updated);
-    showToast('info', 'Character Removed', `Removed "${deleteConfirmation.characterName}" from this Story Project.`);
+    showToast('info', 'Character Removed', `Removed "${deleteConfirmation.item.name}" from this Story Project.`);
 
-    setDeleteConfirmation({ isOpen: false, characterId: '', characterName: '' });
+    deleteConfirmation.closeDelete();
   };
 
   // Filtered master profiles for reference tab
@@ -396,24 +391,13 @@ export function CharactersWorkspace({
       {/* TOOLBAR & FILTERS BAR */}
       <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-muted/40 p-3 rounded-2xl border border-border/80">
         {/* Search Input */}
-        <div className="relative w-full lg:w-72">
-          <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search characters by name, role, tags..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-card border border-border rounded-xl pl-9 pr-8 py-1.5 text-xs focus:outline-none focus:border-cinema-amber-500 font-medium"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-2 p-0.5 hover:bg-muted rounded-full text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
-        </div>
+        <SearchInput
+          id="characters-search-input"
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search characters by name, role, tags..."
+          className="w-full lg:w-72"
+        />
 
         {/* Dropdown Filters & Controls */}
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end">
@@ -466,26 +450,11 @@ export function CharactersWorkspace({
           />
 
           {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 p-1 bg-card border border-border rounded-xl">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                viewMode === 'grid' ? 'bg-cinema-amber-500/20 text-cinema-amber-500' : 'text-muted-foreground hover:text-foreground'
-              }`}
-              title="Grid View"
-            >
-              <Grid className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                viewMode === 'list' ? 'bg-cinema-amber-500/20 text-cinema-amber-500' : 'text-muted-foreground hover:text-foreground'
-              }`}
-              title="List View"
-            >
-              <List className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <ViewModeToggle
+            id="characters-view-mode-toggle"
+            viewMode={viewMode}
+            onChange={setViewMode}
+          />
         </div>
       </div>
 
@@ -628,11 +597,11 @@ export function CharactersWorkspace({
                     </button>
                     <button
                       onClick={() =>
-                        setDeleteConfirmation({
-                          isOpen: true,
-                          characterId: char.id,
-                          characterName: char.name,
-                        })
+                        deleteConfirmation.requestDelete(
+                          char,
+                          'Remove Story Character',
+                          `Are you sure you want to remove "${char.name}" from this Story Project? This action removes the character from this story without deleting any master Legacy Profile.`
+                        )
                       }
                       className="p-1 text-red-500/70 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
                       title="Remove Character"
@@ -730,11 +699,11 @@ export function CharactersWorkspace({
                           </button>
                           <button
                             onClick={() =>
-                              setDeleteConfirmation({
-                                isOpen: true,
-                                characterId: char.id,
-                                characterName: char.name,
-                              })
+                              deleteConfirmation.requestDelete(
+                                char,
+                                'Remove Story Character',
+                                `Are you sure you want to remove "${char.name}" from this Story Project? This action removes the character from this story without deleting any master Legacy Profile.`
+                              )
                             }
                             className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded"
                           >
@@ -1092,10 +1061,10 @@ export function CharactersWorkspace({
       {/* CONFIRMATION MODAL FOR DELETION */}
       <ConfirmationModal
         isOpen={deleteConfirmation.isOpen}
-        onClose={() => setDeleteConfirmation({ isOpen: false, characterId: '', characterName: '' })}
+        onClose={deleteConfirmation.closeDelete}
         onConfirm={handleConfirmDeleteCharacter}
-        title="Remove Story Character"
-        message={`Are you sure you want to remove "${deleteConfirmation.characterName}" from this Story Project? This action removes the character from this story without deleting any master Legacy Profile.`}
+        title={deleteConfirmation.title}
+        message={deleteConfirmation.message}
         confirmLabel="Remove Character"
         isDestructive={true}
       />

@@ -85,78 +85,16 @@ function MediaView() {
   return <MediaLibrary />;
 }
 
+import { NarrationStudioPage } from './components/narration/NarrationStudioPage';
+import { StoryTemplatesPage } from './components/storyTemplates/StoryTemplatesPage';
+import { RenderQueuePage } from './components/render/RenderQueuePage';
+
 function NarrationView() {
-  return (
-    <div id="demo-narration" className="space-y-8 animate-fade-in pt-2.5 md:pt-4 lg:pt-5">
-      <div id="narration-title-card" className="border-b border-border pb-4">
-        <h2 className="font-display text-xl font-bold tracking-tight text-cinema-slate-900 dark:text-white">Specialized Studio Loaders</h2>
-        <p className="text-xs text-cinema-slate-500 dark:text-cinema-slate-400">
-          Custom interactive loading feedback components for critical, long-running AI creation and documentary rendering workflows.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start" id="loaders-grid">
-        {/* AI Director Writer */}
-        <div className="space-y-3" id="loader-ai-box">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-cinema-slate-400 dark:text-cinema-slate-500">1. AI Synthesis Progress</h3>
-          <AIGenerationLoader id="ai-generator-loader-instance" />
-        </div>
-
-        {/* Video Render Progress */}
-        <div className="space-y-3" id="loader-render-box">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-cinema-slate-400 dark:text-cinema-slate-500">2. Film Render compilation</h3>
-          <RenderLoader id="video-render-loader-instance" />
-        </div>
-
-        {/* File upload panel */}
-        <div className="space-y-3" id="loader-upload-box">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-cinema-slate-400 dark:text-cinema-slate-500">3. Parallel uploads</h3>
-          <div className="space-y-3" id="uploads-list">
-            <MediaUploadLoader fileName="veteran_clippings_1952.pdf" progress={85} id="up-loader-1" />
-            <MediaUploadLoader fileName="voiceover_narration_v2.wav" progress={38} id="up-loader-2" />
-            <MediaUploadLoader fileName="grandpa_farmhouse_highres.png" progress={100} id="up-loader-3" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return <NarrationStudioPage />;
 }
 
 function RenderView() {
-  const { showToast } = useToast();
-  return (
-    <div id="demo-render" className="space-y-8 animate-fade-in pt-2.5 md:pt-4 lg:pt-5">
-      <div id="render-title-card" className="border-b border-border pb-4">
-        <h2 className="font-display text-xl font-bold tracking-tight text-cinema-slate-900 dark:text-white">Error Components Catalogue</h2>
-        <p className="text-xs text-cinema-slate-500 dark:text-cinema-slate-400">
-          Standardized visual layouts for error feedback pages and permission alerts.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6" id="errors-grid">
-        <ErrorState
-          type="404"
-          onRetry={() => showToast('info', 'Re-routing story catalog...')}
-          retryActionLabel="Re-Route Page"
-        />
-        <ErrorState
-          type="500"
-          onRetry={() => showToast('loading', 'Resetting compiling node pipeline...')}
-          retryActionLabel="Restart Compiler"
-        />
-        <ErrorState
-          type="ai-failure"
-          onRetry={() => showToast('info', 'Re-synthesizing AI narration script...')}
-          retryActionLabel="Re-Synthesize Card"
-        />
-        <ErrorState
-          type="render-failure"
-          onRetry={() => showToast('loading', 'Re-allocating rendering cache')}
-          retryActionLabel="Re-Render Project"
-        />
-      </div>
-    </div>
-  );
+  return <RenderQueuePage />;
 }
 
 function RenderActiveView() {
@@ -175,6 +113,8 @@ function RenderActiveView() {
       return <MediaView />;
     case 'narration':
       return <NarrationView />;
+    case 'templates':
+      return <StoryTemplatesPage />;
     case 'render':
       return <RenderView />;
     case 'settings':

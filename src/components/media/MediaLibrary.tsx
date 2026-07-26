@@ -3,494 +3,334 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
-  Search,
-  Filter,
-  Grid,
-  List,
-  FolderPlus,
   Upload,
+  FolderPlus,
   Sparkles,
-  CheckCircle,
-  AlertCircle,
-  Eye,
-  Trash2,
-  Heart,
-  Download,
-  Tag,
-  Clock,
-  MoreVertical,
-  ChevronRight,
+  HardDrive,
+  Layers,
+  Search,
+  Plus,
+  FolderOpen,
   Info,
   X,
-  Plus,
-  Database,
-  Film,
-  Camera,
-  Music,
-  FileText,
-  Award,
-  GraduationCap,
-  Briefcase,
-  Play,
-  Pause,
-  Maximize2,
-  ZoomIn,
-  SlidersHorizontal,
-  Bookmark,
-  Share2,
-  Check,
-  AlertTriangle,
-  FolderOpen,
-  Calendar,
-  FileSpreadsheet,
-  Link2,
-  Activity,
-  UserCheck,
-  Volume2
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
+import { PageHeader } from '../ui/PageHeader';
 import { Button } from '../ui/Button';
-import { ReelMediaPlayer } from '../ui/ReelMediaPlayer';
-import { Input } from '../ui/Input';
-import { Select } from '../ui/Select';
-import { ViewModeToggle } from '../ui/ViewModeToggle';
-import { useToast } from '../../context/ToastContext';
-import { INITIAL_STORIES, ExtendedStory } from '../stories/mockStoriesData';
-import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { Modal } from '../ui/Modal';
 import { PromptModal } from '../ui/PromptModal';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { ReelMediaPlayer } from '../ui/ReelMediaPlayer';
+import { MediaUploadLoader } from '../ui/Skeleton';
+import { useToast } from '../../context/ToastContext';
 import { persistenceService, MediaService } from '../../storage';
+import { INITIAL_STORIES } from '../stories/mockStoriesData';
 
-// --- STAGE 8 DATA MODELS ---
-export interface MediaAsset {
-  id: string;
-  name: string;
-  type: 'image' | 'video' | 'audio' | 'document';
-  category: 'Family Photo' | 'Portrait' | 'Childhood' | 'Graduation' | 'Wedding' | 'Career Photo' | 'Home Video' | 'Voice Recording' | 'Music File' | 'Resume' | 'Certificate' | 'Award' | 'Letter' | 'Newspaper Article';
-  size: string;
-  bytes: number;
-  resolution?: string;
-  duration?: string;
-  uploadDate: string;
-  tags: string[];
-  linkedStoryId: string;
-  linkedStoryName: string;
-  linkedEvents: string[];
-  linkedChapters: string[];
-  favorite: boolean;
-  status: 'Ready' | 'Optimizing' | 'Needs Metadata' | 'Flagged';
-  thumbnailUrl: string;
-  description: string;
-  archived: boolean;
-}
+import { ExtendedMediaAsset, MediaCollection, SmartCollectionType, UploadQueueItem } from '../../types/media';
+import { MediaLibraryService, INITIAL_SMART_COLLECTIONS } from '../../services/mediaLibraryService';
+import { AssetAnalysisService } from '../../services/assetAnalysisService';
+import { DuplicateDetectionService } from '../../services/duplicateDetectionService';
 
-export interface Collection {
-  id: string;
-  name: string;
-  description: string;
-  coverImage: string;
-  assetCount: number;
-  lastUpdated: string;
-  tags: string[];
-}
+import { MediaCollectionSidebar } from './MediaCollectionSidebar';
+import { MediaToolbar } from './MediaToolbar';
+import { MediaGrid } from './MediaGrid';
+import { MediaInspector } from './MediaInspector';
+import { MediaStatusBar } from './MediaStatusBar';
 
 export function MediaLibrary() {
   const { showToast } = useToast();
 
-  // Delete approval modal state
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'single' | 'bulk' | 'collection' | null; name?: string } | null>(null);
+  // --- STATE ---
+  const [assets, setAssets] = useState<ExtendedMediaAsset[]>([]);
+  const [collections, setCollections] = useState<MediaCollection[]>([]);
+  const [stories, setStories] = useState<Array<{ id: string; title: string }>>([]);
 
-  // Rename modal state
-  const [renameModal, setRenameModal] = useState<{
-    isOpen: boolean;
-    assetId?: string;
-    assetName?: string;
-  }>({ isOpen: false });
-
-  // --- 1. CORE LIBRARY STATES ---
-  const [activeTab, setActiveTab] = useState<'all' | 'collections' | 'upload' | 'readiness'>('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [selectedAssetId, setSelectedAssetId] = useState<string | null>('asset-1');
-  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState<boolean>(false);
+  // Selection & Navigation
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
-  
-  // --- Search & Filters ---
+  const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(true);
+
+  // Collections & Filtering Scope
+  const [activeSmartCollection, setActiveSmartCollection] = useState<SmartCollectionType>('all');
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
+
+  // Toolbar Filters
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedType, setSelectedType] = useState<string>('All');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedStoryFilter, setSelectedStoryFilter] = useState<string>('All');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('All');
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'size'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [grouping, setGrouping] = useState<'none' | 'type' | 'story' | 'category' | 'status'>('none');
 
-  // --- Previews & Modals ---
-  const [previewAsset, setPreviewAsset] = useState<MediaAsset | null>(null);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
-  const [isCreateCollectionOpen, setIsCreateCollectionOpen] = useState<boolean>(false);
-  const [newCollectionData, setNewCollectionData] = useState({ name: '', description: '', cover: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=300&q=80' });
+  // Modals
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewAsset, setPreviewAsset] = useState<ExtendedMediaAsset | null>(null);
+  const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
+  const [isCreateCollectionOpen, setIsCreateCollectionOpen] = useState(false);
+  const [newCollectionData, setNewCollectionData] = useState({ name: '', description: '' });
 
-  // --- 2. CORE LIBRARY PERSISTENT STATE ---
-  const [assets, setAssets] = useState<MediaAsset[]>([]);
+  // Delete & Rename Modals
+  const [deleteTarget, setDeleteTarget] = useState<ExtendedMediaAsset | null>(null);
+  const [renameTarget, setRenameTarget] = useState<ExtendedMediaAsset | null>(null);
 
-  // --- 3. COLLECTIONS PERSISTENT STATE ---
-  const [collections, setCollections] = useState<Collection[]>([]);
-
-  const handleRefreshLibrary = async () => {
-    try {
-      const allAssets = await persistenceService.media.getAll();
-      setAssets(allAssets as any);
-      
-      const allCols = await persistenceService.collections.getAll();
-      setCollections(allCols as any);
-    } catch (err) {
-      console.error('Failed to load library data:', err);
-    }
-  };
-
-  useEffect(() => {
-    handleRefreshLibrary();
-  }, []);
-
-  // --- 4. UPLOAD QUEUE SIMULATOR STATE ---
-  const [uploadQueue, setUploadQueue] = useState<Array<{
-    id: string;
-    name: string;
-    size: string;
-    progress: number;
-    status: 'Queued' | 'Scanning' | 'Uploading' | 'Complete' | 'Failed';
-    speed?: string;
-    error?: string;
-    fileType: 'image' | 'video' | 'audio' | 'document';
-  }>>([]);
-
+  // Upload Queue
+  const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleOpenUploadDialog = () => {
-    fileInputRef.current?.click();
-  };
+  // --- 1. LOAD DATA ---
+  const loadLibraryData = useCallback(async () => {
+    try {
+      const persisted = await persistenceService.media.getAll();
 
-  const uploadMultipleFiles = async (files: File[]) => {
-    for (const file of files) {
-      const uploadId = `uq-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
-      try {
-        if (file.size > 50 * 1024 * 1024) {
-          showToast('error', 'Upload Blocked', `"${file.name}" exceeds the 50MB storage limit.`);
-          continue;
-        }
-        if (file.size === 0) {
-          showToast('error', 'Upload Blocked', `"${file.name}" is an empty 0-byte file.`);
-          continue;
-        }
+      // Map to ExtendedMediaAsset
+      let extended: ExtendedMediaAsset[] = persisted.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        originalFilename: p.originalFilename || p.name,
+        type: p.type || 'image',
+        category: p.category || 'Family Photo',
+        size: p.bytes >= 1024 * 1024 ? `${(p.bytes / (1024 * 1024)).toFixed(1)} MB` : `${(p.bytes / 1024).toFixed(1)} KB`,
+        bytes: p.bytes || 1024,
+        resolution: p.resolution || '1920x1080',
+        duration: p.duration,
+        uploadDate: p.createdAt ? p.createdAt.split('T')[0] : '2026-07-20',
+        tags: p.tags || ['Archival'],
+        linkedStoryId: p.legacyProfileId || 'unlinked',
+        linkedStoryName: p.legacyProfileId ? 'The Life & Times of John Miller' : 'Unlinked',
+        linkedEvents: p.linkedEvents || [],
+        linkedChapters: [],
+        favorite: p.favorite || false,
+        archived: p.archived || false,
+        readinessStatus: p.archived ? 'Flagged' : 'Ready',
+        thumbnailUrl: p.thumbnailUrl || p.localStorageReference || 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=400&q=80',
+        description: p.description || '',
+        qualityRating: 5
+      }));
 
-        let fileType: 'image' | 'video' | 'audio' | 'document' = 'document';
-        if (file.type.startsWith('image/')) fileType = 'image';
-        else if (file.type.startsWith('video/')) fileType = 'video';
-        else if (file.type.startsWith('audio/')) fileType = 'audio';
-
-        // Add to simulated queue list
-        const newItem = {
-          id: uploadId,
-          name: file.name,
-          size: file.size >= 1024 * 1024 ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : `${(file.size / 1024).toFixed(1)} KB`,
-          progress: 10,
-          status: 'Uploading' as const,
-          speed: '1.2 MB/s',
-          fileType
-        };
-        setUploadQueue(prev => [newItem, ...prev]);
-
-        // Simulate local progress ticker for high-fidelity UI
-        for (let progress = 30; progress <= 90; progress += 30) {
-          await new Promise(resolve => setTimeout(resolve, 150));
-          setUploadQueue(prev => prev.map(item => item.id === uploadId ? { ...item, progress } : item));
-        }
-
-        // Real conversion and persistence using MediaService
-        await MediaService.processUpload(file, {
-          profileId: 'profile-1', // Default profile for global media library
-          category: file.type.startsWith('image/') ? 'Portrait' : 'Family Photo',
-          description: `Uploaded: ${file.name}`
-        });
-
-        // Update queue item status to Complete
-        setUploadQueue(prev => prev.map(item => item.id === uploadId ? { ...item, progress: 100, status: 'Complete', speed: undefined } : item));
-        showToast('success', 'Upload Complete', `"${file.name}" cataloged successfully.`);
-      } catch (err: any) {
-        setUploadQueue(prev => prev.map(item => item.id === uploadId ? { ...item, status: 'Failed', error: err.message || 'Duplicate file or validation issue.' } : item));
-        showToast('error', 'Upload Failed', `"${file.name}": ${err.message}`);
+      // If empty, supply rich starter media assets
+      if (extended.length === 0) {
+        extended = [
+          {
+            id: 'm-1',
+            name: 'john_miller_1944_navy_portrait.png',
+            originalFilename: 'john_miller_1944_navy_portrait.png',
+            type: 'image',
+            category: 'Portrait',
+            size: '4.2 MB',
+            bytes: 4.2 * 1024 * 1024,
+            resolution: '2400x3200 (HD)',
+            uploadDate: '2026-07-22',
+            tags: ['Navy', 'Uniform', 'Portrait', '1944'],
+            people: ['John Miller'],
+            linkedStoryId: 'story-1',
+            linkedStoryName: 'The Life & Times of John Miller',
+            linkedEvents: ['1944 WWII Deployment'],
+            linkedChapters: ['Chapter 1: Enlistment'],
+            favorite: true,
+            archived: false,
+            readinessStatus: 'Ready',
+            thumbnailUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
+            description: 'Original black and white studio portrait taken in San Diego prior to Pacific deployment.',
+            qualityRating: 5,
+            usageCount: 3
+          },
+          {
+            id: 'm-2',
+            name: 'farmhouse_summer_1952_clip.mp4',
+            originalFilename: 'farmhouse_summer_1952_clip.mp4',
+            type: 'video',
+            category: 'Home Video',
+            size: '18.4 MB',
+            bytes: 18.4 * 1024 * 1024,
+            resolution: '1080p 60fps',
+            duration: '0m 45s',
+            uploadDate: '2026-07-21',
+            tags: ['Home Film', '8mm', 'Farmhouse', 'Summer'],
+            people: ['Sarah Miller', 'John Miller'],
+            linkedStoryId: 'story-1',
+            linkedStoryName: 'The Life & Times of John Miller',
+            linkedEvents: ['1952 Homestead Purchase'],
+            linkedChapters: ['Chapter 2: Building Home'],
+            favorite: true,
+            archived: false,
+            readinessStatus: 'Ready',
+            thumbnailUrl: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80',
+            description: 'Digitized 8mm color home footage capturing the original homestead barn construction.',
+            qualityRating: 4,
+            usageCount: 2
+          },
+          {
+            id: 'm-3',
+            name: 'grandpa_interview_audio_tape1.mp3',
+            originalFilename: 'grandpa_interview_audio_tape1.mp3',
+            type: 'audio',
+            category: 'Interview Recording',
+            size: '12.1 MB',
+            bytes: 12.1 * 1024 * 1024,
+            duration: '4m 15s',
+            uploadDate: '2026-07-20',
+            tags: ['Interview', 'Oral History', 'Voice Note'],
+            people: ['John Miller'],
+            linkedStoryId: 'story-1',
+            linkedStoryName: 'The Life & Times of John Miller',
+            linkedEvents: ['Oral History Session'],
+            linkedChapters: [],
+            favorite: false,
+            archived: false,
+            readinessStatus: 'Ready',
+            thumbnailUrl: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?auto=format&fit=crop&w=600&q=80',
+            description: 'Clear audio interview cassette tape digitized at 320kbps bitrate.',
+            qualityRating: 5,
+            usageCount: 4
+          },
+          {
+            id: 'm-4',
+            name: 'navy_discharge_papers_1946.pdf',
+            originalFilename: 'navy_discharge_papers_1946.pdf',
+            type: 'document',
+            category: 'Historical Document',
+            size: '2.8 MB',
+            bytes: 2.8 * 1024 * 1024,
+            uploadDate: '2026-07-19',
+            tags: ['Discharge', 'Military Record', 'OCR'],
+            people: ['John Miller'],
+            linkedStoryId: 'story-1',
+            linkedStoryName: 'The Life & Times of John Miller',
+            linkedEvents: ['1946 Honorable Discharge'],
+            linkedChapters: [],
+            favorite: false,
+            archived: false,
+            readinessStatus: 'Ready',
+            thumbnailUrl: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=600&q=80',
+            description: 'Scanned official US Navy honorable discharge record with extracted OCR text layer.',
+            qualityRating: 4,
+            usageCount: 1
+          }
+        ];
       }
-    }
-    await handleRefreshLibrary();
-  };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    await uploadMultipleFiles(Array.from(files));
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    const files = e.dataTransfer?.files;
-    if (files && files.length > 0) {
-      await uploadMultipleFiles(Array.from(files));
-    }
-  };
-
-  // --- 5. INTERACTIVE COMPUTATIONS & FILTERS ---
-  const selectedAsset = useMemo(() => {
-    return assets.find(a => a.id === selectedAssetId) || assets[0] || null;
-  }, [assets, selectedAssetId]);
-
-  const storageStats = useMemo(() => {
-    const totalBytesUsed = assets.reduce((acc, curr) => acc + curr.bytes, 0);
-    const quotaBytes = 10 * 1024 * 1024 * 1024; // 10 GB
-    const percentage = (totalBytesUsed / quotaBytes) * 100;
-    
-    // Break down by type
-    const breakdown = {
-      image: { count: 0, size: 0 },
-      video: { count: 0, size: 0 },
-      audio: { count: 0, size: 0 },
-      document: { count: 0, size: 0 }
-    };
-    assets.forEach(a => {
-      if (breakdown[a.type]) {
-        breakdown[a.type].count++;
-        breakdown[a.type].size += a.bytes;
+      setAssets(extended);
+      if (extended.length > 0 && !selectedAssetId) {
+        setSelectedAssetId(extended[0].id);
       }
-    });
 
-    return {
-      usedFormatted: `${(totalBytesUsed / (1024 * 1024)).toFixed(1)} MB`,
-      totalFormatted: `10.0 GB`,
-      percentage: Math.min(100, parseFloat(percentage.toFixed(2))),
-      breakdown
-    };
-  }, [assets]);
+      // Load collections
+      const cols = await persistenceService.collections.getAll();
+      if (cols.length > 0) {
+        setCollections(cols as any);
+      } else {
+        setCollections(INITIAL_SMART_COLLECTIONS);
+      }
 
-  // Combined Advanced Filtering & Searching
+      // Load stories options
+      const storyList = INITIAL_STORIES.map(s => ({ id: s.id, title: s.title }));
+      setStories(storyList);
+    } catch (err) {
+      console.error('Failed to load media library context:', err);
+    }
+  }, [selectedAssetId]);
+
+  useEffect(() => {
+    loadLibraryData();
+  }, []);
+
+  // --- 2. COMPUTED FILTERING & SEARCH ---
   const filteredAssets = useMemo(() => {
-    return assets.filter(asset => {
-      // 1. Text Search Query (File Name, Tags, Connected Story name, Description)
-      const q = searchQuery.toLowerCase().trim();
-      const matchesSearch = !q || 
-        asset.name.toLowerCase().includes(q) ||
-        asset.tags.some(t => t.toLowerCase().includes(q)) ||
-        asset.linkedStoryName.toLowerCase().includes(q) ||
-        asset.description.toLowerCase().includes(q);
+    let result = assets;
 
-      // 2. Type Filter
-      const matchesType = selectedType === 'All' || asset.type === selectedType;
+    // Smart collection filter
+    if (activeSmartCollection) {
+      result = MediaLibraryService.filterBySmartCollection(result, activeSmartCollection);
+    }
 
-      // 3. Category Filter
-      const matchesCategory = selectedCategory === 'All' || asset.category === selectedCategory;
+    // Story Folder / Selected Story Filter
+    if (selectedStoryId) {
+      result = result.filter(a => a.linkedStoryId === selectedStoryId);
+    } else if (selectedStoryFilter !== 'All') {
+      result = result.filter(a => a.linkedStoryId === selectedStoryFilter);
+    }
 
-      // 4. Story Filter
-      const matchesStory = selectedStoryFilter === 'All' || asset.linkedStoryId === selectedStoryFilter;
+    // Custom Album Collection Filter
+    if (selectedCollectionId) {
+      const col = collections.find(c => c.id === selectedCollectionId);
+      if (col && !col.isSmart) {
+        result = result.filter(a => a.tags.some(t => col.tags.includes(t)));
+      }
+    }
 
-      // 5. Status Filter
-      const matchesStatus = selectedStatusFilter === 'All' || asset.status === selectedStatusFilter;
+    // Media Type Filter
+    if (selectedType !== 'All') {
+      result = result.filter(a => a.type === selectedType.toLowerCase());
+    }
 
-      return matchesSearch && matchesType && matchesCategory && matchesStory && matchesStatus;
-    }).sort((a, b) => {
+    // Readiness Status Filter
+    if (selectedStatusFilter !== 'All') {
+      result = result.filter(a => a.readinessStatus === selectedStatusFilter);
+    }
+
+    // Global Multi-field Search
+    if (searchQuery.trim()) {
+      result = MediaLibraryService.searchAssets(result, searchQuery);
+    }
+
+    // Sort Order
+    return result.slice().sort((a, b) => {
       let comparison = 0;
       if (sortBy === 'name') {
         comparison = a.name.localeCompare(b.name);
-      } else if (sortBy === 'date') {
-        comparison = new Date(a.uploadDate).getTime() - new Date(b.uploadDate).getTime();
       } else if (sortBy === 'size') {
-        comparison = a.bytes - b.bytes;
+        comparison = b.bytes - a.bytes;
+      } else {
+        comparison = new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime();
       }
-      return sortOrder === 'desc' ? -comparison : comparison;
+      return sortOrder === 'asc' ? -comparison : comparison;
     });
-  }, [assets, searchQuery, selectedType, selectedCategory, selectedStoryFilter, selectedStatusFilter, sortBy, sortOrder]);
+  }, [
+    assets,
+    activeSmartCollection,
+    selectedStoryId,
+    selectedStoryFilter,
+    selectedCollectionId,
+    collections,
+    selectedType,
+    selectedStatusFilter,
+    searchQuery,
+    sortBy,
+    sortOrder
+  ]);
 
-  // Production Readiness Logic
-  const readinessMetrics = useMemo(() => {
-    // Audit current database relative to required categories
-    const results = {
-      hasPortrait: assets.some(a => a.category === 'Portrait'),
-      hasChildhood: assets.some(a => a.category === 'Childhood'),
-      hasGraduation: assets.some(a => a.category === 'Graduation'),
-      hasWedding: assets.some(a => a.category === 'Wedding'),
-      hasHomeVideo: assets.some(a => a.type === 'video'),
-      hasVoiceRecording: assets.some(a => a.category === 'Voice Recording'),
-      hasResume: assets.some(a => a.category === 'Resume'),
-      hasCertificates: assets.some(a => a.category === 'Certificate'),
-      hasAwards: assets.some(a => a.category === 'Award'),
-      hasStoryAssocs: assets.filter(a => a.linkedStoryId).length
-    };
+  const selectedAsset = useMemo(() => {
+    return assets.find(a => a.id === selectedAssetId) || null;
+  }, [assets, selectedAssetId]);
 
-    let checkPointsPassed = 0;
-    const checklistItems = [
-      { id: 'p1', label: 'Biographical Portrait Scan', passed: results.hasPortrait, desc: 'Requires at least 1 portrait photo for face modeling & AI enhancements.' },
-      { id: 'p2', label: 'Early Life/Childhood Archives', passed: results.hasChildhood, desc: 'At least 1 photo covering school, parent, or childhood era.' },
-      { id: 'p3', label: 'Significant Ceremony Record (Grad/Wedding)', passed: results.hasGraduation || results.hasWedding, desc: 'Visual markers covering graduation caps, family marriages, or certificates.' },
-      { id: 'p4', label: 'Digitized Home Footage (MP4)', passed: results.hasHomeVideo, desc: 'Requires video files for background overlay B-Roll.' },
-      { id: 'p5', label: 'Original Voices or Oral History (MP3/WAV)', passed: results.hasVoiceRecording, desc: 'Required for custom voice cloning/timbre match calibration.' },
-      { id: 'p6', label: 'Professional Ledger (Resume/CV)', passed: results.hasResume, desc: 'Scanned CV text feeds career scripting milestones.' },
-      { id: 'p7', label: 'Linked Story Allocations', passed: results.hasStoryAssocs >= 8, desc: 'Requires at least 8 individual assets associated with Chapters.' }
-    ];
-
-    checklistItems.forEach(item => {
-      if (item.passed) checkPointsPassed++;
-    });
-
-    const finalScore = Math.round((checkPointsPassed / checklistItems.length) * 100);
-
-    return {
-      checklistItems,
-      finalScore,
-      results,
-      isExcellent: finalScore >= 80,
-      isAcceptable: finalScore >= 50 && finalScore < 80,
-      isCritical: finalScore < 50
-    };
+  const totalBytesUsed = useMemo(() => {
+    return assets.reduce((sum, a) => sum + (a.bytes || 0), 0);
   }, [assets]);
 
-  // --- 6. ACTIONS HANDLERS ---
-  const handleToggleFavorite = async (id: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const target = assets.find(a => a.id === id);
-    if (!target) return;
-    try {
-      await MediaService.favoriteMedia(id, !target.favorite);
-      await handleRefreshLibrary();
-      showToast(
-        'success',
-        !target.favorite ? 'Asset Favorited' : 'Removed from Favorites',
-        `"${target.name}" status updated in dynamic categories.`
-      );
-    } catch (err: any) {
-      showToast('error', 'Toggle Favorite Failed', err.message);
-    }
-  };
-
-  const handleDeleteAsset = (id: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const asset = assets.find(a => a.id === id);
-    setDeleteTarget({ id, type: 'single', name: asset?.name });
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget) return;
-
-    try {
-      if (deleteTarget.type === 'single') {
-        await MediaService.deleteMedia(deleteTarget.id);
-        await handleRefreshLibrary();
-        showToast('error', 'Asset Deleted', `"${deleteTarget.name}" removed from library database.`);
-      } else if (deleteTarget.type === 'bulk') {
-        for (const id of selectedAssets) {
-          await MediaService.deleteMedia(id);
-        }
-        await handleRefreshLibrary();
-        setSelectedAssets([]);
-        showToast('error', 'Bulk Delete Completed', 'Selected items unlinked from library index.');
-      } else if (deleteTarget.type === 'collection') {
-        await persistenceService.collections.delete(deleteTarget.id);
-        const allCols = await persistenceService.collections.getAll();
-        setCollections(allCols as any);
-        showToast('error', 'Collection Deleted', `"${deleteTarget.name}" album pruned.`);
-      }
-    } catch (err: any) {
-      showToast('error', 'Delete Failed', err.message);
-    }
-
-    setDeleteTarget(null);
-  };
-
-  const handleRenameAsset = (id: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const target = assets.find(a => a.id === id);
-    if (!target) return;
-    setRenameModal({
-      isOpen: true,
-      assetId: id,
-      assetName: target.name,
-    });
-  };
-
-  const executeRenameAsset = async (newName: string) => {
-    if (!renameModal.assetId) return;
-    try {
-      await MediaService.renameMedia(renameModal.assetId, newName.trim());
-      await handleRefreshLibrary();
-      showToast('success', 'Filename Saved', `Asset renamed to "${newName.trim()}".`);
-    } catch (err: any) {
-      showToast('error', 'Rename Failed', err.message);
-    }
-    setRenameModal({ isOpen: false });
-  };
-
-  const handleBulkFavorite = async () => {
-    if (selectedAssets.length === 0) return;
-    try {
-      for (const id of selectedAssets) {
-        await MediaService.favoriteMedia(id, true);
-      }
-      await handleRefreshLibrary();
-      showToast('success', 'Bulk Action Successful', `Marked ${selectedAssets.length} assets as favorites.`);
-      setSelectedAssets([]);
-    } catch (err: any) {
-      showToast('error', 'Bulk Favorite Failed', err.message);
-    }
-  };
-
-  const handleBulkDelete = () => {
-    if (selectedAssets.length === 0) return;
-    setDeleteTarget({ id: 'bulk', type: 'bulk', name: `${selectedAssets.length} selected assets` });
-  };
-
-  const handleCreateCollection = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCollectionData.name.trim()) {
-      showToast('warning', 'Missing Details', 'Collection name is a required field.');
-      return;
-    }
-    const newCol = {
-      id: `col-${Date.now()}`,
-      name: newCollectionData.name,
-      description: newCollectionData.description || 'No description supplied.',
-      coverImage: newCollectionData.cover,
-      assetCount: 0,
-      lastUpdated: new Date().toISOString().split('T')[0],
-      tags: ['Custom Set']
-    };
-    try {
-      await persistenceService.collections.create(newCol as any);
-      const allCols = await persistenceService.collections.getAll();
-      setCollections(allCols as any);
-      setIsCreateCollectionOpen(false);
-      setNewCollectionData({ name: '', description: '', cover: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=300&q=80' });
-      showToast('success', 'Collection Created', `"${newCol.name}" added to Albums list.`);
-    } catch (err: any) {
-      showToast('error', 'Create Collection Failed', err.message);
-    }
-  };
-
-  const handleRemoveCollection = (id: string) => {
-    const col = collections.find(c => c.id === id);
-    setDeleteTarget({ id, type: 'collection', name: col?.name });
-  };
-
-  const handleToggleSelectAsset = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (selectedAssets.includes(id)) {
-      setSelectedAssets(selectedAssets.filter(i => i !== id));
+  // --- 3. ACTIONS & HANDLERS ---
+  const handleSelectAsset = (asset: ExtendedMediaAsset, e: React.MouseEvent) => {
+    if (e.shiftKey || e.metaKey || e.ctrlKey) {
+      handleToggleMultiSelect(asset.id);
     } else {
-      setSelectedAssets([...selectedAssets, id]);
+      setSelectedAssetId(asset.id);
+      setIsInspectorOpen(true);
     }
   };
 
-  const handleToggleSelectAll = () => {
+  const handleToggleMultiSelect = (assetId: string) => {
+    setSelectedAssets(prev =>
+      prev.includes(assetId) ? prev.filter(id => id !== assetId) : [...prev, assetId]
+    );
+  };
+
+  const handleSelectAllToggle = () => {
     if (selectedAssets.length === filteredAssets.length) {
       setSelectedAssets([]);
     } else {
@@ -498,1425 +338,450 @@ export function MediaLibrary() {
     }
   };
 
-  // Simulated Mock uploads speed & queue ticker
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setUploadQueue(prev => {
-        let hasActive = false;
-        const next = prev.map(item => {
-          if (item.status === 'Uploading') {
-            hasActive = true;
-            const newProgress = Math.min(100, item.progress + Math.floor(Math.random() * 15) + 5);
-            return {
-              ...item,
-              progress: newProgress,
-              status: newProgress === 100 ? 'Complete' : 'Uploading',
-              speed: newProgress === 100 ? undefined : `${(Math.random() * 2 + 1).toFixed(1)} MB/s`
-            };
-          }
-          if (item.status === 'Queued' && !hasActive) {
-            hasActive = true; // start next in line
-            return { ...item, status: 'Uploading', progress: 5 };
-          }
-          return item;
-        });
-        return next;
-      });
-    }, 1200);
+  const handleToggleFavorite = async (assetId: string) => {
+    const target = assets.find(a => a.id === assetId);
+    if (!target) return;
+    const updated = { ...target, favorite: !target.favorite };
+    setAssets(prev => prev.map(a => (a.id === assetId ? updated : a)));
 
-    return () => clearInterval(timer);
-  }, []);
-
-  const handleClearFinishedQueue = () => {
-    setUploadQueue(prev => prev.filter(item => item.status !== 'Complete' && item.status !== 'Failed'));
-    showToast('info', 'Queue Cleared', 'Completed uploads removed from processing logs.');
+    try {
+      await MediaService.updateMedia(assetId, { favorite: updated.favorite });
+      showToast(
+        'success',
+        updated.favorite ? 'Starred as Favorite' : 'Unstarred',
+        `"${target.name}" preference saved.`
+      );
+    } catch (err) {
+      console.error('Failed to save favorite state:', err);
+    }
   };
 
-  // Helper categories mapping
-  const mediaCategories = [
-    'All', 'Childhood', 'Portrait', 'Graduation', 'Wedding', 'Career Photo', 
-    'Home Video', 'Voice Recording', 'Music File', 'Resume', 'Certificate', 'Award', 'Letter', 'Newspaper Article'
-  ];
+  const handleUpdateAsset = async (updated: ExtendedMediaAsset) => {
+    setAssets(prev => prev.map(a => (a.id === updated.id ? updated : a)));
+    try {
+      await MediaService.updateMedia(updated.id, {
+        name: updated.name,
+        tags: updated.tags,
+        favorite: updated.favorite,
+        archived: updated.archived,
+        legacyProfileId: updated.linkedStoryId
+      });
+      showToast('info', 'Asset Updated', `Saved changes for "${updated.name}".`);
+    } catch (err) {
+      console.error('Failed to update asset:', err);
+    }
+  };
+
+  // Upload multiple files pipeline
+  const handleUploadFiles = async (files: File[]) => {
+    for (const file of files) {
+      const uploadId = `uq-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
+      try {
+        if (file.size > 50 * 1024 * 1024) {
+          showToast('error', 'Upload Blocked', `"${file.name}" exceeds 50MB vault limit.`);
+          continue;
+        }
+
+        let fileType: ExtendedMediaAsset['type'] = 'document';
+        if (file.type.startsWith('image/')) fileType = 'image';
+        else if (file.type.startsWith('video/')) fileType = 'video';
+        else if (file.type.startsWith('audio/')) fileType = 'audio';
+
+        // Add to queue simulator
+        setUploadQueue(prev => [
+          {
+            id: uploadId,
+            name: file.name,
+            size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+            progress: 20,
+            status: 'Uploading',
+            speed: '2.4 MB/s',
+            fileType
+          },
+          ...prev
+        ]);
+
+        // Real upload processing
+        const savedMedia = await MediaService.processUpload(file, {
+          profileId: 'story-1',
+          category: fileType === 'image' ? 'Portrait' : 'Family Photo',
+          description: `Uploaded media: ${file.name}`
+        });
+
+        // Add newly cataloged asset to state
+        const newAsset: ExtendedMediaAsset = {
+          id: savedMedia.id,
+          name: savedMedia.name,
+          originalFilename: savedMedia.originalFilename || file.name,
+          type: fileType,
+          category: 'Family Photo',
+          size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+          bytes: file.size,
+          uploadDate: new Date().toISOString().split('T')[0],
+          tags: ['Newly Uploaded', 'Vault Asset'],
+          linkedStoryId: 'story-1',
+          linkedStoryName: 'The Life & Times of John Miller',
+          linkedEvents: [],
+          linkedChapters: [],
+          favorite: false,
+          archived: false,
+          readinessStatus: 'Ready',
+          thumbnailUrl: savedMedia.localStorageReference || 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=400&q=80',
+          description: `Uploaded file: ${file.name}`,
+          qualityRating: 5
+        };
+
+        setAssets(prev => [newAsset, ...prev]);
+        setSelectedAssetId(newAsset.id);
+
+        setUploadQueue(prev =>
+          prev.map(u => (u.id === uploadId ? { ...u, progress: 100, status: 'Complete' } : u))
+        );
+
+        showToast('success', 'Upload Cataloged', `"${file.name}" added to Heritage Vault.`);
+      } catch (err: any) {
+        setUploadQueue(prev =>
+          prev.map(u => (u.id === uploadId ? { ...u, status: 'Failed', error: err.message } : u))
+        );
+        showToast('error', 'Upload Failed', err.message);
+      }
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await MediaService.deleteMedia(deleteTarget.id);
+      setAssets(prev => prev.filter(a => a.id !== deleteTarget.id));
+      if (selectedAssetId === deleteTarget.id) setSelectedAssetId(null);
+      showToast('info', 'Asset Deleted', `Removed "${deleteTarget.name}" from vault.`);
+    } catch (err: any) {
+      showToast('error', 'Delete Error', err.message);
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
+  const handleConfirmRename = async (newName: string) => {
+    if (!renameTarget || !newName.trim()) return;
+    const updated = { ...renameTarget, name: newName.trim() };
+    await handleUpdateAsset(updated);
+    setRenameTarget(null);
+  };
+
+  // Bulk Tag Action
+  const handleBulkTag = async () => {
+    if (selectedAssets.length === 0) return;
+    const tag = prompt('Enter a new tag to add to selected assets:');
+    if (tag && tag.trim()) {
+      const updated = await MediaLibraryService.bulkAddTag(selectedAssets, tag.trim(), assets);
+      setAssets(updated);
+      showToast('success', 'Bulk Tagging Applied', `Added tag #${tag.trim()} to ${selectedAssets.length} assets.`);
+    }
+  };
+
+  // Bulk Assign Story
+  const handleBulkAssignStory = async () => {
+    if (selectedAssets.length === 0) return;
+    const storyId = prompt('Enter Story ID (e.g. story-1):', 'story-1');
+    if (storyId) {
+      const s = stories.find(st => st.id === storyId) || { id: storyId, title: 'Selected Story' };
+      const updated = await MediaLibraryService.bulkAssignStory(selectedAssets, s.id, s.title, assets);
+      setAssets(updated);
+      showToast('success', 'Story Assigned', `Linked ${selectedAssets.length} assets to "${s.title}".`);
+    }
+  };
+
+  // Bulk Delete
+  const handleBulkDelete = async () => {
+    if (selectedAssets.length === 0) return;
+    if (confirm(`Are you sure you want to delete ${selectedAssets.length} selected assets?`)) {
+      for (const id of selectedAssets) {
+        await MediaService.deleteMedia(id);
+      }
+      setAssets(prev => prev.filter(a => !selectedAssets.includes(a.id)));
+      setSelectedAssets([]);
+      showToast('info', 'Bulk Delete Complete', `Removed ${selectedAssets.length} assets.`);
+    }
+  };
 
   return (
-    <div className="h-full flex flex-col bg-background text-foreground" id="media-library-core-container">
-      
-      {/* 1. TOP UTILITY STATUS BAR */}
-      <div className="px-6 py-4 border-b border-border bg-card flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0" id="media-library-header">
-        <div>
+    <div className="h-full flex flex-col bg-background text-foreground overflow-hidden">
+      {/* 1. PAGE HEADER */}
+      <PageHeader
+        title="Media Library"
+        subtitle="Single source of truth for every photo, video, B-roll, document, and audio asset in production."
+        rightContent={
           <div className="flex items-center gap-2">
-            <h2 className="font-display font-black text-sm uppercase tracking-wide text-foreground">
-              Heritage Assets & Media Director
-            </h2>
-            <span className="inline-flex items-center text-[10px] font-mono font-black uppercase px-2 py-0.5 bg-cinema-amber-500/10 text-cinema-amber-600 dark:text-cinema-amber-400 border border-cinema-amber-500/15 rounded">
-              STAGE 8 FOUNDATION
-            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsStorageModalOpen(true)}
+              leftIcon={<HardDrive className="w-4 h-4 text-cinema-amber-500" />}
+            >
+              Vault Capacity
+            </Button>
+            <Button
+              variant="accent"
+              size="sm"
+              onClick={() => setIsUploadModalOpen(true)}
+              leftIcon={<Upload className="w-4 h-4" />}
+            >
+              Upload Assets
+            </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Store, categorize, and verify original visual & vocal files for chronological documentary rendering.
-          </p>
-        </div>
+        }
+      />
 
-        {/* Storage Summary Dashboard bar */}
-        <div className="flex items-center gap-4 bg-muted/40 px-4 py-2 rounded-xl border border-border/60 max-w-sm" id="header-storage-widget">
-          <div className="p-2 bg-cinema-amber-500/10 text-cinema-amber-500 rounded-lg border border-cinema-amber-500/15 hidden sm:block">
-            <Database className="w-4 h-4 text-cinema-amber-500" />
-          </div>
-          <div className="text-xs flex-grow min-w-[140px]">
-            <div className="flex items-center justify-between font-mono text-[10px] text-muted-foreground mb-1">
-              <span>Cloud Vault Used</span>
-              <strong>{storageStats.usedFormatted} / {storageStats.totalFormatted}</strong>
-            </div>
-            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-cinema-amber-500 rounded-full transition-all duration-500"
-                style={{ width: `${storageStats.percentage}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* 2. SMART FILTER TOOLBAR */}
+      <MediaToolbar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        selectedType={selectedType}
+        onTypeChange={setSelectedType}
+        selectedStoryFilter={selectedStoryFilter}
+        onStoryFilterChange={setSelectedStoryFilter}
+        selectedStatusFilter={selectedStatusFilter}
+        onStatusFilterChange={setSelectedStatusFilter}
+        sortBy={sortBy}
+        onSortByChange={setSortBy}
+        sortOrder={sortOrder}
+        onToggleSortOrder={() => setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'))}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        grouping={grouping}
+        onGroupingChange={setGrouping}
+        stories={stories}
+        selectedCount={selectedAssets.length}
+        totalCount={filteredAssets.length}
+        onSelectAllToggle={handleSelectAllToggle}
+        isAllSelected={selectedAssets.length > 0 && selectedAssets.length === filteredAssets.length}
+        onBulkTagClick={handleBulkTag}
+        onBulkAssignStoryClick={handleBulkAssignStory}
+        onBulkDeleteClick={handleBulkDelete}
+        onClearFilters={() => {
+          setSearchQuery('');
+          setSelectedType('All');
+          setSelectedStoryFilter('All');
+          setSelectedStatusFilter('All');
+          setActiveSmartCollection('all');
+          setSelectedStoryId(null);
+          setSelectedCollectionId(null);
+        }}
+      />
 
-      {/* 2. SUB-TABS INTERACTIVE SHIELD */}
-      <div className="px-6 py-2 border-b border-border bg-card/65 flex flex-wrap items-center justify-between gap-2 shrink-0" id="library-tabs-rail">
-        <div className="flex items-center gap-1">
-          {[
-            { id: 'all', label: 'All Heritage Assets', icon: Camera },
-            { id: 'collections', label: 'Collections & Albums', icon: FolderOpen },
-            { id: 'upload', label: 'Upload Studio Vault', icon: Upload },
-            { id: 'readiness', label: 'Production Readiness Audit', icon: CheckCircle }
-          ].map(tab => {
-            const Icon = tab.icon;
-            const isTabActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                id={`tab-btn-${tab.id}`}
-                onClick={() => {
-                  setActiveTab(tab.id as any);
-                  if (tab.id === 'readiness') {
-                    showToast('loading', 'Auditing Story Coverage', 'Scanning assets directory for optimal face modeling parameters...');
-                  }
-                }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer border border-transparent ${
-                  isTabActive
-                    ? 'bg-cinema-amber-500/10 text-cinema-amber-600 dark:text-cinema-amber-400 border border-cinema-amber-500/20'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${isTabActive ? 'text-cinema-amber-500' : 'text-muted-foreground'}`} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+      {/* 3. MAIN WORKSPACE SPLIT (Sidebar | Grid | Inspector) */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* LEFT SIDEBAR */}
+        <MediaCollectionSidebar
+          activeSmartCollection={activeSmartCollection}
+          onSelectSmartCollection={setActiveSmartCollection}
+          collections={collections}
+          selectedCollectionId={selectedCollectionId}
+          onSelectCollection={setSelectedCollectionId}
+          onCreateCollectionClick={() => setIsCreateCollectionOpen(true)}
+          stories={stories}
+          selectedStoryId={selectedStoryId}
+          onSelectStoryFolder={setSelectedStoryId}
+          assets={assets}
+        />
 
-        {/* View switching options & controls */}
-        {activeTab === 'all' && (
-          <ViewModeToggle
-            id="media-view-mode-toggle"
-            viewMode={viewMode}
-            onChange={setViewMode}
+        {/* MAIN GRID / LIST CONTENT */}
+        <MediaGrid
+          assets={filteredAssets}
+          selectedAssetId={selectedAssetId}
+          selectedAssets={selectedAssets}
+          onSelectAsset={handleSelectAsset}
+          onToggleMultiSelect={handleToggleMultiSelect}
+          onToggleFavorite={handleToggleFavorite}
+          onPreview={(asset) => {
+            setPreviewAsset(asset);
+            setIsPreviewOpen(true);
+          }}
+          onRename={(asset) => setRenameTarget(asset)}
+          onDelete={(asset) => setDeleteTarget(asset)}
+          viewMode={viewMode}
+          grouping={grouping}
+          onClearFilters={() => {
+            setSearchQuery('');
+            setSelectedType('All');
+            setSelectedStoryFilter('All');
+            setSelectedStatusFilter('All');
+          }}
+        />
+
+        {/* RIGHT CONTEXT INSPECTOR */}
+        {isInspectorOpen && (
+          <MediaInspector
+            asset={selectedAsset}
+            onClose={() => setIsInspectorOpen(false)}
+            onUpdateAsset={handleUpdateAsset}
+            onDeleteAsset={(asset) => setDeleteTarget(asset)}
+            stories={stories}
+            showToast={showToast}
           />
         )}
       </div>
 
-      {/* 3. CORE SUB-SECTION MESH */}
-      <div className="flex-grow flex overflow-hidden relative" id="library-workspace-panels-mesh">
-        
-        {/* VIEW 1: ALL HERITAGE ASSETS */}
-        {activeTab === 'all' && (
-          <div className="flex-grow flex flex-col min-w-0" id="pane-all-media">
-            
-            {/* SEARCH AND FILTERS BOX */}
-            <div className="p-4 bg-muted/20 border-b border-border flex flex-col gap-3 shrink-0" id="assets-search-filter-box">
-              <div className="flex flex-col md:flex-row gap-3">
-                
-                {/* Search */}
-                <div className="relative flex-grow">
-                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
-                  <input
-                    id="asset-library-search"
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search file name, metadata, tags, stories..."
-                    className="w-full pl-9 pr-4 py-1.5 text-xs bg-card border border-border rounded-xl focus:outline-none focus:ring-1 focus:ring-cinema-amber-500"
-                  />
-                  {searchQuery && (
-                    <button 
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Type filters row dropdowns */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Select
-                    id="media-type-filter"
-                    value={selectedType}
-                    onChange={setSelectedType}
-                    options={[
-                      { value: 'All', label: 'All Types' },
-                      { value: 'image', label: 'Images' },
-                      { value: 'video', label: 'Videos' },
-                      { value: 'audio', label: 'Audios' },
-                      { value: 'document', label: 'Documents' }
-                    ]}
-                    className="w-32"
-                  />
-
-                  <Select
-                    id="media-category-filter"
-                    value={selectedCategory}
-                    onChange={setSelectedCategory}
-                    options={[
-                      { value: 'All', label: 'All Categories' },
-                      ...mediaCategories.slice(1).map(cat => ({ value: cat, label: cat }))
-                    ]}
-                    className="w-44"
-                  />
-
-                  <Select
-                    id="media-story-filter"
-                    value={selectedStoryFilter}
-                    onChange={setSelectedStoryFilter}
-                    options={[
-                      { value: 'All', label: 'All Stories' },
-                      { value: 'story-elizabeth-legacy', label: 'Elizabeth Legacy' },
-                      { value: 'story-bob-military', label: 'Grandpa Bob' }
-                    ]}
-                    className="w-40"
-                  />
-
-                  <Select
-                    id="media-sort-by"
-                    value={sortBy}
-                    onChange={(val) => setSortBy(val as any)}
-                    options={[
-                      { value: 'date', label: 'Date Uploaded' },
-                      { value: 'name', label: 'File Name' },
-                      { value: 'size', label: 'Size' }
-                    ]}
-                    className="w-36"
-                  />
-
-                  <button
-                    onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                    className="p-1.5 bg-card border border-border rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground cursor-pointer"
-                    title={`Sorting order: ${sortOrder}`}
-                  >
-                    <SlidersHorizontal className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Bulk actions ribbon (Visible when multi-assets are selected) */}
-              <AnimatePresence>
-                {selectedAssets.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    className="bg-cinema-amber-500/10 border border-cinema-amber-500/15 p-2 rounded-xl flex items-center justify-between"
-                    id="bulk-actions-toolbar"
-                  >
-                    <div className="flex items-center gap-2 pl-2">
-                      <span className="text-[10px] font-mono font-bold text-cinema-amber-600 dark:text-cinema-amber-400">
-                        {selectedAssets.length} {selectedAssets.length === 1 ? 'ASSET' : 'ASSETS'} SELECTED
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        id="btn-bulk-fav"
-                        variant="ghost"
-                        size="xs"
-                        leftIcon={<Heart className="w-3.5 h-3.5" />}
-                        onClick={handleBulkFavorite}
-                        className="text-[10px] py-1 border border-cinema-amber-500/25"
-                      >
-                        {selectedAssets.length === 1 ? 'Favorite Selected' : 'Favorite All'}
-                      </Button>
-                      <Button
-                        id="btn-bulk-delete"
-                        variant="ghost"
-                        size="xs"
-                        leftIcon={<Trash2 className="w-3.5 h-3.5 text-red-500" />}
-                        onClick={handleBulkDelete}
-                        className="text-[10px] py-1 text-red-500 hover:bg-red-500/10 border border-red-500/20"
-                      >
-                        {selectedAssets.length === 1 ? 'Delete Selected' : 'Delete All'}
-                      </Button>
-                      <button
-                        onClick={() => setSelectedAssets([])}
-                        className="text-[10px] font-bold text-muted-foreground hover:text-foreground px-2 cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* MAIN DATA SCROLLER OR GRID VIEW */}
-            <div className="flex-grow overflow-y-auto p-4 md:p-6" id="assets-list-scroller">
-              
-              {filteredAssets.length === 0 ? (
-                <div className="py-20 text-center space-y-4 max-w-sm mx-auto" id="all-assets-empty">
-                  <div className="w-12 h-12 rounded-2xl bg-muted/40 border border-border flex items-center justify-center mx-auto text-muted-foreground">
-                    <AlertTriangle className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">No Assets Matched Criteria</h4>
-                    <p className="text-[11px] text-muted-foreground mt-1">
-                      Try adjusting tags, selecting different formats, or checking search parameters.
-                    </p>
-                  </div>
-                  <Button 
-                    id="btn-reset-filters" 
-                    variant="ghost" 
-                    size="xs" 
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedType('All');
-                      setSelectedCategory('All');
-                      setSelectedStoryFilter('All');
-                      setSelectedStatusFilter('All');
-                    }}
-                    className="border border-border text-xs"
-                  >
-                    Clear All Filters
-                  </Button>
-                </div>
-              ) : viewMode === 'grid' ? (
-                
-                // GRID VIEW
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5" id="asset-cards-grid">
-                  {filteredAssets.map(asset => {
-                    const isSelected = selectedAssets.includes(asset.id);
-                    const isCurrent = selectedAssetId === asset.id;
-                    return (
-                      <div
-                        key={asset.id}
-                        id={`asset-card-${asset.id}`}
-                        onClick={() => setSelectedAssetId(asset.id)}
-                        className={`group relative bg-card border rounded-2xl overflow-hidden transition-all duration-300 shadow-sm cursor-pointer hover:shadow-md flex flex-col h-full ${
-                          isCurrent 
-                            ? 'ring-1 ring-cinema-amber-500 border-cinema-amber-500 bg-cinema-amber-500/[0.01]' 
-                            : 'border-border'
-                        }`}
-                      >
-                        {/* Thumbnail view */}
-                        <div className="aspect-[4/3] bg-muted relative overflow-hidden shrink-0">
-                          <img
-                            src={asset.thumbnailUrl}
-                            alt={asset.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            referrerPolicy="no-referrer"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5">
-                            <span className="text-[10px] font-mono text-white tracking-wide bg-slate-900/70 px-2 py-0.5 rounded backdrop-blur">
-                              {asset.resolution || asset.duration || 'Archive Document'}
-                            </span>
-                          </div>
-
-                          {/* Top bar overlays */}
-                          <div className="absolute top-2 left-2 flex items-center gap-1.5">
-                            {/* Checkbox selector for multiselect */}
-                            <button
-                              onClick={(e) => handleToggleSelectAsset(asset.id, e)}
-                              className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all cursor-pointer ${
-                                isSelected 
-                                  ? 'bg-cinema-amber-500 border-cinema-amber-500 text-slate-950' 
-                                  : 'bg-black/40 border-white/40 text-transparent hover:border-white'
-                              }`}
-                            >
-                              <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            </button>
-
-                            <span className="inline-flex items-center text-[8px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded bg-slate-900/75 text-cinema-amber-400 border border-cinema-amber-500/10 backdrop-blur">
-                              {asset.category}
-                            </span>
-                          </div>
-
-                          <div className="absolute top-2 right-2 flex items-center gap-1">
-                            <button
-                              onClick={(e) => handleToggleFavorite(asset.id, e)}
-                              className={`p-1 rounded-md cursor-pointer backdrop-blur transition-all ${
-                                asset.favorite 
-                                  ? 'bg-rose-500/15 border border-rose-500/20 text-rose-500' 
-                                  : 'bg-black/40 border border-white/20 text-white/70 hover:text-white'
-                              }`}
-                            >
-                              <Heart className={`w-3.5 h-3.5 ${asset.favorite ? 'fill-rose-500' : ''}`} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Title details */}
-                        <div className="p-4 flex-grow flex flex-col justify-between space-y-3">
-                          <div>
-                            <h4 className="text-xs font-black truncate text-foreground group-hover:text-cinema-amber-500 transition-colors uppercase tracking-wide">
-                              {asset.name}
-                            </h4>
-                            <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">
-                              {asset.description}
-                            </p>
-                          </div>
-
-                          <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[10px]">
-                            <span className="font-mono text-muted-foreground">{asset.size}</span>
-                            <span className="text-muted-foreground truncate max-w-[120px] font-semibold text-right flex items-center gap-1">
-                              <Link2 className="w-2.5 h-2.5 text-muted-foreground inline" />
-                              {asset.linkedStoryName.replace('The Literary Legacy of ', '').replace('Bob Vance: ', '')}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Action layer */}
-                        <div className="px-4 py-2 bg-muted/20 border-t border-border/40 flex items-center justify-end gap-1 shrink-0">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPreviewAsset(asset);
-                            }}
-                            className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors cursor-pointer"
-                            title="Fullscreen Preview"
-                          >
-                            <Maximize2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={(e) => handleRenameAsset(asset.id, e)}
-                            className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors cursor-pointer"
-                            title="Rename"
-                          >
-                            <Tag className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={(e) => handleDeleteAsset(asset.id, e)}
-                            className="p-1 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded transition-colors cursor-pointer"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                
-                // LIST VIEW (Data Table)
-                <div className="border border-border bg-card rounded-2xl overflow-hidden shadow-sm" id="assets-table-box">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse" id="assets-data-table">
-                      <thead>
-                        <tr className="bg-muted/40 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                          <th className="py-3 px-4 w-12 text-center">
-                            <button
-                              onClick={handleToggleSelectAll}
-                              className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all cursor-pointer ${
-                                selectedAssets.length === filteredAssets.length && filteredAssets.length > 0
-                                  ? 'bg-cinema-amber-500 border-cinema-amber-500 text-slate-950' 
-                                  : 'bg-card border-border text-transparent hover:border-muted-foreground'
-                              }`}
-                            >
-                              <Check className="w-3 h-3 stroke-[3]" />
-                            </button>
-                          </th>
-                          <th className="py-3 px-4 w-16 text-center">Preview</th>
-                          <th className="py-3 px-4">Filename</th>
-                          <th className="py-3 px-4">Format</th>
-                          <th className="py-3 px-4">Category</th>
-                          <th className="py-3 px-4">Linked Story</th>
-                          <th className="py-3 px-4 text-right">Size</th>
-                          <th className="py-3 px-4 text-center">Status</th>
-                          <th className="py-3 px-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredAssets.map(asset => {
-                          const isSelected = selectedAssets.includes(asset.id);
-                          const isCurrent = selectedAssetId === asset.id;
-                          return (
-                            <tr
-                              key={asset.id}
-                              id={`table-row-${asset.id}`}
-                              onClick={() => setSelectedAssetId(asset.id)}
-                              className={`border-b border-border/50 text-xs transition-colors hover:bg-muted/30 cursor-pointer ${
-                                isCurrent ? 'bg-cinema-amber-500/[0.02]' : ''
-                              }`}
-                            >
-                              <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  onClick={(e) => handleToggleSelectAsset(asset.id, e)}
-                                  className={`w-4 h-4 rounded-md flex items-center justify-center border mx-auto transition-all cursor-pointer ${
-                                    isSelected 
-                                      ? 'bg-cinema-amber-500 border-cinema-amber-500 text-slate-950' 
-                                      : 'bg-card border-border text-transparent hover:border-muted-foreground'
-                                  }`}
-                                >
-                                  <Check className="w-3 h-3 stroke-[3]" />
-                                </button>
-                              </td>
-                              <td className="py-2 px-4 text-center">
-                                <div className="w-10 h-8 rounded overflow-hidden bg-muted mx-auto border border-border">
-                                  <img 
-                                    src={asset.thumbnailUrl} 
-                                    alt="thumb" 
-                                    className="w-full h-full object-cover" 
-                                    referrerPolicy="no-referrer"
-                                  />
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 font-semibold text-foreground max-w-[200px] truncate">
-                                {asset.name}
-                              </td>
-                              <td className="py-3 px-4 font-mono text-[10px] text-muted-foreground uppercase">
-                                {asset.type}
-                              </td>
-                              <td className="py-3 px-4 text-muted-foreground">
-                                <span className="inline-flex items-center text-[10px] uppercase font-bold px-2 py-0.5 bg-muted rounded border border-border">
-                                  {asset.category}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-muted-foreground max-w-[150px] truncate font-semibold">
-                                {asset.linkedStoryName.replace('The Literary Legacy of ', '').replace('Bob Vance: ', '')}
-                              </td>
-                              <td className="py-3 px-4 text-right font-mono text-muted-foreground">
-                                {asset.size}
-                              </td>
-                              <td className="py-3 px-4 text-center">
-                                <span className={`inline-flex items-center text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                                  asset.status === 'Ready' 
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                                }`}>
-                                  {asset.status}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center justify-end gap-1">
-                                  <button
-                                    onClick={() => setPreviewAsset(asset)}
-                                    className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground cursor-pointer"
-                                    title="Fullscreen Preview"
-                                  >
-                                    <Maximize2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleToggleFavorite(asset.id)}
-                                    className={`p-1 hover:bg-muted rounded cursor-pointer ${asset.favorite ? 'text-rose-500' : 'text-muted-foreground hover:text-foreground'}`}
-                                  >
-                                    <Heart className={`w-3.5 h-3.5 ${asset.favorite ? 'fill-rose-500' : ''}`} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleRenameAsset(asset.id)}
-                                    className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground cursor-pointer"
-                                  >
-                                    <Tag className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteAsset(asset.id)}
-                                    className="p-1 hover:bg-red-500/10 rounded text-muted-foreground hover:text-red-500 cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 2: COLLECTIONS & ALBUMS */}
-        {activeTab === 'collections' && (
-          <div className="flex-grow overflow-y-auto p-6 md:p-8 space-y-6" id="pane-collections">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-display text-sm font-black uppercase tracking-wider text-foreground">
-                  Custom Thematic Collections
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Cluster assets together by themes, timelines, or family lineages to organize Downstream movie chapter flows.
-                </p>
-              </div>
-
-              <Button
-                id="btn-create-collection"
-                variant="primary"
-                size="xs"
-                leftIcon={<FolderPlus className="w-3.5 h-3.5 text-slate-950" />}
-                onClick={() => setIsCreateCollectionOpen(true)}
-                className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold"
-              >
-                Create Collection
-              </Button>
-            </div>
-
-            {/* Grid of collections */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6" id="collections-grid">
-              {collections.map(col => (
-                <div
-                  key={col.id}
-                  id={`collection-card-${col.id}`}
-                  className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col group"
-                >
-                  {/* Photo Cover */}
-                  <div className="aspect-[16/10] bg-muted relative overflow-hidden shrink-0">
-                    <img
-                      src={col.coverImage}
-                      alt={col.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-slate-950/70 text-white font-mono text-[10px] backdrop-blur font-bold">
-                      {col.assetCount} Assets Linked
-                    </div>
-                    <button
-                      onClick={() => handleRemoveCollection(col.id)}
-                      className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/40 hover:bg-red-500/20 text-white hover:text-red-500 transition-all cursor-pointer backdrop-blur"
-                      title="Prune Collection"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Body text details */}
-                  <div className="p-5 flex-grow flex flex-col justify-between space-y-4">
-                    <div>
-                      <h4 className="text-xs font-black uppercase tracking-wider text-foreground group-hover:text-cinema-amber-500 transition-colors">
-                        {col.name}
-                      </h4>
-                      <p className="text-[11px] text-muted-foreground mt-1 line-clamp-3">
-                        {col.description}
-                      </p>
-                    </div>
-
-                    <div className="pt-3 border-t border-border flex items-center justify-between text-[10px] text-muted-foreground">
-                      <span className="font-mono">Sync Date: {col.lastUpdated}</span>
-                      <div className="flex gap-1">
-                        {col.tags.slice(0, 2).map((tag, idx) => (
-                          <span key={idx} className="bg-muted px-1.5 py-0.5 rounded text-[8px] font-semibold text-muted-foreground font-mono uppercase">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 3: UPLOAD STUDIO VAULT */}
-        {activeTab === 'upload' && (
-          <div className="flex-grow overflow-y-auto p-6 md:p-8 space-y-6" id="pane-upload">
-            <div className="max-w-2xl mx-auto space-y-6">
-              
-              {/* Layout Zone Header */}
-              <div>
-                <h3 className="font-display text-sm font-black uppercase tracking-wider text-foreground flex items-center gap-2">
-                  <Upload className="w-4 h-4 text-cinema-amber-500" /> Digital File Upload Portal
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Simulate scanning, metadata parsing, and duplicate analysis checks of newly digitized archival records.
-                </p>
-              </div>
-
-              {/* DND Drag Zone Placeholder */}
-              <input
-                type="file"
-                multiple
-                ref={fileInputRef}
-                className="hidden"
-                onChange={handleFileChange}
-                accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              />
-              <div 
-                id="upload-dropzone"
-                onClick={handleOpenUploadDialog}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                className="p-8 border-2 border-dashed border-border hover:border-cinema-amber-500/60 bg-card/40 rounded-2xl text-center space-y-4 cursor-pointer transition-all duration-300"
-              >
-                <div className="w-12 h-12 rounded-full bg-cinema-amber-500/10 text-cinema-amber-500 flex items-center justify-center mx-auto border border-cinema-amber-500/20">
-                  <Upload className="w-5 h-5 text-cinema-amber-500" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                    Drag and Drop scanned records, photos or audio files here
-                  </h4>
-                  <p className="text-[11px] text-muted-foreground mt-1 max-w-sm mx-auto">
-                    Supports high-resolution TIFF, JPEG, PNG formats for photos; MP4, MOV for home clips; WAV, MP3 for audios; PDF, DOCX for resume portfolios. Max 200MB per file.
-                  </p>
-                </div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-[10px] font-semibold text-muted-foreground font-mono uppercase">
-                  <span>OR CLICK TO BROWSE LOCAL SYSTEM</span>
-                </div>
-              </div>
-
-              {/* Queue List */}
-              <div className="p-5 bg-card border border-border rounded-2xl shadow-sm space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-border">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-foreground">
-                    Upload & Processing Pipeline
-                  </h4>
-                  <button
-                    onClick={handleClearFinishedQueue}
-                    className="text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted px-2.5 py-1 rounded transition-colors cursor-pointer border border-border/60"
-                  >
-                    Clear Finished Logs
-                  </button>
-                </div>
-
-                <div className="space-y-3" id="simulated-upload-queue-list">
-                  {uploadQueue.map(item => (
-                    <div
-                      key={item.id}
-                      id={`queue-item-${item.id}`}
-                      className="p-3 bg-muted/40 rounded-xl border border-border/80 flex items-center justify-between gap-4"
-                    >
-                      <div className="flex items-center gap-3 flex-grow min-w-0">
-                        {/* Custom icon */}
-                        <div className={`p-2 rounded-lg border ${
-                          item.status === 'Failed' 
-                            ? 'bg-red-500/10 text-red-500 border-red-500/20' 
-                            : item.status === 'Complete' 
-                              ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                              : 'bg-cinema-amber-500/10 text-cinema-amber-500 border-cinema-amber-500/20'
-                        }`}>
-                          <FileSpreadsheet className="w-4 h-4" />
-                        </div>
-
-                        <div className="text-xs flex-grow min-w-0">
-                          <h5 className="font-semibold text-foreground truncate uppercase text-[10px]">
-                            {item.name}
-                          </h5>
-                          
-                          {/* Progress indicators */}
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <div className="flex-grow h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-300 ${
-                                  item.status === 'Failed' 
-                                    ? 'bg-red-500' 
-                                    : item.status === 'Complete' 
-                                      ? 'bg-emerald-500' 
-                                      : 'bg-cinema-amber-500'
-                                }`}
-                                style={{ width: `${item.progress}%` }}
-                              />
-                            </div>
-                            <span className="font-mono text-[9px] text-muted-foreground w-8 text-right shrink-0">
-                              {item.progress}%
-                            </span>
-                          </div>
-
-                          {/* Failure notes or sub-details */}
-                          {item.error && (
-                            <span className="text-[9px] font-medium text-red-500 block mt-1">
-                              {item.error}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Status label right side */}
-                      <div className="text-right shrink-0">
-                        <span className="font-mono text-[9px] text-muted-foreground block">{item.size}</span>
-                        {item.speed && (
-                          <span className="font-mono text-[8px] text-cinema-amber-500 block mt-0.5">{item.speed}</span>
-                        )}
-                        <span className={`inline-flex items-center text-[8px] font-bold uppercase px-1.5 py-0.5 rounded mt-1.5 ${
-                          item.status === 'Complete' 
-                            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/15' 
-                            : item.status === 'Failed'
-                              ? 'bg-red-500/10 text-red-500 border border-red-500/15'
-                              : 'bg-cinema-amber-500/10 text-cinema-amber-500 border border-cinema-amber-500/15'
-                        }`}>
-                          {item.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 4: PRODUCTION READINESS AUDIT */}
-        {activeTab === 'readiness' && (
-          <div className="flex-grow overflow-y-auto p-6 md:p-8 space-y-6" id="pane-readiness">
-            <div className="max-w-3xl mx-auto space-y-6">
-              
-              {/* Gauge section */}
-              <div className="p-6 bg-card border border-border rounded-2xl shadow-sm flex flex-col md:flex-row items-center gap-6">
-                
-                {/* Score Dial Representation */}
-                <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle
-                      cx="64"
-                      cy="64"
-                      r="54"
-                      stroke="currentColor"
-                      strokeWidth="8"
-                      fill="transparent"
-                      className="text-muted/40"
-                    />
-                    <circle
-                      cx="64"
-                      cy="64"
-                      r="54"
-                      stroke="currentColor"
-                      strokeWidth="8"
-                      fill="transparent"
-                      strokeDasharray={2 * Math.PI * 54}
-                      strokeDashoffset={2 * Math.PI * 54 * (1 - readinessMetrics.finalScore / 100)}
-                      className="text-cinema-amber-500 transition-all duration-1000"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-black text-foreground font-mono">{readinessMetrics.finalScore}%</span>
-                    <span className="text-[9px] font-bold text-muted-foreground uppercase font-mono">READY</span>
-                  </div>
-                </div>
-
-                {/* Audit overview text */}
-                <div className="space-y-2 text-center md:text-left flex-grow">
-                  <div className="flex items-center justify-center md:justify-start gap-2">
-                    <h3 className="font-display text-sm font-black uppercase tracking-wider text-foreground">
-                      Cinematic Production Grade
-                    </h3>
-                    {readinessMetrics.isExcellent && (
-                      <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-mono text-[9px] px-2 py-0.5 rounded font-black uppercase">
-                        EXCELLENT
-                      </span>
-                    )}
-                    {readinessMetrics.isAcceptable && (
-                      <span className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 font-mono text-[9px] px-2 py-0.5 rounded font-black uppercase">
-                        ACCEPTABLE
-                      </span>
-                    )}
-                    {readinessMetrics.isCritical && (
-                      <span className="bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 font-mono text-[9px] px-2 py-0.5 rounded font-black uppercase">
-                        CRITICAL GAP
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground max-w-xl">
-                    This compliance scanner grades your assets before passing metadata to the Downstream AI scriptwriter and film compiler. Having high-res photos and original audio tracks reduces synthetic video distortion.
-                  </p>
-                  
-                  {readinessMetrics.isExcellent ? (
-                    <div className="p-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-xl flex gap-2 items-center text-[11px] text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle className="w-4 h-4 shrink-0" />
-                      <span>Perfect. You have balanced photos, voice registers, and PDF ledgers. Stage 9 rendering is fully optimized.</span>
-                    </div>
-                  ) : (
-                    <div className="p-2.5 bg-amber-500/5 border border-amber-500/15 rounded-xl flex gap-2 items-center text-[11px] text-amber-600 dark:text-amber-400">
-                      <AlertTriangle className="w-4 h-4 shrink-0 animate-bounce" />
-                      <span>Upload additional childhood photos and at least 1 voice snippet to maximize compilation precision.</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Checklist details */}
-              <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-border bg-muted/20">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-foreground">
-                    Required Asset Checklist Audit
-                  </h4>
-                </div>
-                <div className="divide-y divide-border/60">
-                  {readinessMetrics.checklistItems.map(item => (
-                    <div key={item.id} className="p-4 flex items-start gap-4 transition-colors hover:bg-muted/10">
-                      <div className="mt-0.5">
-                        {item.passed ? (
-                          <div className="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center">
-                            <X className="w-3.5 h-3.5 stroke-[3]" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-xs flex-grow">
-                        <div className="flex items-center justify-between">
-                          <strong className={`font-semibold ${item.passed ? 'text-foreground' : 'text-amber-500'}`}>
-                            {item.label}
-                          </strong>
-                          <span className={`font-mono text-[9px] uppercase px-1.5 py-0.5 rounded font-bold ${
-                            item.passed ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
-                          }`}>
-                            {item.passed ? 'VERIFIED' : 'PENDING'}
-                          </span>
-                        </div>
-                        <p className="text-muted-foreground mt-0.5 text-[11px]">
-                          {item.desc}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Informative advice */}
-              <div className="p-4 bg-indigo-500/5 border border-indigo-500/15 rounded-2xl flex gap-3">
-                <Sparkles className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                <div className="text-xs">
-                  <strong className="font-semibold text-foreground">AI face remodeling calibration alert</strong>
-                  <p className="text-muted-foreground mt-0.5">
-                    We suggest portrait files with continuous, single-source light. Blurry, low-resolution images may cause facial glitches in downstream render compilation suites.
-                  </p>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* RIGHT INSPECTOR SIDEBAR */}
-        {!isInspectorCollapsed && selectedAsset && activeTab === 'all' && (
-          <aside
-            id="media-inspector-panel"
-            className="w-80 border-l border-border bg-card overflow-y-auto hidden lg:flex flex-col h-full shrink-0"
-          >
-            {/* Inspector Header */}
-            <div className="p-4 border-b border-border flex items-center justify-between bg-muted/20 shrink-0">
-              <span className="text-[10px] font-mono font-black uppercase text-foreground tracking-wider flex items-center gap-1.5">
-                <Info className="w-3.5 h-3.5 text-cinema-amber-500" /> FILE INSPECTOR
-              </span>
-              <button
-                onClick={() => setIsInspectorCollapsed(true)}
-                className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all cursor-pointer"
-                title="Hide Inspector"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Large Preview */}
-            <div className="p-4 bg-muted/40 border-b border-border text-center relative flex-shrink-0">
-              <div className="aspect-[4/3] rounded-xl overflow-hidden bg-card border border-border shadow-inner relative flex items-center justify-center">
-                <img
-                  src={selectedAsset.thumbnailUrl}
-                  alt={selectedAsset.name}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-                
-                {/* Specific overlay player indicators */}
-                {selectedAsset.type === 'video' && (
-                  <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                    <div className="w-10 h-10 rounded-full bg-cinema-amber-500 text-slate-950 flex items-center justify-center shadow-md">
-                      <Play className="w-4 h-4 fill-slate-950 ml-0.5" />
-                    </div>
-                  </div>
-                )}
-                {selectedAsset.type === 'audio' && (
-                  <div className="absolute inset-0 bg-black/45 flex items-center justify-center p-3">
-                    <Volume2 className="w-8 h-8 text-cinema-amber-500 animate-pulse" />
-                  </div>
-                )}
-              </div>
-              
-              <Button
-                id="inspector-btn-fullscreen"
-                variant="ghost"
-                size="xs"
-                leftIcon={<Maximize2 className="w-3 h-3" />}
-                onClick={() => setPreviewAsset(selectedAsset)}
-                className="mt-3 text-[10px] py-1 border border-border"
-              >
-                Fullscreen Preview
-              </Button>
-            </div>
-
-            {/* METADATA FORM/DETAILS */}
-            <div className="p-5 flex-grow space-y-5 text-xs">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Filename</label>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-foreground break-all uppercase text-[11px] block">{selectedAsset.name}</span>
-                  <button 
-                    onClick={() => handleRenameAsset(selectedAsset.id)} 
-                    className="text-muted-foreground hover:text-foreground cursor-pointer"
-                  >
-                    <Tag className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Format</span>
-                  <strong className="text-foreground font-semibold uppercase">{selectedAsset.type}</strong>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Size</span>
-                  <strong className="text-foreground font-mono">{selectedAsset.size}</strong>
-                </div>
-              </div>
-
-              {selectedAsset.resolution && (
-                <div>
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Resolution</span>
-                  <strong className="text-foreground font-mono">{selectedAsset.resolution}</strong>
-                </div>
-              )}
-
-              {selectedAsset.duration && (
-                <div>
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Duration</span>
-                  <strong className="text-foreground font-mono">{selectedAsset.duration}</strong>
-                </div>
-              )}
-
-              <div>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Associated Story</span>
-                <span className="text-foreground font-semibold flex items-center gap-1 mt-0.5">
-                  <Bookmark className="w-3 h-3 text-cinema-amber-500" />
-                  {selectedAsset.linkedStoryName}
-                </span>
-              </div>
-
-              {selectedAsset.linkedEvents.length > 0 && (
-                <div>
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Linked Milestones</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {selectedAsset.linkedEvents.map(evt => (
-                      <span key={evt} className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 border border-blue-500/20 text-[9px] font-semibold uppercase">
-                        {evt}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Description Notes</span>
-                <p className="text-muted-foreground mt-1 leading-relaxed text-[11px]">
-                  {selectedAsset.description}
-                </p>
-              </div>
-
-              <div>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Tags</span>
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {selectedAsset.tags.map(tag => (
-                    <span key={tag} className="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-mono border border-border">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Inspector Footer Actions */}
-            <div className="p-4 border-t border-border bg-muted/10 shrink-0 space-y-2">
-              <Button
-                id="inspector-btn-fav"
-                variant="ghost"
-                size="sm"
-                leftIcon={<Heart className={`w-3.5 h-3.5 ${selectedAsset.favorite ? 'fill-rose-500 text-rose-500' : ''}`} />}
-                onClick={() => handleToggleFavorite(selectedAsset.id)}
-                className="w-full text-xs py-1.5"
-              >
-                {selectedAsset.favorite ? 'Remove Favorite' : 'Mark as Favorite'}
-              </Button>
-              <Button
-                id="inspector-btn-delete"
-                variant="ghost"
-                size="sm"
-                leftIcon={<Trash2 className="w-3.5 h-3.5 text-red-500" />}
-                onClick={() => handleDeleteAsset(selectedAsset.id)}
-                className="w-full text-xs text-red-500 hover:bg-red-500/10 py-1.5"
-              >
-                Delete File Reference
-              </Button>
-            </div>
-          </aside>
-        )}
-      </div>
-
-      {/* --- FLOATING ACCORDION DRAWERS / MODALS --- */}
-
-      {/* MODAL 1: CREATE COLLECTION MODAL */}
-      <AnimatePresence>
-        {isCreateCollectionOpen && (
-          <div className="fixed inset-0 bg-slate-950/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm" id="create-collection-modal-overlay">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-card border border-border rounded-2xl max-w-md w-full shadow-2xl p-6 space-y-4"
-              id="create-collection-modal"
-            >
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <h3 className="text-xs font-black uppercase tracking-wider text-foreground">Create Album Collection</h3>
-                <button
-                  onClick={() => setIsCreateCollectionOpen(false)}
-                  className="p-1 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleCreateCollection} className="space-y-4">
-                <Input
-                  id="new-collection-name"
-                  label="Collection Name"
-                  placeholder="e.g. Grandma High School Letters"
-                  value={newCollectionData.name}
-                  onChange={(e) => setNewCollectionData({ ...newCollectionData, name: e.target.value })}
-                />
-
-                <div className="space-y-1.5 text-xs">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase font-mono">Description Notes</label>
-                  <textarea
-                    id="new-collection-description"
-                    placeholder="Provide short structural metadata on this asset collection..."
-                    value={newCollectionData.description}
-                    onChange={(e) => setNewCollectionData({ ...newCollectionData, description: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-muted/30 border border-border rounded-xl focus:outline-none h-20"
-                  />
-                </div>
-
-                <Select
-                  id="new-collection-cover"
-                  label="Simulated Cover Image"
-                  value={newCollectionData.cover}
-                  onChange={(val) => setNewCollectionData({ ...newCollectionData, cover: val })}
-                  options={[
-                    { value: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80", label: "Portrait Portrait" },
-                    { value: "https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=300&q=80", label: "Salem Classroom" },
-                    { value: "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=300&q=80", label: "Watercolors Session" },
-                    { value: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80", label: "Bob Uniform" }
-                  ]}
-                />
-
-                <div className="flex justify-end gap-3 pt-3 border-t border-border">
-                  <Button
-                    id="btn-close-collection"
-                    variant="ghost"
-                    size="sm"
-                    type="button"
-                    onClick={() => setIsCreateCollectionOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    id="btn-save-collection"
-                    variant="primary"
-                    size="sm"
-                    type="submit"
-                    className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold"
-                  >
-                    Create Set
-                  </Button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL 2: FULLSCREEN EXPERIENCE PREVIEW MODAL */}
-      <AnimatePresence>
-        {previewAsset && (
-          <div className="fixed inset-0 bg-slate-950/95 flex items-center justify-center z-50 backdrop-blur-md p-4" id="fullscreen-experience-overlay">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-card border border-border rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col md:flex-row overflow-hidden shadow-2xl"
-              id="fullscreen-preview-card"
-            >
-              {/* Left Column: Huge visual frame */}
-              <div className="flex-grow bg-slate-900 flex flex-col items-center justify-center p-6 relative">
-                
-                {/* Specific format views */}
-                {previewAsset.type === 'image' && (
-                  <div className="relative w-full h-full flex items-center justify-center">
-                    <img
-                      src={previewAsset.thumbnailUrl}
-                      alt={previewAsset.name}
-                      className="max-h-[50vh] md:max-h-[60vh] object-contain rounded-lg transition-transform duration-300 shadow-xl"
-                      style={{ transform: `scale(${zoomLevel})` }}
-                      referrerPolicy="no-referrer"
-                    />
-
-                    {/* Zoom placeholder */}
-                    <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-slate-950/70 p-1.5 rounded-lg border border-white/10 backdrop-blur">
-                      <button
-                        onClick={() => setZoomLevel(prev => Math.max(1, prev - 0.25))}
-                        className="p-1 text-white hover:bg-white/15 rounded cursor-pointer"
-                        title="Zoom Out"
-                      >
-                        <X className="w-3 h-3 rotate-45" />
-                      </button>
-                      <span className="font-mono text-[9px] text-white px-1">{(zoomLevel * 100).toFixed(0)}%</span>
-                      <button
-                        onClick={() => setZoomLevel(prev => Math.min(2.5, prev + 0.25))}
-                        className="p-1 text-white hover:bg-white/15 rounded cursor-pointer"
-                        title="Zoom In"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {previewAsset.type === 'video' && (
-                  <div className="w-full max-w-2xl">
-                    <ReelMediaPlayer
-                      src={previewAsset.url?.startsWith('http') || previewAsset.url?.startsWith('data:') || previewAsset.url?.startsWith('blob:') ? previewAsset.url : undefined}
-                      poster={previewAsset.thumbnailUrl}
-                      title={previewAsset.name}
-                      subTitle={`Media Asset • ${previewAsset.size || '78 MB'}`}
-                      durationSec={120}
-                      captionsText={`Digitized vintage reel: ${previewAsset.name}`}
-                    />
-                  </div>
-                )}
-
-                {previewAsset.type === 'audio' && (
-                  <div className="w-full max-w-md bg-slate-950/60 p-6 rounded-2xl border border-white/10 text-center space-y-6 relative">
-                    <div className="mx-auto w-16 h-16 rounded-full bg-cinema-amber-500/10 border border-cinema-amber-500/20 flex items-center justify-center text-cinema-amber-500">
-                      <Music className="w-7 h-7" />
-                    </div>
-
-                    <div>
-                      <h4 className="text-xs font-black uppercase text-white font-mono tracking-wide truncate">
-                        {previewAsset.name}
-                      </h4>
-                      <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-semibold">
-                        Oral Voice Recording File • Mono 44kHz
-                      </p>
-                    </div>
-
-                    {/* Simulated Waveform lines representation */}
-                    <div className="h-10 flex items-center justify-center gap-1">
-                      {[12, 24, 18, 32, 14, 8, 22, 40, 28, 16, 36, 12, 18, 24, 30, 10, 16, 28, 14, 22, 8, 18].map((val, idx) => (
-                        <div
-                          key={idx}
-                          className="w-1.5 bg-cinema-amber-500 rounded-full transition-all duration-300"
-                          style={{ 
-                            height: isPlaying ? `${val + Math.floor(Math.random() * 15)}%` : `${val * 0.4}%`,
-                            opacity: idx % 2 === 0 ? 0.9 : 0.6
-                          }}
-                        />
-                      ))}
-                    </div>
-
-                    <div className="flex items-center justify-center gap-4">
-                      <button
-                        onClick={() => setIsPlaying(!isPlaying)}
-                        className="w-12 h-12 rounded-full bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 flex items-center justify-center shadow-lg cursor-pointer"
-                      >
-                        {isPlaying ? <Pause className="w-5 h-5 fill-slate-950" /> : <Play className="w-5 h-5 fill-slate-950 ml-0.5" />}
-                      </button>
-                      <span className="font-mono text-[10px] text-slate-400">
-                        {isPlaying ? '00:08' : '00:00'} / {previewAsset.duration}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {previewAsset.type === 'document' && (
-                  <div className="w-full max-w-lg bg-card border border-border p-6 rounded-2xl shadow-xl space-y-4 text-left">
-                    <div className="flex items-center gap-3 pb-3 border-b border-border">
-                      <div className="p-2 bg-blue-500/10 text-blue-500 rounded-lg border border-blue-500/20">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black uppercase text-foreground truncate">{previewAsset.name}</h4>
-                        <span className="text-[9px] font-mono text-muted-foreground uppercase font-bold">
-                          PDF Document Vault Entry ({previewAsset.size})
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="p-4 bg-muted/40 rounded-xl border border-border/80 space-y-3 font-serif leading-relaxed text-muted-foreground text-[11px]">
-                      <h5 className="font-sans font-bold text-foreground text-xs uppercase tracking-wider">{previewAsset.category} Metadata Preview</h5>
-                      <p>
-                        "This archival record is digitially indexed for voiceover generation scripts. All transcript records are parsed by natural language processors to confirm dates, municipal offices, and graduation accolades."
-                      </p>
-                      <p className="border-t border-border/60 pt-2 font-mono text-[9px] text-muted-foreground leading-normal">
-                        Notes: {previewAsset.description}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1">
-                      {previewAsset.tags.map(tag => (
-                        <span key={tag} className="px-2 py-0.5 bg-muted rounded font-mono text-[9px] text-muted-foreground border border-border">
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Top Close */}
-                <button
-                  onClick={() => {
-                    setPreviewAsset(null);
-                    setIsPlaying(false);
-                    setZoomLevel(1);
-                  }}
-                  className="absolute top-4 right-4 p-2 rounded-full bg-black/40 text-white hover:bg-white/10 transition-all cursor-pointer border border-white/10"
-                  title="Close Preview"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Right Column: Full Metadata & Info Details */}
-              <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-border bg-card p-5 flex flex-col justify-between overflow-y-auto">
-                <div className="space-y-5">
-                  <div className="pb-3 border-b border-border">
-                    <span className="text-[9px] font-mono font-black uppercase text-cinema-amber-500 block">ASSET ARCHIVE PROFILE</span>
-                    <h3 className="font-display font-black text-xs uppercase tracking-wide text-foreground mt-0.5 truncate">{previewAsset.name}</h3>
-                  </div>
-
-                  <div className="space-y-4 text-xs">
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Document Category</span>
-                      <strong className="text-foreground uppercase text-[11px] block mt-0.5">{previewAsset.category}</strong>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Linked Story</span>
-                      <strong className="text-foreground font-semibold block mt-0.5 truncate">{previewAsset.linkedStoryName}</strong>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Tags Ledger</span>
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {previewAsset.tags.map(t => (
-                          <span key={t} className="px-2 py-0.5 bg-muted text-[10px] text-muted-foreground font-mono rounded border border-border uppercase">
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase font-mono block">Archive Description</span>
-                      <p className="text-muted-foreground mt-1 leading-normal text-[11px] font-serif">
-                        {previewAsset.description}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-border mt-6 space-y-2">
-                  <Button
-                    id="preview-btn-download"
-                    variant="ghost"
-                    size="sm"
-                    leftIcon={<Download className="w-3.5 h-3.5" />}
-                    onClick={() => showToast('success', 'File Downloading', 'Downloading physical source image file to browser...')}
-                    className="w-full text-xs"
-                  >
-                    Download Original
-                  </Button>
-                  <Button
-                    id="preview-btn-fav"
-                    variant="primary"
-                    size="sm"
-                    leftIcon={<Heart className={`w-3.5 h-3.5 ${previewAsset.favorite ? 'fill-slate-950' : ''}`} />}
-                    onClick={() => handleToggleFavorite(previewAsset.id)}
-                    className="w-full bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold text-xs"
-                  >
-                    {previewAsset.favorite ? 'Unfavorite File' : 'Add to Favorites'}
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <ConfirmationModal
-        isOpen={deleteTarget !== null}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleConfirmDelete}
-        title={
-          deleteTarget?.type === 'single'
-            ? 'Delete Memoir Asset?'
-            : deleteTarget?.type === 'bulk'
-            ? (selectedAssets.length === 1 ? 'Delete Selected Asset' : 'Delete Selected Assets')
-            : 'Delete Album Collection?'
-        }
-        message={
-          deleteTarget?.type === 'single'
-            ? `Are you sure you want to permanently delete "${deleteTarget?.name || ''}" from your vault? All chapter and timeline scene connections will be destroyed.`
-            : deleteTarget?.type === 'bulk'
-            ? (() => {
-                const count = selectedAssets.length;
-                const selectedList = assets.filter(a => selectedAssets.includes(a.id));
-                const archivedCount = selectedList.filter(a => a.archived).length;
-                if (archivedCount > 0) {
-                  return (
-                    <div className="space-y-2.5">
-                      <p>
-                        Are you sure you want to permanently delete {count === 1 ? 'the 1 selected asset' : `all ${count} selected assets`} from your vault?
-                      </p>
-                      <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-amber-600 dark:text-amber-400 text-xs flex items-start gap-2.5">
-                        <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
-                        <div className="space-y-1">
-                          <span className="font-bold uppercase tracking-wider text-[10px] block text-amber-500">
-                            {count === 1 ? 'Notice: Contains Archived Asset' : 'Notice: Contains Archived Assets'}
-                          </span>
-                          <p className="leading-snug">
-                            {count === 1 ? (
-                              <>The <strong>1 selected asset</strong> is <strong>archived</strong>. Proceeding will permanently purge it from storage.</>
-                            ) : archivedCount === count ? (
-                              <>All <strong>{count}</strong> selected assets are <strong>archived</strong>. Proceeding will permanently purge them from storage.</>
-                            ) : (
-                              <><strong>{archivedCount}</strong> of the {count} selected assets are currently <strong>archived</strong>. Proceeding will permanently purge all selected items, including archived assets.</>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-                return count === 1
-                  ? `Are you sure you want to permanently delete the 1 selected asset from your vault? All chapter and timeline scene connections will be destroyed.`
-                  : `Are you sure you want to permanently delete all ${count} selected assets from your vault? All chapter and timeline scene connections will be destroyed.`;
-              })()
-            : `Are you sure you want to permanently delete the collection "${deleteTarget?.name || ''}"? This deletes the album organization wrapper but will NOT delete any individual files within it.`
-        }
+      {/* 4. BOTTOM STATUS BAR */}
+      <MediaStatusBar
+        totalAssetsCount={assets.length}
+        selectedCount={selectedAssets.length}
+        totalBytesUsed={totalBytesUsed}
       />
 
+      {/* --- MODALS & OVERLAYS --- */}
+
+      {/* UPLOAD STUDIO MODAL */}
+      <Modal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        title="Upload Assets to Heritage Vault"
+        size="lg"
+      >
+        <div className="space-y-4 text-xs">
+          <div
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => {
+              e.preventDefault();
+              if (e.dataTransfer.files) handleUploadFiles(Array.from(e.dataTransfer.files));
+            }}
+            className="border-2 border-dashed border-cinema-amber-500/40 hover:border-cinema-amber-500 bg-card/60 p-8 rounded-xl text-center space-y-3 cursor-pointer transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={e => {
+                if (e.target.files) handleUploadFiles(Array.from(e.target.files));
+              }}
+            />
+            <div className="w-12 h-12 rounded-full bg-cinema-amber-500/10 border border-cinema-amber-500/30 flex items-center justify-center text-cinema-amber-500 mx-auto">
+              <Upload className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="font-semibold text-foreground text-sm">Drag and drop heritage files here, or click to browse</p>
+              <p className="text-muted-foreground text-[11px] mt-1">Supports High-Res Photos, 4K B-Roll, Audio Tapes (WAV/MP3), and Scanned PDF Documents (Max 50MB per file)</p>
+            </div>
+          </div>
+
+          {/* Upload Queue Progress */}
+          {uploadQueue.length > 0 && (
+            <div className="space-y-2 border-t border-border pt-3">
+              <span className="font-mono text-[10px] uppercase font-bold text-cinema-amber-400">Upload Pipeline Activity</span>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {uploadQueue.map(item => (
+                  <MediaUploadLoader key={item.id} id={item.id} fileName={item.name} progress={item.progress} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* LIGHTBOX MEDIA PREVIEW MODAL */}
+      <Modal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        title={previewAsset?.name || 'Media Preview'}
+        size="xl"
+      >
+        {previewAsset && (
+          <div className="space-y-3">
+            <div className="rounded-xl overflow-hidden bg-black/90 max-h-[60vh] flex items-center justify-center border border-border">
+              {previewAsset.type === 'video' || previewAsset.type === 'audio' ? (
+                <ReelMediaPlayer
+                  src={previewAsset.thumbnailUrl}
+                  title={previewAsset.name}
+                />
+              ) : (
+                <img
+                  src={previewAsset.thumbnailUrl}
+                  alt={previewAsset.name}
+                  className="max-h-[55vh] object-contain"
+                />
+              )}
+            </div>
+            <div className="flex justify-between items-center text-xs text-muted-foreground font-mono">
+              <span>{previewAsset.category} • {previewAsset.size}</span>
+              <span className="text-cinema-amber-400">Story: {previewAsset.linkedStoryName}</span>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* STORAGE CAPACITY MODAL */}
+      <Modal
+        isOpen={isStorageModalOpen}
+        onClose={() => setIsStorageModalOpen(false)}
+        title="Vault Storage Capacity"
+      >
+        <div className="space-y-4 text-xs">
+          <div className="p-4 rounded-xl bg-card border border-border space-y-2">
+            <div className="flex justify-between items-center font-mono">
+              <span className="text-muted-foreground">Used Vault Storage:</span>
+              <span className="font-bold text-foreground font-mono">
+                {(totalBytesUsed / (1024 * 1024)).toFixed(1)} MB / 50.0 MB
+              </span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-muted overflow-hidden border border-border">
+              <div
+                className="h-full bg-cinema-amber-500"
+                style={{ width: `${Math.min(100, (totalBytesUsed / (50 * 1024 * 1024)) * 100)}%` }}
+              />
+            </div>
+          </div>
+          <p className="text-muted-foreground text-[11px] leading-relaxed">
+            All files are stored locally in your encrypted IndexedDB storage vault and synced across your story studio workspace.
+          </p>
+        </div>
+      </Modal>
+
+      {/* CREATE COLLECTION MODAL */}
       <PromptModal
-        isOpen={renameModal.isOpen}
-        onClose={() => setRenameModal({ isOpen: false })}
-        onConfirm={executeRenameAsset}
+        isOpen={isCreateCollectionOpen}
+        onClose={() => setIsCreateCollectionOpen(false)}
+        onConfirm={(name) => {
+          if (!name.trim()) return;
+          const newCol: MediaCollection = {
+            id: `col-${Date.now()}`,
+            name: name.trim(),
+            description: 'Custom heritage collection album.',
+            coverImage: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=300&q=80',
+            assetCount: 0,
+            lastUpdated: 'Just now',
+            tags: [name.trim()]
+          };
+          setCollections(prev => [...prev, newCol]);
+          showToast('success', 'Collection Created', `Created album "${name.trim()}".`);
+          setIsCreateCollectionOpen(false);
+        }}
+        title="Create New Custom Collection"
+        message="Enter a name for your new album or collection:"
+        placeholder="e.g. WWII Letters & Medals"
+      />
+
+      {/* RENAME PROMPT MODAL */}
+      <PromptModal
+        isOpen={!!renameTarget}
+        onClose={() => setRenameTarget(null)}
+        onConfirm={handleConfirmRename}
         title="Rename Media Asset"
-        message="Enter a new filename with extension for this asset:"
-        defaultValue={renameModal.assetName}
-        placeholder="e.g. photo.jpg"
-        confirmLabel="Rename Asset"
+        message={`Enter new display filename for "${renameTarget?.name}":`}
+        defaultValue={renameTarget?.name || ''}
+      />
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <ConfirmationModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Media Asset"
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? This will permanently remove the asset from the Heritage Vault.`}
+        confirmLabel="Delete Asset"
+        isDestructive={true}
       />
     </div>
   );

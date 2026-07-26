@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { parseDurationToSeconds } from '../../utils/durationUtils';
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -302,11 +304,7 @@ export function RenderWorkspace({
     // Total Runtime
     let totalSec = 0;
     scenes.forEach((s) => {
-      const m = s.estimatedDuration.match(/(\d+)m/);
-      const sec = s.estimatedDuration.match(/(\d+)s/);
-      const minVal = m ? parseInt(m[1], 10) : 0;
-      const secVal = sec ? parseInt(sec[1], 10) : 0;
-      totalSec += minVal * 60 + secVal;
+      totalSec += parseDurationToSeconds(s.estimatedDuration);
     });
     if (totalSec === 0) totalSec = 300; // fallback 5 mins
 

@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { parseDurationToSeconds } from '../../utils/durationUtils';
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -112,11 +114,7 @@ export function PreviewWorkspace({
   const totalRuntimeStats = useMemo(() => {
     let totalSec = 0;
     scenes.forEach((s) => {
-      const minMatch = s.estimatedDuration.match(/(\d+)m/);
-      const secMatch = s.estimatedDuration.match(/(\d+)s/);
-      const m = minMatch ? parseInt(minMatch[1], 10) : 0;
-      const sec = secMatch ? parseInt(secMatch[1], 10) : 0;
-      totalSec += m * 60 + sec;
+      totalSec += parseDurationToSeconds(s.estimatedDuration);
     });
 
     const mins = Math.floor(totalSec / 60);
@@ -127,11 +125,7 @@ export function PreviewWorkspace({
     let elapsedSecBefore = 0;
     for (let i = 0; i < activeSceneIndex; i++) {
       const s = scenes[i];
-      const minMatch = s?.estimatedDuration.match(/(\d+)m/);
-      const secMatch = s?.estimatedDuration.match(/(\d+)s/);
-      const m = minMatch ? parseInt(minMatch[1], 10) : 0;
-      const sec = secMatch ? parseInt(secMatch[1], 10) : 0;
-      elapsedSecBefore += m * 60 + sec;
+      elapsedSecBefore += parseDurationToSeconds(s?.estimatedDuration);
     }
     const currentTotalSec = elapsedSecBefore + Math.floor(currentTimeSec);
     const curMins = Math.floor(currentTotalSec / 60);

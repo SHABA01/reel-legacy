@@ -208,7 +208,7 @@ export function AIGenerationLoader({ title = 'AI is writing your story...', desc
 }
 
 // 8. Specialized Media Upload Loader
-export function MediaUploadLoader({ fileName = 'family_photos_1984.zip', progress = 42, id }: { fileName?: string; progress?: number; id?: string }) {
+export function MediaUploadLoader({ fileName = 'family_photos_1984.zip', progress = 42, id }: { fileName?: string; progress?: number; id?: string; key?: React.Key }) {
   const generatedId = id || `upload-loader-${Math.random().toString(36).substring(2, 9)}`;
   return (
     <div

@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { renderStoryGenreIcon } from '../../utils/storyGenreUtils';
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
@@ -198,7 +200,7 @@ export function StoryStudioView() {
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-cinema-amber-500 bg-cinema-amber-500/10">
-                    <Film className="w-8 h-8" />
+                    {renderStoryGenreIcon(recentStory.category, 'w-8 h-8 text-cinema-amber-500')}
                   </div>
                 )}
                 <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-md text-[9px] font-mono text-cinema-amber-400 font-bold">
