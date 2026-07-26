@@ -804,6 +804,129 @@ export function RightUtilityPanel() {
               </div>
             </div>
           )}
+
+          {/* STUDIO ANALYTICS TAB: AI INSIGHTS */}
+          {activeTab === 'ai-insights' && (
+            <div id="widget-ai-insights" className="space-y-4 animate-fade-in text-left">
+              <h4 className="font-display text-sm font-semibold text-foreground flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-cinema-amber-500" /> AI Trend Explanations
+              </h4>
+              <div className="space-y-3 text-xs">
+                <div className="p-3 bg-card border border-cinema-amber-500/30 rounded-xl space-y-2">
+                  <span className="text-[9px] font-mono font-bold uppercase text-cinema-amber-500 bg-cinema-amber-500/10 px-2 py-0.5 rounded border border-cinema-amber-500/20">
+                    Production Velocity Surge
+                  </span>
+                  <p className="text-xs font-medium text-foreground leading-relaxed">
+                    Story production increased 24% this week following the integration of automated voice alignment.
+                  </p>
+                </div>
+                <div className="p-3 bg-card border border-blue-500/30 rounded-xl space-y-2">
+                  <span className="text-[9px] font-mono font-bold uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                    Acoustic Optimization
+                  </span>
+                  <p className="text-xs font-medium text-foreground leading-relaxed">
+                    Narration quality scores improved 18% after switching to the Evelyn voice profile.
+                  </p>
+                </div>
+                <div className="p-3 bg-card border border-amber-500/30 rounded-xl space-y-2">
+                  <span className="text-[9px] font-mono font-bold uppercase text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                    Archive Gap Alert
+                  </span>
+                  <p className="text-xs font-medium text-foreground leading-relaxed">
+                    17 historical photo assets remain unassigned to chapter timelines in active stories.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STUDIO ANALYTICS TAB: METRIC DETAILS */}
+          {activeTab === 'metric-details' && (
+            <div id="widget-metric-details" className="space-y-4 animate-fade-in text-left">
+              <h4 className="font-display text-sm font-semibold text-foreground flex items-center gap-2">
+                <Activity className="w-4 h-4 text-blue-400" /> Selected Metric Breakdown
+              </h4>
+              <div className="space-y-3 text-xs font-mono">
+                <div className="p-3 bg-muted/40 border border-border rounded-xl space-y-2">
+                  <span className="text-[10px] uppercase text-muted-foreground font-bold">Calculation Methodology</span>
+                  <p className="text-foreground text-[11px] leading-relaxed font-sans">
+                    Readiness is calculated as a weighted average: Narration Coverage (40%) + Media Coverage (40%) + Scene Status (20%).
+                  </p>
+                </div>
+                <div className="p-3 bg-muted/40 border border-border rounded-xl space-y-2">
+                  <span className="text-[10px] uppercase text-muted-foreground font-bold">Historical Benchmarks</span>
+                  <div className="flex justify-between py-1 border-b border-border">
+                    <span className="text-muted-foreground">30-Day Average:</span>
+                    <strong className="text-foreground">82.4%</strong>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border">
+                    <span className="text-muted-foreground">Previous Month:</span>
+                    <strong className="text-foreground">71.0%</strong>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">Delta Growth:</span>
+                    <strong className="text-emerald-400">+11.4%</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STUDIO ANALYTICS TAB: SYSTEM STATUS */}
+          {activeTab === 'system-status' && (
+            <div id="widget-system-status" className="space-y-4 animate-fade-in text-left">
+              <h4 className="font-display text-sm font-semibold text-foreground flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-emerald-400" /> Infrastructure Telemetry
+              </h4>
+              <div className="space-y-2.5 text-xs font-mono">
+                <div className="p-2.5 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
+                  <span className="text-muted-foreground">Gemini AI Service:</span>
+                  <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Operational</span>
+                </div>
+                <div className="p-2.5 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
+                  <span className="text-muted-foreground">Render Worker Nodes:</span>
+                  <span className="text-cinema-amber-400 font-bold bg-cinema-amber-500/10 px-2 py-0.5 rounded border border-cinema-amber-500/20">3 / 4 Active</span>
+                </div>
+                <div className="p-2.5 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
+                  <span className="text-muted-foreground">Local IndexedDB Vault:</span>
+                  <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Healthy</span>
+                </div>
+                <div className="p-2.5 bg-muted/40 border border-border rounded-xl flex items-center justify-between">
+                  <span className="text-muted-foreground">Sync Engine Queue:</span>
+                  <span className="text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">0 Pending</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STUDIO ANALYTICS TAB: ACTIVITY TIMELINE */}
+          {activeTab === 'activity-timeline' && (
+            <div id="widget-activity-timeline" className="space-y-4 animate-fade-in text-left">
+              <h4 className="font-display text-sm font-semibold text-foreground flex items-center gap-2">
+                <History className="w-4 h-4 text-purple-400" /> Telemetry Event Log
+              </h4>
+              <div className="relative border-l border-border pl-4 space-y-3 ml-1.5 pt-1 text-xs">
+                <div className="relative space-y-0.5">
+                  <span className="absolute -left-[21.5px] top-1 w-2 h-2 rounded-full bg-emerald-400 border border-card" />
+                  <h5 className="font-bold text-foreground">Completed 4K Render Export</h5>
+                  <p className="text-[11px] text-muted-foreground">"Grandpa World War II Memories" exported in 12m 40s.</p>
+                  <span className="text-[9px] font-mono text-muted-foreground/60 block">15m ago</span>
+                </div>
+                <div className="relative space-y-0.5">
+                  <span className="absolute -left-[21.5px] top-1 w-2 h-2 rounded-full bg-cinema-amber-500 border border-card" />
+                  <h5 className="font-bold text-foreground">Voice Synthesis Batch Completed</h5>
+                  <p className="text-[11px] text-muted-foreground">Generated 14 audio clips for Chapter 3.</p>
+                  <span className="text-[9px] font-mono text-muted-foreground/60 block">1h ago</span>
+                </div>
+                <div className="relative space-y-0.5">
+                  <span className="absolute -left-[21.5px] top-1 w-2 h-2 rounded-full bg-blue-400 border border-card" />
+                  <h5 className="font-bold text-foreground">Media Assets Uploaded</h5>
+                  <p className="text-[11px] text-muted-foreground">12 scanned archival photos ingested and indexed.</p>
+                  <span className="text-[9px] font-mono text-muted-foreground/60 block">3h ago</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Quick Actions / Inspector Mode Footer */}

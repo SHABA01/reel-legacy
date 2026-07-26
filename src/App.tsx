@@ -88,6 +88,7 @@ function MediaView() {
 import { NarrationStudioPage } from './components/narration/NarrationStudioPage';
 import { StoryTemplatesPage } from './components/storyTemplates/StoryTemplatesPage';
 import { RenderQueuePage } from './components/render/RenderQueuePage';
+import { StudioAnalyticsPage } from './components/analytics/StudioAnalyticsPage';
 
 function NarrationView() {
   return <NarrationStudioPage />;
@@ -117,6 +118,8 @@ function RenderActiveView() {
       return <StoryTemplatesPage />;
     case 'render':
       return <RenderView />;
+    case 'analytics':
+      return <StudioAnalyticsPage />;
     case 'settings':
       return <SettingsView />;
     case 'notifications':

@@ -67,6 +67,7 @@ export function InspectorProvider({ children }: { children: React.ReactNode }) {
     if (path.startsWith('/workspace/narration-studio')) return 'narration-studio';
     if (path.startsWith('/workspace/story-templates')) return 'story-templates';
     if (path.startsWith('/workspace/render-queue')) return 'render-queue';
+    if (path.startsWith('/workspace/studio-analytics')) return 'studio-analytics';
     if (path.startsWith('/workspace/settings')) return 'settings';
     return 'dashboard';
   }, [location.pathname, location.search]);

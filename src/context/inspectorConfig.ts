@@ -243,7 +243,17 @@ export function getDynamicInspectorHeader(
     };
   }
 
-  // 10. SETTINGS
+  // 10. STUDIO ANALYTICS
+  if (route === 'studio-analytics') {
+    return {
+      title: 'Studio Analytics & Telemetry',
+      subtitle: 'System health, AI usage & studio activity insights',
+      badge: 'MONITOR ARCHETYPE',
+      badgeColor: 'text-cinema-amber-400 bg-cinema-amber-500/15 border-cinema-amber-500/30',
+    };
+  }
+
+  // 11. SETTINGS
   return {
     title: 'System Preferences',
     subtitle: 'API keys, local storage & environment telemetry',
@@ -336,6 +346,15 @@ export function getDynamicInspectorTabs(
       return [renderJobTab, telemetryTab, aiDirectorTab, activityTab];
     }
     return [telemetryTab, aiDirectorTab, activityTab];
+  }
+
+  if (route === 'studio-analytics') {
+    return [
+      { id: 'ai-insights', label: 'AI Insights', icon: Sparkles },
+      { id: 'metric-details', label: 'Metric Details', icon: BarChart3 },
+      { id: 'system-status', label: 'System Status', icon: Activity },
+      { id: 'activity-timeline', label: 'Activity Timeline', icon: History },
+    ];
   }
 
   if (route === 'settings') {
