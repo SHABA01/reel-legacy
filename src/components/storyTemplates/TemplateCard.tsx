@@ -17,7 +17,8 @@ import {
   ArrowRight,
   Eye,
   CheckCircle2,
-  Flame
+  Flame,
+  Scale
 } from 'lucide-react';
 
 interface TemplateCardProps {
@@ -27,6 +28,8 @@ interface TemplateCardProps {
   onUseTemplate: (template: StoryTemplate) => void;
   onDuplicate: (template: StoryTemplate) => void;
   onToggleFavorite: (id: string) => void;
+  onToggleCompare?: (template: StoryTemplate) => void;
+  isCompared?: boolean;
   viewMode?: 'grid' | 'list';
 }
 
@@ -37,6 +40,8 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
   onUseTemplate,
   onDuplicate,
   onToggleFavorite,
+  onToggleCompare,
+  isCompared = false,
   viewMode = 'grid',
 }) => {
   const isListView = viewMode === 'list';
@@ -46,7 +51,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
       onClick={() => onSelect(template)}
       className={`group relative flex ${
         isListView ? 'flex-col sm:flex-row items-stretch' : 'flex-col'
-      } bg-card border rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-lg cursor-pointer ${
+      } bg-card border rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-xl cursor-pointer ${
         isSelected
           ? 'border-cinema-amber-500 shadow-md ring-2 ring-cinema-amber-500/20'
           : 'border-border/80 hover:border-cinema-amber-500/50'
@@ -55,7 +60,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
       {/* Cover Image Container */}
       <div
         className={`relative overflow-hidden bg-muted ${
-          isListView ? 'w-full sm:w-56 h-40 sm:h-auto flex-shrink-0' : 'w-full h-44'
+          isListView ? 'w-full sm:w-60 h-44 sm:h-auto flex-shrink-0' : 'w-full h-48'
         }`}
       >
         <img
@@ -66,7 +71,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
         {/* Top Badges */}
-        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5">
+        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5 z-10">
           <div className="flex flex-wrap items-center gap-1">
             {template.isFeatured && (
               <span className="bg-cinema-amber-500 text-black text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
@@ -85,31 +90,52 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
             </span>
           </div>
 
-          {/* Favorite Button */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleFavorite(template.id);
-            }}
-            className={`p-1.5 rounded-full backdrop-blur-md transition-all cursor-pointer ${
-              template.isFavorite
-                ? 'bg-amber-500 text-black'
-                : 'bg-black/40 text-white hover:bg-black/70'
-            }`}
-            title="Toggle Favorite"
-          >
-            <Star className={`w-3.5 h-3.5 ${template.isFavorite ? 'fill-current' : ''}`} />
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Compare Toggle Button */}
+            {onToggleCompare && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleCompare(template);
+                }}
+                className={`p-1.5 rounded-full backdrop-blur-md transition-all cursor-pointer ${
+                  isCompared
+                    ? 'bg-cinema-amber-500 text-black font-bold'
+                    : 'bg-black/40 text-white hover:bg-black/70'
+                }`}
+                title={isCompared ? 'Remove from Compare' : 'Add to Compare'}
+              >
+                <Scale className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Favorite Button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite(template.id);
+              }}
+              className={`p-1.5 rounded-full backdrop-blur-md transition-all cursor-pointer ${
+                template.isFavorite
+                  ? 'bg-amber-500 text-black'
+                  : 'bg-black/40 text-white hover:bg-black/70'
+              }`}
+              title="Toggle Favorite"
+            >
+              <Star className={`w-3.5 h-3.5 ${template.isFavorite ? 'fill-current' : ''}`} />
+            </button>
+          </div>
         </div>
 
         {/* Bottom Metadata on Image */}
-        <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between text-[11px] text-white/90 font-medium">
-          <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-md">
+        <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between text-[11px] text-white/90 font-medium z-10">
+          <span className="flex items-center gap-1 bg-black/50 backdrop-blur-md px-2 py-0.5 rounded-md border border-white/10">
             <Clock className="w-3 h-3 text-cinema-amber-400" />
             {template.estimatedRuntime}
           </span>
-          <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-md">
+          <span className="flex items-center gap-1 bg-black/50 backdrop-blur-md px-2 py-0.5 rounded-md border border-white/10">
             <Sparkles className="w-3 h-3 text-cinema-amber-400" />
             {template.aiCompatibility} AI
           </span>
@@ -177,7 +203,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
               e.stopPropagation();
               onSelect(template);
             }}
-            className="flex-1 text-xs gap-1 py-1.5 h-8"
+            className="flex-1 text-xs gap-1 py-1.5 h-8 bg-background/80"
           >
             <Eye className="w-3.5 h-3.5" />
             Preview

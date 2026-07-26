@@ -12,12 +12,17 @@ import {
   StoryTemplate,
   TemplateCategory,
   TemplateFilterState,
+  AppliedStoryBlueprint,
 } from '../../types/storyTemplate';
 import { StoryTemplateService } from '../../services/storyTemplateService';
 import { TemplateDiscoveryBar } from './TemplateDiscoveryBar';
-import { TemplateSidebar } from './TemplateSidebar';
+import { TemplateCategoryChips } from './TemplateCategoryChips';
+import { TemplateHeroShowcase } from './TemplateHeroShowcase';
+import { AITemplateMatcher } from './AITemplateMatcher';
+import { RecentlyAppliedBlueprints } from './RecentlyAppliedBlueprints';
 import { TemplateGrid } from './TemplateGrid';
 import { TemplatePreviewInspector } from './TemplatePreviewInspector';
+import { TemplateComparisonModal } from './TemplateComparisonModal';
 import { ApplyTemplateModal } from './ApplyTemplateModal';
 import { TemplateBuilderModal } from './TemplateBuilderModal';
 import { ImportTemplateModal } from './ImportTemplateModal';
@@ -27,12 +32,12 @@ import {
   Copy,
   Users,
   ChevronRight,
-  Layers,
-  Sparkles,
-  Download,
   FolderCheck,
   RefreshCw,
-  LayoutGrid
+  LayoutGrid,
+  Scale,
+  X,
+  ArrowRight
 } from 'lucide-react';
 
 export const StoryTemplatesPage: React.FC = () => {
@@ -43,6 +48,10 @@ export const StoryTemplatesPage: React.FC = () => {
 
   const [templates, setTemplates] = useState<StoryTemplate[]>(() =>
     service.getTemplates()
+  );
+
+  const [appliedBlueprints, setAppliedBlueprints] = useState<AppliedStoryBlueprint[]>(() =>
+    service.getAppliedBlueprints()
   );
 
   const [filterState, setFilterState] = useState<TemplateFilterState>({
@@ -56,9 +65,11 @@ export const StoryTemplatesPage: React.FC = () => {
     viewMode: 'grid',
   });
 
-  const [selectedTemplate, setSelectedTemplate] = useState<StoryTemplate | null>(
-    () => templates[0] || null
-  );
+  const [selectedTemplate, setSelectedTemplate] = useState<StoryTemplate | null>(null);
+
+  // Comparison State
+  const [comparedIds, setComparedIds] = useState<string[]>([]);
+  const [comparisonModalOpen, setComparisonModalOpen] = useState(false);
 
   // Modal States
   const [applyModalOpen, setApplyModalOpen] = useState(false);
@@ -72,6 +83,7 @@ export const StoryTemplatesPage: React.FC = () => {
     const unsubscribe = service.subscribe(() => {
       const updated = service.getTemplates();
       setTemplates(updated);
+      setAppliedBlueprints(service.getAppliedBlueprints());
       if (selectedTemplate) {
         const refreshed = updated.find((t) => t.id === selectedTemplate.id);
         if (refreshed) setSelectedTemplate(refreshed);
@@ -84,6 +96,22 @@ export const StoryTemplatesPage: React.FC = () => {
   const filteredTemplates = useMemo(() => {
     return service.filterTemplates(filterState);
   }, [service, filterState, templates]);
+
+  // Featured Templates for Hero
+  const featuredTemplates = useMemo(() => {
+    const featured = templates.filter((t) => t.isFeatured);
+    return featured.length > 0 ? featured : templates.slice(0, 3);
+  }, [templates]);
+
+  // AI Matched Template (Default best match)
+  const matchedTemplate = useMemo(() => {
+    return templates.find((t) => t.id === 'tmpl-military-service') || templates[0] || null;
+  }, [templates]);
+
+  // Compared Templates
+  const comparedTemplates = useMemo(() => {
+    return templates.filter((t) => comparedIds.includes(t.id));
+  }, [templates, comparedIds]);
 
   // Handlers
   const handleFilterChange = useCallback((updates: Partial<TemplateFilterState>) => {
@@ -104,6 +132,19 @@ export const StoryTemplatesPage: React.FC = () => {
     },
     [service, showToast]
   );
+
+  const handleToggleCompare = useCallback((template: StoryTemplate) => {
+    setComparedIds((prev) => {
+      if (prev.includes(template.id)) {
+        return prev.filter((id) => id !== template.id);
+      }
+      if (prev.length >= 3) {
+        showToast('info', 'You can compare up to 3 story blueprints at a time.');
+        return prev;
+      }
+      return [...prev, template.id];
+    });
+  }, [showToast]);
 
   const handleDuplicate = useCallback(
     (template: StoryTemplate) => {
@@ -135,6 +176,7 @@ export const StoryTemplatesPage: React.FC = () => {
           `Applied "${applied.templateName}"`
         );
         setApplyModalOpen(false);
+        setSelectedTemplate(null);
         // Navigate to Story Studio Workspace
         navigateToView('studio');
       } catch (err: any) {
@@ -147,7 +189,7 @@ export const StoryTemplatesPage: React.FC = () => {
   const stats = useMemo(() => service.getStats(), [service, templates]);
 
   return (
-    <div className="space-y-5 animate-fade-in pb-12" id="story-templates-page">
+    <div className="space-y-6 animate-fade-in pb-16" id="story-templates-page">
       {/* Breadcrumb Navigation */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <button
@@ -163,41 +205,30 @@ export const StoryTemplatesPage: React.FC = () => {
       {/* Page Header */}
       <PageHeader
         title="Story Templates"
-        subtitle="Choose a professionally designed storytelling blueprint for your documentary. Automatically scaffold acts, chapters, scene camera paths, and interview prompts."
+        subtitle="Explore and customize professional documentary blueprints. Scaffold acts, chapters, camera paths, interview questions, and AI prompts with one click."
         rightContent={
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setImportModalOpen(true)}
-              className="text-xs gap-1.5 h-9"
+              className="text-xs gap-1.5 h-9 bg-card"
             >
               <Upload className="w-3.5 h-3.5" />
               Import Template
             </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (selectedTemplate) handleDuplicate(selectedTemplate);
-              }}
-              disabled={!selectedTemplate}
-              className="text-xs gap-1.5 h-9 hidden sm:flex"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              Duplicate
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleFilterChange({ category: 'Community Templates' })}
-              className="text-xs gap-1.5 h-9 hidden md:flex"
-            >
-              <Users className="w-3.5 h-3.5" />
-              Browse Community
-            </Button>
+            {comparedIds.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setComparisonModalOpen(true)}
+                className="text-xs gap-1.5 h-9 bg-cinema-amber-500/10 border-cinema-amber-500/30 text-cinema-amber-500 font-bold"
+              >
+                <Scale className="w-3.5 h-3.5" />
+                Compare ({comparedIds.length})
+              </Button>
+            )}
 
             <Button
               variant="default"
@@ -206,55 +237,102 @@ export const StoryTemplatesPage: React.FC = () => {
               className="bg-cinema-amber-500 text-black hover:bg-cinema-amber-400 font-bold text-xs gap-1.5 h-9 shadow-md"
             >
               <Plus className="w-4 h-4" />
-              Create Template
+              Create Custom Template
             </Button>
           </div>
         }
       />
 
-      {/* Discovery & Search Bar */}
+      {/* Hero Showcase Carousel */}
+      <TemplateHeroShowcase
+        featuredTemplates={featuredTemplates}
+        onSelectTemplate={setSelectedTemplate}
+        onUseTemplate={handleOpenApplyModal}
+        onToggleCompare={handleToggleCompare}
+        comparedIds={comparedIds}
+      />
+
+      {/* Category Chips (Horizontal Bar) */}
+      <TemplateCategoryChips
+        activeCategory={filterState.category}
+        onSelectCategory={handleSelectCategory}
+        templates={templates}
+        stats={stats}
+      />
+
+      {/* Discovery Search & Quick Filter Tabs */}
       <TemplateDiscoveryBar
         filterState={filterState}
         onFilterChange={handleFilterChange}
         resultCount={filteredTemplates.length}
       />
 
-      {/* Main 3-Column Layout: Left Categories | Main Cards Grid | Right Context Panel */}
-      <div className="flex flex-col lg:flex-row items-start gap-5">
-        {/* Left Categories Sidebar */}
-        <TemplateSidebar
-          activeCategory={filterState.category}
-          onSelectCategory={handleSelectCategory}
-          templates={templates}
-          stats={stats}
+      {/* AI Template Matcher Section */}
+      <AITemplateMatcher
+        matchedTemplate={matchedTemplate}
+        onUseTemplate={handleOpenApplyModal}
+        onSelectTemplate={setSelectedTemplate}
+      />
+
+      {/* Recently Scaffolded Blueprints */}
+      {appliedBlueprints.length > 0 && (
+        <RecentlyAppliedBlueprints
+          appliedList={appliedBlueprints}
+          onResumeStudio={() => navigateToView('studio')}
         />
+      )}
 
-        {/* Main Grid View */}
-        <main className="flex-1 w-full min-w-0">
-          <TemplateGrid
-            templates={filteredTemplates}
-            selectedTemplateId={selectedTemplate?.id || null}
-            onSelectTemplate={setSelectedTemplate}
-            onUseTemplate={handleOpenApplyModal}
-            onDuplicateTemplate={handleDuplicate}
-            onToggleFavorite={handleToggleFavorite}
-            onCreateTemplate={() => setBuilderModalOpen(true)}
-            viewMode={filterState.viewMode}
-          />
-        </main>
-
-        {/* Right Context Inspector Panel */}
-        <TemplatePreviewInspector
-          template={selectedTemplate}
-          onClose={() => setSelectedTemplate(null)}
+      {/* Main Grid View - Spans 100% Width */}
+      <main className="w-full min-w-0">
+        <TemplateGrid
+          templates={filteredTemplates}
+          selectedTemplateId={selectedTemplate?.id || null}
+          onSelectTemplate={setSelectedTemplate}
           onUseTemplate={handleOpenApplyModal}
-          onDuplicate={handleDuplicate}
+          onDuplicateTemplate={handleDuplicate}
           onToggleFavorite={handleToggleFavorite}
+          onToggleCompare={handleToggleCompare}
+          comparedIds={comparedIds}
+          onCreateTemplate={() => setBuilderModalOpen(true)}
+          viewMode={filterState.viewMode}
         />
-      </div>
+      </main>
 
-      {/* Bottom Status Bar */}
-      <footer className="mt-8 pt-4 border-t border-border/80 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground bg-card/40 rounded-2xl p-4">
+      {/* Sticky Bottom Comparison Floating Bar */}
+      {comparedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-card/95 backdrop-blur-md border border-cinema-amber-500/40 rounded-full px-5 py-3 shadow-2xl flex items-center gap-4 animate-slide-up">
+          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+            <div className="w-6 h-6 rounded-full bg-cinema-amber-500 text-black flex items-center justify-center font-extrabold text-[11px]">
+              {comparedIds.length}
+            </div>
+            <span>Blueprints Selected for Comparison</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setComparisonModalOpen(true)}
+              className="bg-cinema-amber-500 text-black hover:bg-cinema-amber-400 font-bold text-xs gap-1.5 h-8 px-4 rounded-full"
+            >
+              <Scale className="w-3.5 h-3.5" />
+              Compare Side-by-Side
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => setComparedIds([])}
+              className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              title="Clear Comparison"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Status & Metadata Bar */}
+      <footer className="pt-6 border-t border-border/80 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground bg-card/40 rounded-2xl p-4">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-1.5 font-medium">
             <FolderCheck className="w-4 h-4 text-cinema-amber-500" />
@@ -289,7 +367,27 @@ export const StoryTemplatesPage: React.FC = () => {
         </div>
       </footer>
 
+      {/* Inspector Slide-over Drawer */}
+      {selectedTemplate && (
+        <TemplatePreviewInspector
+          template={selectedTemplate}
+          onClose={() => setSelectedTemplate(null)}
+          onUseTemplate={handleOpenApplyModal}
+          onDuplicate={handleDuplicate}
+          onToggleFavorite={handleToggleFavorite}
+        />
+      )}
+
       {/* Modals */}
+      <TemplateComparisonModal
+        isOpen={comparisonModalOpen}
+        onClose={() => setComparisonModalOpen(false)}
+        templates={comparedTemplates}
+        onRemoveFromCompare={(id) => setComparedIds((prev) => prev.filter((i) => i !== id))}
+        onUseTemplate={handleOpenApplyModal}
+        onSelectTemplate={setSelectedTemplate}
+      />
+
       <ApplyTemplateModal
         template={targetTemplateToApply}
         isOpen={applyModalOpen}
