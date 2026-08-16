@@ -86,18 +86,24 @@ export function NarrationStudioPage() {
   const { showToast } = useToast();
 
   // State Management from NarrationService
-  const [segments, setSegments] = useState<NarrationSegment[]>([]);
-  const [voiceProfiles, setVoiceProfiles] = useState<VoiceProfile[]>([]);
-  const [pronunciationRules, setPronunciationRules] = useState<PronunciationRule[]>([]);
-  const [stats, setStats] = useState(NarrationService.getProjectStats());
+  const [segments, setSegments] = useState<NarrationSegment[]>(() => NarrationService.getSegments());
+  const [voiceProfiles, setVoiceProfiles] = useState<VoiceProfile[]>(() => NarrationService.getVoiceProfiles());
+  const [pronunciationRules, setPronunciationRules] = useState<PronunciationRule[]>(() => NarrationService.getPronunciationRules());
+  const [stats, setStats] = useState(() => NarrationService.getProjectStats());
 
   // Active Workspace Tab (Studio Workspace Archetype Navigation)
   const [activeTab, setActiveTab] = useState<NarrationWorkspaceTab>('projects');
 
   // Active selections & transport states
   const [selectedStoryId, setSelectedStoryId] = useState<string>('story-1');
-  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
-  const [selectedVoiceId, setSelectedVoiceId] = useState<string>('voice-arthur');
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(() => {
+    const initialSegs = NarrationService.getSegments();
+    return initialSegs.length > 0 ? initialSegs[0].id : null;
+  });
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string>(() => {
+    const voices = NarrationService.getVoiceProfiles();
+    return voices.length > 0 ? voices[0].id : 'voice-1';
+  });
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
@@ -163,7 +169,7 @@ export function NarrationStudioPage() {
   }, [segments, selectedSegmentId]);
 
   const activeVoiceProfile = useMemo(() => {
-    return voiceProfiles.find(v => v.id === (activeSegment?.activeVoiceId || selectedVoiceId)) || voiceProfiles[0];
+    return voiceProfiles.find(v => v.id === (activeSegment?.activeVoiceId || selectedVoiceId)) || voiceProfiles[0] || null;
   }, [voiceProfiles, activeSegment, selectedVoiceId]);
 
   const activeVersion = useMemo(() => {
@@ -676,7 +682,7 @@ export function NarrationStudioPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {voiceProfiles.map(voice => {
-                    const isSelected = voice.id === activeVoiceProfile.id;
+                    const isSelected = activeVoiceProfile ? voice.id === activeVoiceProfile.id : voice.id === selectedVoiceId;
 
                     return (
                       <div
@@ -835,14 +841,14 @@ export function NarrationStudioPage() {
                   <div className="space-y-2">
                     <label className="text-muted-foreground font-medium">Selected Narrator</label>
                     <div className="p-2.5 rounded-lg bg-background border border-border font-bold text-foreground">
-                      {activeVoiceProfile.name} ({activeVoiceProfile.category})
+                      {activeVoiceProfile ? `${activeVoiceProfile.name} (${activeVoiceProfile.category})` : 'Arthur Sterling (Family Member)'}
                     </div>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-muted-foreground font-medium">Emotion Tone</label>
                     <div className="p-2.5 rounded-lg bg-background border border-border font-bold text-cinema-amber-400">
-                      {activeVoiceProfile.emotion} Delivery
+                      {activeVoiceProfile ? activeVoiceProfile.emotion : 'Warm'} Delivery
                     </div>
                   </div>
                 </div>

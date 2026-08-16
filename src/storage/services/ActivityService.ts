@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LocalStorageAdapter } from '../adapters/LocalStorageAdapter';
+import { persistenceService } from './PersistenceService';
 import { NotificationService } from './NotificationService';
 
 export interface ActivityItem {
@@ -16,7 +16,10 @@ export interface ActivityItem {
 
 export class ActivityService {
   private static STORAGE_KEY = 'reellegacy_activities';
-  private static adapter = new LocalStorageAdapter();
+  
+  private static get adapter() {
+    return persistenceService.getAdapter();
+  }
 
   /**
    * Logs a new activity.

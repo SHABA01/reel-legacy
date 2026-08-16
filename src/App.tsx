@@ -89,6 +89,7 @@ import { NarrationStudioPage } from './components/narration/NarrationStudioPage'
 import { StoryTemplatesPage } from './components/storyTemplates/StoryTemplatesPage';
 import { RenderQueuePage } from './components/render/RenderQueuePage';
 import { StudioAnalyticsPage } from './components/analytics/StudioAnalyticsPage';
+import { IntegrationsPage } from './components/integrations/IntegrationsPage';
 
 function NarrationView() {
   return <NarrationStudioPage />;
@@ -120,6 +121,8 @@ function RenderActiveView() {
       return <RenderView />;
     case 'analytics':
       return <StudioAnalyticsPage />;
+    case 'integrations':
+      return <IntegrationsPage />;
     case 'settings':
       return <SettingsView />;
     case 'notifications':
@@ -427,12 +430,20 @@ function AppContent() {
         }
       />
       <Route
-        path="/workspace/settings/my-profile"
+        path="/workspace/settings/*"
         element={
           <ProtectedRoute>
             <WorkspaceLayout />
           </ProtectedRoute>
         }
+      />
+      <Route
+        path="/settings"
+        element={<Navigate to="/workspace/settings" replace />}
+      />
+      <Route
+        path="/my-profile"
+        element={<Navigate to="/workspace/settings?tab=profile" replace />}
       />
       <Route
         path="/workspace/notifications"

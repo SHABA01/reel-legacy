@@ -48,7 +48,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     if (path.startsWith('/workspace/render-queue')) return 'render';
     if (path.startsWith('/workspace/studio-analytics')) return 'analytics';
     if (path.startsWith('/workspace/integrations')) return 'integrations';
-    if (path.startsWith('/workspace/settings')) return 'settings';
+    if (path.startsWith('/workspace/settings') || path.startsWith('/settings')) return 'settings';
     if (path.startsWith('/workspace/notifications')) return 'notifications';
     if (path.startsWith('/workspace/search')) return 'search';
     if (path.startsWith('/workspace/help')) return 'help';

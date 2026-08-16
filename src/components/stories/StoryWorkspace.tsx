@@ -281,7 +281,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState<boolean>(false);
   const [isRightInspectorCollapsed, setIsRightInspectorCollapsed] = useState<boolean>(false);
   
-  const { setSelection } = useInspector();
+  const { setSelection, openInspector, closeInspector, isInspectorOpen } = useInspector();
 
   // Selected item inside workspaces which populates the dynamic right inspector
   const [selectedInspectorItem, setSelectedInspectorItem] = useState<{
@@ -1796,6 +1796,9 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
 
           <div>
             <div className="flex items-center gap-2">
+              <span className="text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded bg-cinema-amber-500/15 text-cinema-amber-600 dark:text-cinema-amber-400 border border-cinema-amber-500/30">
+                PROD WORKSPACE
+              </span>
               <h2 className="font-display font-black text-sm uppercase tracking-wide text-foreground">
                 {storyMeta.title || 'Untitled Biographical Story'}
               </h2>
@@ -1809,7 +1812,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
               <span className="font-semibold text-cinema-amber-600 dark:text-cinema-amber-400">
-                {initialStory.associatedProfileName}
+                Subject: {initialStory.associatedProfileName}
               </span>
               <span>•</span>
               <span className="font-mono text-[10px]">Autosaved: {lastSaved}</span>
@@ -1836,6 +1839,27 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
               <Redo2 className="w-4 h-4" />
             </button>
           </div>
+
+          <Button
+            id="btn-workspace-toggle-inspector"
+            variant="outline"
+            size="xs"
+            leftIcon={<SlidersHorizontal className="w-3.5 h-3.5 text-cinema-amber-500" />}
+            onClick={() => {
+              if (isInspectorOpen) {
+                closeInspector();
+              } else {
+                openInspector();
+              }
+            }}
+            className={`border text-xs font-bold transition-colors ${
+              isInspectorOpen
+                ? 'border-cinema-amber-500/50 bg-cinema-amber-500/10 text-cinema-amber-600 dark:text-cinema-amber-400'
+                : 'border-border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Context Panel
+          </Button>
 
           <Button
             id="btn-workspace-create-story"
@@ -1883,8 +1907,26 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                   if (tab.id === 'assets') targetSection = 'media';
                   setActiveSection(targetSection);
                   setSearchParams({ id: initialStory.id, section: tab.id });
-                  if (tab.id === 'story' || tab.id === 'info') {
+
+                  // Module Context Panel synchronization
+                  if (tab.id === 'story' || tab.id === 'overview' || tab.id === 'info') {
                     setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
+                  } else if (tab.id === 'timeline') {
+                    setSelectedInspectorItem({ type: 'timeline', id: timelineEvents[0]?.id || '1', data: timelineEvents[0] || initialStory });
+                  } else if (tab.id === 'scripts' || tab.id === 'scenes') {
+                    setSelection('scene', scenes[0] || initialStory);
+                  } else if (tab.id === 'characters') {
+                    setSelection('character', characters[0] || initialStory);
+                  } else if (tab.id === 'assets') {
+                    setSelection('media', mediaItems[0] || initialStory);
+                  } else if (tab.id === 'narration') {
+                    setSelection('narration', { voiceName: 'Standard Documentary Voice', assignedVoice: 'AI Voiceover' });
+                  } else if (tab.id === 'music') {
+                    setSelection('music', { trackTitle: 'Cinematic Heritage Theme', mood: 'Warm' });
+                  } else if (tab.id === 'preview') {
+                    setSelection('scene', scenes[0] || initialStory);
+                  } else if (tab.id === 'render') {
+                    setSelection('render', { format: '1080p MP4', status: 'Ready' });
                   }
                 }}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer select-none ${
@@ -1897,6 +1939,48 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                 <IconComp className={`w-4 h-4 shrink-0 ${isActive ? 'text-cinema-amber-500' : 'text-muted-foreground'}`} />
                 <span className="uppercase tracking-wider font-display text-[11px]">{tab.label}</span>
               </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 2.5 PRODUCTION PIPELINE CONTINUITY FLOW BAR */}
+      <div id="workspace-pipeline-bar" className="bg-muted/40 border-b border-border/80 px-4 md:px-6 py-2 flex items-center justify-between gap-2 overflow-x-auto custom-scrollbar text-[10px] font-mono shrink-0">
+        <div className="flex items-center gap-1.5 text-muted-foreground font-semibold shrink-0">
+          <Sparkles className="w-3.5 h-3.5 text-cinema-amber-500 animate-pulse" />
+          <span className="text-foreground font-bold uppercase tracking-wider">Continuity Engine:</span>
+        </div>
+        <div className="flex items-center gap-2 min-w-max">
+          {[
+            { stage: 1, label: '1. Story & Tone', keys: ['overview', 'story', 'info', 'biography'] },
+            { stage: 2, label: '2. Timeline', keys: ['timeline'] },
+            { stage: 3, label: '3. Scripts', keys: ['scripts', 'script'] },
+            { stage: 4, label: '4. Scenes & Assets', keys: ['scenes', 'characters', 'people', 'assets', 'media', 'documents'] },
+            { stage: 5, label: '5. Voice Narration', keys: ['narration'] },
+            { stage: 6, label: '6. Audio Mix', keys: ['music'] },
+            { stage: 7, label: '7. Preview & Export', keys: ['preview', 'render', 'production'] },
+          ].map((step, idx, arr) => {
+            const isCurrent = step.keys.includes(activeSection);
+            const currentStageObj = arr.find(s => s.keys.includes(activeSection));
+            const activeStageNum = currentStageObj ? currentStageObj.stage : 1;
+            const isCompleted = step.stage < activeStageNum;
+
+            return (
+              <React.Fragment key={step.stage}>
+                {idx > 0 && <span className="text-border">→</span>}
+                <div
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all ${
+                    isCurrent
+                      ? 'bg-cinema-amber-500 text-slate-950 font-bold shadow-xs'
+                      : isCompleted
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {isCompleted && <Check className="w-3 h-3 text-emerald-500 shrink-0" />}
+                  <span>{step.label}</span>
+                </div>
+              </React.Fragment>
             );
           })}
         </div>
@@ -4257,389 +4341,6 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
 
           </AnimatePresence>
         </main>
-
-        <aside className="hidden">
-          {/* Header */}
-          <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center justify-between shrink-0">
-            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground font-mono">
-              Workspace Inspector
-            </span>
-            <button
-              onClick={() => setIsRightInspectorCollapsed(true)}
-              className="p-1 text-muted-foreground hover:text-foreground rounded cursor-pointer"
-              aria-label="Collapse Inspector"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Dynamic Content */}
-          <div className="flex-grow overflow-y-auto p-5 space-y-5 text-xs">
-            {selectedInspectorItem.type === 'story' && (
-              <div className="space-y-4" id="inspector-story-body">
-                <div>
-                  <span className="text-[9px] font-mono font-bold bg-cinema-amber-500/10 text-cinema-amber-500 px-1.5 py-0.5 rounded border border-cinema-amber-500/20 uppercase">
-                    Commemorative Story
-                  </span>
-                  <h4 className="font-bold text-foreground text-sm mt-2">{storyMeta.title}</h4>
-                  <p className="text-muted-foreground mt-1 leading-normal font-semibold">{storyMeta.subtitle}</p>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase">Global Properties</span>
-                  <div className="grid grid-cols-2 gap-3 text-[11px]">
-                    <div>
-                      <span className="text-muted-foreground block font-medium">Progress</span>
-                      <strong className="text-foreground font-mono">{progressPercentage}% Complete</strong>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block font-medium">Category</span>
-                      <strong className="text-foreground">{initialStory.category}</strong>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block font-medium">Status</span>
-                      <strong className="text-foreground">{initialStory.status}</strong>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block font-medium">Estimated Run</span>
-                      <strong className="text-foreground font-mono">{initialStory.durationEstimate}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-2.5">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Associated Profile</span>
-                  <div className="flex items-center gap-3 p-3 bg-muted/30 border border-border rounded-xl">
-                    <img
-                      src={initialStory.associatedProfilePhoto}
-                      alt=""
-                      className="w-10 h-10 rounded-full object-cover border border-border"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div>
-                      <strong className="font-bold text-foreground block">{initialStory.associatedProfileName}</strong>
-                      <span className="text-muted-foreground text-[10px] block font-mono">({initialStory.associatedProfileRelationship})</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {selectedInspectorItem.type === 'timeline' && (
-              <div className="space-y-4 animate-fade-in" id="inspector-timeline-body">
-                <div>
-                  <span className="text-[9px] font-mono font-bold bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded border border-blue-500/20 uppercase">
-                    Timeline Milestone
-                  </span>
-                  <h4 className="font-bold text-foreground text-sm mt-2">{selectedInspectorItem.data.title}</h4>
-                  <span className="text-cinema-amber-600 dark:text-cinema-amber-400 font-mono font-black text-xs block mt-1">
-                    Year Point: {selectedInspectorItem.data.year}
-                  </span>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Description Summary</span>
-                  <p className="text-muted-foreground leading-relaxed font-semibold">{selectedInspectorItem.data.description}</p>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Location Marker</span>
-                  <div className="flex items-center gap-1.5 text-foreground/90 font-semibold">
-                    <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span>{selectedInspectorItem.data.location || 'Not logged'}</span>
-                  </div>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-3">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Inspector Relations</span>
-                  <div className="grid grid-cols-2 gap-2 text-center text-[10px]">
-                    <div className="p-2.5 bg-muted/40 border border-border rounded-xl">
-                      <strong className="block text-foreground text-xs font-mono">{selectedInspectorItem.data.associatedMediaIds?.length || 0}</strong>
-                      <span className="text-muted-foreground font-semibold">Media scans</span>
-                    </div>
-                    <div className="p-2.5 bg-muted/40 border border-border rounded-xl">
-                      <strong className="block text-foreground text-xs font-mono">{selectedInspectorItem.data.associatedPeopleIds?.length || 0}</strong>
-                      <span className="text-muted-foreground font-semibold">Linked people</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {selectedInspectorItem.type === 'media' && (
-              <div className="space-y-4 animate-fade-in" id="inspector-media-body">
-                <div>
-                  <span className="text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded border border-emerald-500/20 uppercase">
-                    Scanned Asset File
-                  </span>
-                  <h4 className="font-bold text-foreground text-sm mt-2">{selectedInspectorItem.data.title}</h4>
-                  <span className="text-muted-foreground text-[10px] font-mono block mt-1 uppercase font-bold">
-                    Type: {selectedInspectorItem.data.category}
-                  </span>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-2.5">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">File Properties</span>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] font-semibold">
-                    <div>
-                      <span className="text-muted-foreground text-[10px] block">File Size</span>
-                      <strong className="text-foreground font-mono">{selectedInspectorItem.data.size}</strong>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground text-[10px] block">Upload Date</span>
-                      <strong className="text-foreground font-mono">{selectedInspectorItem.data.uploadDate}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Visual Tagging</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedInspectorItem.data.tags?.map((tg: string, i: number) => (
-                      <span key={i} className="bg-muted text-muted-foreground border border-border/80 px-2 py-0.5 rounded font-mono font-bold">
-                        #{tg}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Quick Actions</span>
-                  <Button
-                    id="btn-inspect-fave-media"
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => handleToggleFavoriteMedia(selectedInspectorItem.data.id)}
-                    className="w-full text-left justify-start border border-border"
-                  >
-                    {selectedInspectorItem.data.favorite ? 'Remove from favorites' : 'Mark as project favorite'}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {selectedInspectorItem.type === 'person' && (
-              <div className="space-y-4 animate-fade-in" id="inspector-person-body">
-                <div className="text-center pb-2">
-                  <img
-                    src={selectedInspectorItem.data.avatar}
-                    alt=""
-                    className="w-20 h-20 rounded-full object-cover border-2 border-border mx-auto shadow-sm"
-                    referrerPolicy="no-referrer"
-                  />
-                  <h4 className="font-bold text-foreground text-sm mt-3">{selectedInspectorItem.data.name}</h4>
-                  
-                  <div className="flex items-center justify-center gap-1.5 mt-1.5 flex-wrap">
-                    <span className="text-[9px] font-mono font-bold uppercase bg-cinema-amber-500/15 text-cinema-amber-600 dark:text-cinema-amber-400 border border-cinema-amber-500/30 px-2 py-0.5 rounded">
-                      {selectedInspectorItem.data.storyRole || selectedInspectorItem.data.relationship}
-                    </span>
-                    <span className="text-[9px] font-mono font-bold uppercase bg-muted text-muted-foreground border border-border px-1.5 py-0.5 rounded">
-                      {selectedInspectorItem.data.relationship}
-                    </span>
-                    {selectedInspectorItem.data.importance && (
-                      <span className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded border ${
-                        selectedInspectorItem.data.importance === 'High'
-                          ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                          : selectedInspectorItem.data.importance === 'Medium'
-                          ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                          : 'bg-muted text-muted-foreground border-border'
-                      }`}>
-                        {selectedInspectorItem.data.importance} Priority
-                      </span>
-                    )}
-                  </div>
-
-                  {selectedInspectorItem.data.legacyProfileId && (
-                    <div className="mt-2.5">
-                      <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-emerald-500 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
-                        <Link2 className="w-2.5 h-2.5" /> Master Profile Linked
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Story Narrative Summary</span>
-                  <p className="text-muted-foreground leading-relaxed font-semibold text-xs">{selectedInspectorItem.data.shortBio}</p>
-                </div>
-
-                {selectedInspectorItem.data.lifetime && (
-                  <div className="border-t border-border pt-4 space-y-1.5">
-                    <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Lifespan</span>
-                    <strong className="text-foreground font-mono block text-xs">{selectedInspectorItem.data.lifetime}</strong>
-                  </div>
-                )}
-
-                <div className="border-t border-border pt-4 space-y-3">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Production Footprint</span>
-                  <div className="grid grid-cols-2 gap-2 text-center text-[10px]">
-                    <div className="p-2.5 bg-muted/40 border border-border rounded-xl">
-                      <strong className="block text-foreground text-xs font-mono">{selectedInspectorItem.data.timelineReferences?.length || 0}</strong>
-                      <span className="text-muted-foreground font-semibold">Milestones</span>
-                    </div>
-                    <div className="p-2.5 bg-muted/40 border border-border rounded-xl">
-                      <strong className="block text-foreground text-xs font-mono">{selectedInspectorItem.data.mediaReferences?.length || 0}</strong>
-                      <span className="text-muted-foreground font-semibold">Media Files</span>
-                    </div>
-                    <div className="p-2.5 bg-muted/40 border border-border rounded-xl">
-                      <strong className="block text-foreground text-xs font-mono">{selectedInspectorItem.data.scenesCount || 1}</strong>
-                      <span className="text-muted-foreground font-semibold">Scenes</span>
-                    </div>
-                    <div className="p-2.5 bg-muted/40 border border-border rounded-xl">
-                      <strong className="block text-foreground text-xs font-mono">{selectedInspectorItem.data.estimatedScreenTime || '4m 00s'}</strong>
-                      <span className="text-muted-foreground font-semibold">Screen Time</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {selectedInspectorItem.type === 'career' && (
-              <div className="space-y-4 animate-fade-in" id="inspector-career-body">
-                <div>
-                  <span className="text-[9px] font-mono font-bold bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded border border-amber-500/20 uppercase">
-                    Employment Record
-                  </span>
-                  <h4 className="font-bold text-foreground text-sm mt-2">{selectedInspectorItem.data.position}</h4>
-                  <span className="text-muted-foreground text-xs block font-semibold">{selectedInspectorItem.data.company}</span>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Employment Span</span>
-                  <strong className="text-foreground font-mono block text-xs">{selectedInspectorItem.data.years}</strong>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Work Location</span>
-                  <span className="text-muted-foreground font-semibold block">{selectedInspectorItem.data.location}</span>
-                </div>
-              </div>
-            )}
-
-            {selectedInspectorItem.type === 'document' && (
-              <div className="space-y-4 animate-fade-in" id="inspector-document-body">
-                <div>
-                  <span className="text-[9px] font-mono font-bold bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20 uppercase">
-                    Heritage Document
-                  </span>
-                  <h4 className="font-bold text-foreground text-sm mt-2">{selectedInspectorItem.data.displayName}</h4>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    <span className="text-muted-foreground text-[10px] font-mono uppercase font-bold bg-muted px-1 rounded">
-                      Type: {selectedInspectorItem.data.documentType}
-                    </span>
-                    {selectedInspectorItem.data.favorite && (
-                      <span className="text-cinema-amber-500 text-[10px] font-mono uppercase font-bold bg-cinema-amber-500/10 px-1 rounded">
-                        ★ FAVORITE
-                      </span>
-                    )}
-                    {selectedInspectorItem.data.archived && (
-                      <span className="text-red-500 text-[10px] font-mono uppercase font-bold bg-red-500/10 px-1 rounded">
-                        Archived
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="border-t border-border pt-3 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Description</span>
-                  <p className="text-muted-foreground text-xs leading-normal font-medium">
-                    {selectedInspectorItem.data.description || 'No description provided.'}
-                  </p>
-                </div>
-
-                <InspectorTagBadges tags={selectedInspectorItem.data.tags} />
-
-                <div className="border-t border-border pt-3 grid grid-cols-2 gap-2 text-[11px]">
-                  <div>
-                    <span className="text-muted-foreground block font-bold uppercase text-[9px]">File Size</span>
-                    <strong className="text-foreground font-mono">{selectedInspectorItem.data.fileSize ? `${(selectedInspectorItem.data.fileSize / 1024).toFixed(1)} KB` : '0 KB'}</strong>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block font-bold uppercase text-[9px]">Uploaded</span>
-                    <strong className="text-foreground font-mono">
-                      {new Date(selectedInspectorItem.data.uploadDate).toLocaleDateString()}
-                    </strong>
-                  </div>
-                </div>
-
-                <InspectorActions
-                  favorite={selectedInspectorItem.data.favorite}
-                  archived={selectedInspectorItem.data.archived}
-                  downloadUrl={selectedInspectorItem.data.localStorageReference}
-                  downloadFilename={selectedInspectorItem.data.originalFilename}
-                  onToggleFavorite={() => handleToggleFavoriteDocument(selectedInspectorItem.data.id, !selectedInspectorItem.data.favorite)}
-                  onToggleArchive={() => selectedInspectorItem.data.archived ? handleRestoreDocument(selectedInspectorItem.data.id) : handleArchiveDocument(selectedInspectorItem.data.id)}
-                  onDelete={() => handleDeleteDocument(selectedInspectorItem.data.id)}
-                />
-              </div>
-            )}
-
-            {selectedInspectorItem.type === 'import' && (
-              <div className="space-y-4 animate-fade-in" id="inspector-import-body">
-                <div>
-                  <span className="text-[9px] font-mono font-bold bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20 uppercase">
-                    Credentials Source Import
-                  </span>
-                  <h4 className="font-bold text-foreground text-sm mt-2">{selectedInspectorItem.data.displayName}</h4>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    <span className="text-muted-foreground text-[10px] font-mono uppercase font-bold bg-muted px-1 rounded">
-                      Type: {selectedInspectorItem.data.importType}
-                    </span>
-                    {selectedInspectorItem.data.favorite && (
-                      <span className="text-cinema-amber-500 text-[10px] font-mono uppercase font-bold bg-cinema-amber-500/10 px-1 rounded">
-                        ★ FAVORITE
-                      </span>
-                    )}
-                    {selectedInspectorItem.data.archived && (
-                      <span className="text-red-500 text-[10px] font-mono uppercase font-bold bg-red-500/10 px-1 rounded">
-                        Archived
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="border-t border-border pt-3 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Description</span>
-                  <p className="text-muted-foreground text-xs leading-normal font-medium">
-                    {selectedInspectorItem.data.description || 'No description provided.'}
-                  </p>
-                </div>
-
-                <div className="border-t border-border pt-3 space-y-2">
-                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Status & File Size</span>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] font-semibold text-foreground">
-                    <div>
-                      <span className="text-muted-foreground text-[10px] block">Status</span>
-                      <span>{selectedInspectorItem.data.importStatus}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground text-[10px] block">Size</span>
-                      <span className="font-mono">{selectedInspectorItem.data.fileSize}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <InspectorTagBadges tags={selectedInspectorItem.data.tags} />
-
-                <InspectorActions
-                  favorite={selectedInspectorItem.data.favorite}
-                  archived={selectedInspectorItem.data.archived}
-                  downloadUrl={selectedInspectorItem.data.localStorageReference}
-                  downloadFilename={selectedInspectorItem.data.originalFilename}
-                  onToggleFavorite={() => handleToggleFavoriteImport(selectedInspectorItem.data.id, !selectedInspectorItem.data.favorite)}
-                  onToggleArchive={() => selectedInspectorItem.data.archived ? handleRestoreImport(selectedInspectorItem.data.id) : handleArchiveImport(selectedInspectorItem.data.id)}
-                  onDelete={() => handleDeleteImport(selectedInspectorItem.data.id)}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Quick Actions Footer inside Inspector */}
-          <div className="p-4 border-t border-border bg-muted/20 shrink-0">
-            <span className="text-[9px] text-muted-foreground block font-mono font-semibold uppercase">Inspector Mode</span>
-            <p className="text-[10px] text-muted-foreground font-medium mt-0.5">Focus: {selectedInspectorItem.type.toUpperCase()}</p>
-          </div>
-        </aside>
       </div>
 
       {/* 3. BOTTOM WORKSPACE STATUS BAR */}

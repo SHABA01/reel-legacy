@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IStorageAdapter, StorageAdapter } from '../adapters/StorageAdapter';
 import { LocalStorageAdapter } from '../adapters/LocalStorageAdapter';
 import { LegacyProfileRepository } from '../repositories/LegacyProfileRepository';
 import { StoryRepository } from '../repositories/StoryRepository';
@@ -16,24 +17,36 @@ import { UserRepository } from '../repositories/UserRepository';
 import { SessionRepository } from '../repositories/SessionRepository';
 import { ImportRepository } from '../repositories/ImportRepository';
 
+/**
+ * Central Persistence Service Registry
+ * 
+ * Orchestrates domain repositories with pluggable storage adapters
+ * (LocalStorageAdapter, RemoteApiAdapter, etc.) without altering
+ * downstream service contracts or component interfaces.
+ */
 export class PersistenceService {
   private static instance: PersistenceService;
-  private adapter: LocalStorageAdapter;
+  private adapter: IStorageAdapter;
 
-  public profiles: LegacyProfileRepository;
-  public stories: StoryRepository;
-  public media: MediaRepository;
-  public timeline: TimelineRepository;
-  public documents: DocumentRepository;
-  public imports: ImportRepository;
-  public collections: CollectionRepository;
-  public settings: SettingsRepository;
-  public notifications: NotificationRepository;
-  public users: UserRepository;
-  public sessions: SessionRepository;
+  public profiles!: LegacyProfileRepository;
+  public stories!: StoryRepository;
+  public media!: MediaRepository;
+  public timeline!: TimelineRepository;
+  public documents!: DocumentRepository;
+  public imports!: ImportRepository;
+  public collections!: CollectionRepository;
+  public settings!: SettingsRepository;
+  public notifications!: NotificationRepository;
+  public users!: UserRepository;
+  public sessions!: SessionRepository;
 
-  private constructor() {
-    this.adapter = new LocalStorageAdapter();
+  private constructor(adapter?: IStorageAdapter) {
+    this.adapter = adapter || new LocalStorageAdapter();
+    this.initializeRepositories(this.adapter);
+  }
+
+  private initializeRepositories(adapter: IStorageAdapter): void {
+    this.adapter = adapter;
     this.profiles = new LegacyProfileRepository(this.adapter);
     this.stories = new StoryRepository(this.adapter);
     this.media = new MediaRepository(this.adapter);
@@ -47,11 +60,21 @@ export class PersistenceService {
     this.sessions = new SessionRepository(this.adapter);
   }
 
-  public static getInstance(): PersistenceService {
+  public static getInstance(customAdapter?: IStorageAdapter): PersistenceService {
     if (!PersistenceService.instance) {
-      PersistenceService.instance = new PersistenceService();
+      PersistenceService.instance = new PersistenceService(customAdapter);
+    } else if (customAdapter && PersistenceService.instance.adapter !== customAdapter) {
+      PersistenceService.instance.setAdapter(customAdapter);
     }
     return PersistenceService.instance;
+  }
+
+  public setAdapter(adapter: IStorageAdapter): void {
+    this.initializeRepositories(adapter);
+  }
+
+  public getAdapter(): IStorageAdapter {
+    return this.adapter;
   }
 
   public async clearAll(): Promise<void> {

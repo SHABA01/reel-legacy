@@ -13,6 +13,8 @@ interface EmptyStateProps {
   description?: string;
   primaryActionLabel?: string;
   onPrimaryAction?: () => void;
+  actionLabel?: string;
+  onAction?: () => void;
   secondaryActionLabel?: string;
   onSecondaryAction?: () => void;
   id?: string;
@@ -24,11 +26,16 @@ export function EmptyState({
   description,
   primaryActionLabel,
   onPrimaryAction,
+  actionLabel,
+  onAction,
   secondaryActionLabel,
   onSecondaryAction,
   id,
 }: EmptyStateProps) {
   const generatedId = id || `empty-state-${type}-${Math.random().toString(36).substring(2, 9)}`;
+
+  const activePrimaryLabel = primaryActionLabel || actionLabel;
+  const activePrimaryAction = onPrimaryAction || onAction;
 
   const config = {
     stories: {
@@ -105,7 +112,7 @@ export function EmptyState({
         {displayDescription}
       </p>
 
-      {(primaryActionLabel || secondaryActionLabel) && (
+      {(activePrimaryLabel || secondaryActionLabel) && (
         <div id={`${generatedId}-actions`} className="flex flex-col sm:flex-row gap-3 items-center justify-center">
           {secondaryActionLabel && onSecondaryAction && (
             <Button
@@ -117,14 +124,14 @@ export function EmptyState({
               {secondaryActionLabel}
             </Button>
           )}
-          {primaryActionLabel && onPrimaryAction && (
+          {activePrimaryLabel && activePrimaryAction && (
             <Button
               id={`${generatedId}-prim-action`}
               variant="accent"
               size="sm"
-              onClick={onPrimaryAction}
+              onClick={activePrimaryAction}
             >
-              {primaryActionLabel}
+              {activePrimaryLabel}
             </Button>
           )}
         </div>

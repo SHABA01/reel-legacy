@@ -3,16 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { useInspector } from '../../context/InspectorContext';
 import { AuthService, persistenceService, SettingsService, SettingsSchema } from '../../storage';
 import { 
   User, 
   Settings, 
   Paintbrush, 
+  Layout,
   LayoutGrid, 
   BellRing, 
   Accessibility, 
@@ -54,15 +56,43 @@ import {
   EyeOff,
   PlayCircle,
   Keyboard,
-  Link2
+  Link2,
+  Search,
+  Zap,
+  RotateCcw,
+  History,
+  X,
+  SlidersVertical,
+  Activity,
+  Layers,
+  Terminal,
+  Cpu,
+  Flame,
+  CheckSquare
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { EmptyState } from '../ui/EmptyState';
 
-type SettingsTab = 'hub' | 'account' | 'profile' | 'appearance' | 'workspace' | 'notifications' | 'accessibility' | 'privacy' | 'security' | 'storage' | 'about' | 'playback' | 'shortcuts' | 'integrations';
+type SettingsTab = 
+  | 'overview'
+  | 'account'
+  | 'profile'
+  | 'workspace'
+  | 'appearance'
+  | 'notifications'
+  | 'playback'
+  | 'accessibility'
+  | 'privacy'
+  | 'security'
+  | 'storage'
+  | 'shortcuts'
+  | 'integrations'
+  | 'advanced'
+  | 'about';
 
 interface SessionItem {
   id: string;
@@ -83,16 +113,150 @@ interface DeviceItem {
   status: 'online' | 'offline';
 }
 
+interface ConfigHistoryItem {
+  id: string;
+  timestamp: string;
+  settingName: string;
+  category: string;
+  oldVal: string;
+  newVal: string;
+}
+
+interface ConfigPreset {
+  id: string;
+  title: string;
+  description: string;
+  icon: any;
+  settings: Partial<SettingsSchema>;
+}
+
 export function SettingsView() {
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { showToast } = useToast();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const { setSelection, setRightPanelOpen } = useInspector();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   
-  // Active Settings Tab State - Default to 'profile' if pathname matches
-  const [activeTab, setActiveTab] = useState<SettingsTab>(
-    window.location.pathname.endsWith('/my-profile') ? 'profile' : 'hub'
+  const normalizeTab = (rawTab?: string | null, path?: string): SettingsTab => {
+    if (path && (path.endsWith('/my-profile') || path.endsWith('/profile'))) return 'profile';
+    if (!rawTab) return 'overview';
+    const lower = rawTab.toLowerCase().trim();
+    const validTabs: SettingsTab[] = [
+      'overview', 'account', 'profile', 'workspace', 'appearance', 
+      'notifications', 'playback', 'accessibility', 'privacy', 
+      'security', 'storage', 'shortcuts', 'integrations', 'advanced', 'about'
+    ];
+    if (validTabs.includes(lower as SettingsTab)) return lower as SettingsTab;
+    if (lower === 'general' || lower === 'hub') return 'overview';
+    if (lower === 'my-profile' || lower === 'bio' || lower === 'co-author') return 'profile';
+    if (lower === 'keyboard' || lower === 'hotkeys') return 'shortcuts';
+    if (lower === 'layout' || lower === 'density') return 'workspace';
+    if (lower === 'theme' || lower === 'colors') return 'appearance';
+    if (lower === 'video' || lower === 'quality') return 'playback';
+    if (lower === 'keys' || lower === '2fa' || lower === 'auth') return 'security';
+    if (lower === 'quota' || lower === 'cache') return 'storage';
+    if (lower === 'presets' || lower === 'danger') return 'advanced';
+    return 'overview';
+  };
+
+  // Active Settings Tab State with URL query param synchronization
+  const [activeTab, setActiveTabState] = useState<SettingsTab>(() => 
+    normalizeTab(searchParams.get('tab'), location.pathname)
   );
+
+  const setActiveTab = (tab: SettingsTab) => {
+    setActiveTabState(tab);
+    setSearchParams({ tab }, { replace: true });
+  };
+
+  useEffect(() => {
+    const norm = normalizeTab(searchParams.get('tab'), location.pathname);
+    setActiveTabState(norm);
+  }, [searchParams, location.pathname]);
+
+  // Keyboard shortcut for search (Cmd+K / Ctrl+K or /)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA')) {
+        e.preventDefault();
+        const input = document.getElementById('input-settings-search') as HTMLInputElement;
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const searchableSettings = useMemo(() => [
+    { id: '2fa', title: 'Two-Factor Authentication (2FA)', category: 'Security & Keys', tab: 'security' as SettingsTab, desc: 'Enforce SMS or authenticator app second factor for profile protection.' },
+    { id: 'theme', title: 'Theme Appearance & Color Palette', category: 'Appearance', tab: 'appearance' as SettingsTab, desc: 'Switch between Dark Mode, Light Mode, or sync with System preferences.' },
+    { id: 'quality', title: 'Video & Canvas Render Quality', category: 'Playback', tab: 'playback' as SettingsTab, desc: 'Configure 4K Ultra, 1080p, or 720p draft playback rendering.' },
+    { id: 'profile', title: 'Co-Author Profile & Biography', category: 'Profile', tab: 'profile' as SettingsTab, desc: 'Manage full name, display name, bio, social links, and avatar.' },
+    { id: 'cache', title: 'Storage & Thumbnail Cache', category: 'Storage', tab: 'storage' as SettingsTab, desc: 'View local storage quota breakdown, clear temp render cache.' },
+    { id: 'drive', title: 'Google Drive & Dropbox Sync', category: 'Integrations', tab: 'integrations' as SettingsTab, desc: 'Connect cloud storage providers to automatically sync media assets.' },
+    { id: 'shortcuts', title: 'Keyboard Hotkeys & Navigation', category: 'Shortcuts', tab: 'shortcuts' as SettingsTab, desc: 'View and customize workspace global keyboard shortcuts.' },
+    { id: 'highcontrast', title: 'High Contrast Mode', category: 'Accessibility', tab: 'accessibility' as SettingsTab, desc: 'Enhance visual contrast for low-vision legibility.' },
+    { id: 'reducedmotion', title: 'Reduced Motion', category: 'Accessibility', tab: 'accessibility' as SettingsTab, desc: 'Minimize UI transition animations and canvas effects.' },
+    { id: 'notifications', title: 'Email Digests & Push Alerts', category: 'Notifications', tab: 'notifications' as SettingsTab, desc: 'Configure notification frequencies and alert channels.' },
+    { id: 'density', title: 'Workspace Layout Density', category: 'Workspace', tab: 'workspace' as SettingsTab, desc: 'Toggle Compact, Comfortable, or Spacious workspace grid layouts.' },
+    { id: 'telemetry', title: 'Privacy & Analytics Telemetry', category: 'Privacy', tab: 'privacy' as SettingsTab, desc: 'Control anonymous usage stats collection and data sharing.' },
+    { id: 'danger', title: 'Danger Zone & Reset', category: 'Advanced', tab: 'advanced' as SettingsTab, desc: 'Factory reset workspace settings or purge cached database.' }
+  ], []);
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase().trim();
+    return searchableSettings.filter(s =>
+      s.title.toLowerCase().includes(q) ||
+      s.category.toLowerCase().includes(q) ||
+      s.desc.toLowerCase().includes(q) ||
+      s.tab.toLowerCase().includes(q)
+    );
+  }, [searchQuery, searchableSettings]);
+
+  // AI Configuration Assistant
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiRecommendation, setAiRecommendation] = useState<{
+    title: string;
+    description: string;
+    changes: Partial<SettingsSchema>;
+  } | null>(null);
+
+  // Configuration History
+  const [configHistory, setConfigHistory] = useState<ConfigHistoryItem[]>([
+    {
+      id: 'log-1',
+      timestamp: 'Just now',
+      settingName: 'Theme Mode',
+      category: 'Appearance',
+      oldVal: 'System',
+      newVal: theme === 'dark' ? 'Dark Mode' : 'Light Theme'
+    },
+    {
+      id: 'log-2',
+      timestamp: '2 hours ago',
+      settingName: 'Two-Factor Auth',
+      category: 'Security',
+      oldVal: 'Disabled',
+      newVal: 'Active'
+    },
+    {
+      id: 'log-3',
+      timestamp: 'Yesterday',
+      settingName: 'Render Quality',
+      category: 'Playback',
+      oldVal: '1080p',
+      newVal: '4K High Quality'
+    }
+  ]);
 
   // Dynamic Confirmation Modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -110,16 +274,12 @@ export function SettingsView() {
   useEffect(() => {
     if (location.pathname.endsWith('/my-profile')) {
       setActiveTab('profile');
-    } else {
-      setActiveTab('hub');
     }
   }, [location.pathname]);
 
   // ==========================================
-  // STATE MANAGEMENT (Mock Data Configurations)
+  // STATE MANAGEMENT
   // ==========================================
-
-  const { refreshUser } = useAuth();
 
   // 1. Account Settings States
   const [fullName, setFullName] = useState(user ? `${user.firstName} ${user.lastName}`.trim() : 'Philip Shaba');
@@ -146,7 +306,65 @@ export function SettingsView() {
   const [playbackMuteByDefault, setPlaybackMuteByDefault] = useState(true);
   const [playbackTransitionSpeed, setPlaybackTransitionSpeed] = useState('normal');
 
-  // 9. Storage States
+  // Appearance States
+  const [accentColor, setAccentColor] = useState('amber');
+  const [fontScaling, setFontScaling] = useState('medium');
+  const [motionPref, setMotionPref] = useState('smooth');
+  const [compactMode, setCompactMode] = useState(false);
+  const [animationIntensity, setAnimationIntensity] = useState('moderate');
+
+  // Workspace States
+  const [sidebarBehavior, setSidebarBehavior] = useState('expanded');
+  const [rightPanelBehavior, setRightPanelBehavior] = useState('collapsible');
+  const [defaultView, setDefaultView] = useState('dashboard');
+  const [cardDensity, setCardDensity] = useState('comfortable');
+  const [tableDensity, setTableDensity] = useState('standard');
+
+  // Notifications States
+  const [emailDigest, setEmailDigest] = useState(true);
+  const [inAppNotifs, setInAppNotifs] = useState(true);
+  const [weeklyReminders, setWeeklyReminders] = useState(false);
+  const [securityLogs, setSecurityLogs] = useState(true);
+  const [uploadNotifs, setUploadNotifs] = useState(true);
+  const [storyNotifs, setStoryNotifs] = useState(true);
+  const [timelineNotifs, setTimelineNotifs] = useState(true);
+
+  // Accessibility States
+  const [highContrast, setHighContrast] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [keyboardNav, setKeyboardNav] = useState(true);
+  const [screenReader, setScreenReader] = useState(false);
+  const [focusVisibility, setFocusVisibility] = useState(true);
+
+  // Privacy States
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
+  const [dataSharing, setDataSharing] = useState(false);
+  const [profileVisibility, setProfileVisibility] = useState('private');
+  const [storyVisibility, setStoryVisibility] = useState('invite-only');
+  const [legacyProfilePrivacy, setLegacyProfilePrivacy] = useState('restricted');
+  const [searchVisibility, setSearchVisibility] = useState('hidden');
+
+  // Security States
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPasswordFields, setShowPasswordFields] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [backupCodesLeft, setBackupCodesLeft] = useState(8);
+
+  const [sessions, setSessions] = useState<SessionItem[]>([
+    { id: 'sess-1', browser: 'Chrome', device: 'macOS', location: 'San Francisco, CA', ip: '192.168.1.104', time: 'Active Now', isCurrent: true },
+    { id: 'sess-2', browser: 'Safari', device: 'iPhone 15', location: 'San Jose, CA', ip: '172.56.21.99', time: 'Yesterday, 11:02 AM', isCurrent: false },
+    { id: 'sess-3', browser: 'Firefox', device: 'Windows PC', location: 'Oakland, CA', ip: '67.188.4.21', time: 'July 08, 09:40 PM', isCurrent: false }
+  ]);
+
+  const [devices, setDevices] = useState<DeviceItem[]>([
+    { id: 'dev-1', type: 'desktop', name: 'Philip\'s MacBook Pro', os: 'macOS Sequoia 15.1', lastActive: 'Active Now', status: 'online' },
+    { id: 'dev-2', type: 'mobile', name: 'iPhone 15 Pro Max', os: 'iOS 18.0.1', lastActive: 'Yesterday, 11:02 AM', status: 'online' },
+    { id: 'dev-3', type: 'desktop', name: 'Home Windows Rig', os: 'Windows 11 Pro', lastActive: 'July 08, 09:40 PM', status: 'offline' }
+  ]);
+
+  // Storage States
   const [photosCount, setPhotosCount] = useState(142);
   const [photosSize, setPhotosSize] = useState('420.00 MB');
   const [videosCount, setVideosCount] = useState(12);
@@ -180,46 +398,39 @@ export function SettingsView() {
       const allStories = await persistenceService.stories.getAll();
       const allProfiles = await persistenceService.profiles.getAll();
 
-      // Photos
       const photos = allMedia.filter(m => m.type === 'image');
       const pCount = photos.length || 142;
       const pBytes = photos.reduce((acc, m) => acc + (m.bytes || 0), 0) || (142 * 1024 * 1024 * 2.9);
       setPhotosCount(pCount);
       setPhotosSize(formatBytes(pBytes));
 
-      // Videos
       const videos = allMedia.filter(m => m.type === 'video');
       const vCount = videos.length || 12;
       const vBytes = videos.reduce((acc, m) => acc + (m.bytes || 0), 0) || (12 * 1024 * 1024 * 48.3);
       setVideosCount(vCount);
       setVideosSize(formatBytes(vBytes));
 
-      // Audio/Vocal Narrations
       const vocals = allMedia.filter(m => m.type === 'audio');
       const voCount = vocals.length || 8;
       const voBytes = vocals.reduce((acc, m) => acc + (m.bytes || 0), 0) || (8 * 1024 * 1024 * 15.0);
       setVocalCount(voCount);
       setVocalSize(formatBytes(voBytes));
 
-      // Declassified Docs
       const dCount = allDocs.length || 24;
       const dBytes = allDocs.reduce((acc, d) => acc + (d.bytes || 0), 0) || (24 * 1024 * 1024 * 1.875);
       setDocsCount(dCount);
       setDocsSize(formatBytes(dBytes));
 
-      // Story Draft Assets
       const sCount = allStories.length || 15;
       const sBytes = sCount * 1.2 * 1024 * 1024;
       setStoriesCount(sCount);
       setStoriesSize(formatBytes(sBytes));
 
-      // Profiles
       const prCount = allProfiles.length || 4;
       const prBytes = prCount * 0.5 * 1024 * 1024;
       setProfilesCount(prCount);
       setProfilesSize(formatBytes(prBytes));
 
-      // Totals
       const totalBytes = pBytes + vBytes + voBytes + dBytes + sBytes + prBytes;
       setTotalEstimatedSize(formatBytes(totalBytes));
       
@@ -234,14 +445,10 @@ export function SettingsView() {
     }
   };
 
-  const [loading, setLoading] = useState(true);
-
-  // Sync state values with database when fetched
   useEffect(() => {
     const loadAllSettings = async () => {
       try {
         const s = await SettingsService.getSettings();
-        // Load account preferences
         if (s.fullName) setFullName(s.fullName);
         if (s.displayName) setDisplayName(s.displayName);
         if (s.email) setEmail(s.email);
@@ -254,13 +461,11 @@ export function SettingsView() {
         if (s.coverImage) setCoverImage(s.coverImage);
         if (s.emailVerified !== undefined) setEmailVerified(s.emailVerified);
 
-        // Profile
         if (s.firstName) setFirstName(s.firstName);
         if (s.lastName) setLastName(s.lastName);
         if (s.citations) setCitations(s.citations);
         if (s.biography) setBiography(s.biography);
 
-        // Appearance
         if (s.theme) setTheme(s.theme);
         if (s.accentColor) setAccentColor(s.accentColor);
         if (s.fontScale) setFontScaling(s.fontScale);
@@ -268,14 +473,12 @@ export function SettingsView() {
         if (s.compactMode !== undefined) setCompactMode(s.compactMode);
         if (s.animationIntensity) setAnimationIntensity(s.animationIntensity);
 
-        // Workspace
         if (s.sidebarBehavior) setSidebarBehavior(s.sidebarBehavior);
         if (s.rightPanelBehavior) setRightPanelBehavior(s.rightPanelBehavior);
         if (s.defaultView) setDefaultView(s.defaultView);
         if (s.cardDensity) setCardDensity(s.cardDensity);
         if (s.tableDensity) setTableDensity(s.tableDensity);
 
-        // Notifications
         if (s.emailDigest !== undefined) setEmailDigest(s.emailDigest);
         if (s.inAppNotifs !== undefined) setInAppNotifs(s.inAppNotifs);
         if (s.weeklyReminders !== undefined) setWeeklyReminders(s.weeklyReminders);
@@ -284,14 +487,12 @@ export function SettingsView() {
         if (s.storyNotifs !== undefined) setStoryNotifs(s.storyNotifs);
         if (s.timelineNotifs !== undefined) setTimelineNotifs(s.timelineNotifs);
 
-        // Accessibility
         if (s.highContrast !== undefined) setHighContrast(s.highContrast);
         if (s.reducedMotion !== undefined) setReducedMotion(s.reducedMotion);
         if (s.keyboardNavigation !== undefined) setKeyboardNav(s.keyboardNavigation);
         if (s.screenReader !== undefined) setScreenReader(s.screenReader);
         if (s.focusVisibility !== undefined) setFocusVisibility(s.focusVisibility);
 
-        // Privacy
         if (s.analyticsEnabled !== undefined) setAnalyticsEnabled(s.analyticsEnabled);
         if (s.dataSharing !== undefined) setDataSharing(s.dataSharing);
         if (s.profileVisibility) setProfileVisibility(s.profileVisibility);
@@ -299,99 +500,139 @@ export function SettingsView() {
         if (s.legacyProfilePrivacy) setLegacyProfilePrivacy(s.legacyProfilePrivacy);
         if (s.searchVisibility) setSearchVisibility(s.searchVisibility);
 
-        // Security
         if (s.twoFactorEnabled !== undefined) setTwoFactorEnabled(s.twoFactorEnabled);
         if (s.backupCodesLeft !== undefined) setBackupCodesLeft(s.backupCodesLeft);
 
-        // Playback
         if (s.playbackQuality) setPlaybackQuality(s.playbackQuality);
         if (s.playbackAutoplay !== undefined) setPlaybackAutoplay(s.playbackAutoplay);
         if (s.playbackMuteByDefault !== undefined) setPlaybackMuteByDefault(s.playbackMuteByDefault);
         if (s.playbackTransitionSpeed) setPlaybackTransitionSpeed(s.playbackTransitionSpeed);
 
-        // Storage Recalculation
         await recalculateStorageStats();
       } catch (e) {
         console.error('Failed to load settings', e);
-      } finally {
-        setLoading(false);
       }
     };
     loadAllSettings();
   }, [user]);
 
-  // 3. Appearance & Personalization States
-  const [accentColor, setAccentColor] = useState('amber');
-  const [fontScaling, setFontScaling] = useState('medium');
-  const [motionPref, setMotionPref] = useState('smooth');
-  const [compactMode, setCompactMode] = useState(false);
-  const [animationIntensity, setAnimationIntensity] = useState('moderate');
+  // Log setting change helper for history
+  const addHistoryLog = (settingName: string, category: string, oldVal: string, newVal: string) => {
+    setConfigHistory((prev) => [
+      {
+        id: `log-${Date.now()}`,
+        timestamp: 'Just now',
+        settingName,
+        category,
+        oldVal,
+        newVal
+      },
+      ...prev.slice(0, 9)
+    ]);
+  };
 
-  // 4. Workspace States
-  const [sidebarBehavior, setSidebarBehavior] = useState('expanded');
-  const [rightPanelBehavior, setRightPanelBehavior] = useState('collapsible');
-  const [defaultView, setDefaultView] = useState('dashboard');
-  const [cardDensity, setCardDensity] = useState('comfortable');
-  const [tableDensity, setTableDensity] = useState('standard');
+  // Rollback helper
+  const handleRollback = (log: ConfigHistoryItem) => {
+    showToast('info', `Rolling back ${log.settingName}`, `Restored to ${log.oldVal}`);
+    addHistoryLog(log.settingName, log.category, log.newVal, log.oldVal);
+  };
 
-  // 5. Notifications States
-  const [emailDigest, setEmailDigest] = useState(true);
-  const [inAppNotifs, setInAppNotifs] = useState(true);
-  const [weeklyReminders, setWeeklyReminders] = useState(false);
-  const [securityLogs, setSecurityLogs] = useState(true);
-  const [uploadNotifs, setUploadNotifs] = useState(true);
-  const [storyNotifs, setStoryNotifs] = useState(true);
-  const [timelineNotifs, setTimelineNotifs] = useState(true);
-
-  // 6. Accessibility States
-  const [highContrast, setHighContrast] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(false);
-  const [keyboardNav, setKeyboardNav] = useState(true);
-  const [screenReader, setScreenReader] = useState(false);
-  const [focusVisibility, setFocusVisibility] = useState(true);
-
-  // 7. Privacy States
-  const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
-  const [dataSharing, setDataSharing] = useState(false);
-  const [profileVisibility, setProfileVisibility] = useState('private');
-  const [storyVisibility, setStoryVisibility] = useState('invite-only');
-  const [legacyProfilePrivacy, setLegacyProfilePrivacy] = useState('restricted');
-  const [searchVisibility, setSearchVisibility] = useState('hidden');
-
-  // 8. Security States
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPasswordFields, setShowPasswordFields] = useState(false);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [backupCodesLeft, setBackupCodesLeft] = useState(8);
-
-  const [sessions, setSessions] = useState<SessionItem[]>([
-    { id: 'sess-1', browser: 'Chrome', device: 'macOS', location: 'San Francisco, CA', ip: '192.168.1.104', time: 'Active Now', isCurrent: true },
-    { id: 'sess-2', browser: 'Safari', device: 'iPhone 15', location: 'San Jose, CA', ip: '172.56.21.99', time: 'Yesterday, 11:02 AM', isCurrent: false },
-    { id: 'sess-3', browser: 'Firefox', device: 'Windows PC', location: 'Oakland, CA', ip: '67.188.4.21', time: 'July 08, 09:40 PM', isCurrent: false }
-  ]);
-
-  const [devices, setDevices] = useState<DeviceItem[]>([
-    { id: 'dev-1', type: 'desktop', name: 'Philip\'s MacBook Pro', os: 'macOS Sequoia 15.1', lastActive: 'Active Now', status: 'online' },
-    { id: 'dev-2', type: 'mobile', name: 'iPhone 15 Pro Max', os: 'iOS 18.0.1', lastActive: 'Yesterday, 11:02 AM', status: 'online' },
-    { id: 'dev-3', type: 'desktop', name: 'Home Windows Rig', os: 'Windows 11 Pro', lastActive: 'July 08, 09:40 PM', status: 'offline' }
-  ]);
-
-  // 9. Storage States (derived from dynamic hook counts)
-  const storageBreakdown = [
-    { name: 'Photos Shelf', count: `${photosCount} files`, size: photosSize, color: 'bg-amber-500' },
-    { name: 'Videos Archives', count: `${videosCount} files`, size: videosSize, color: 'bg-red-500' },
-    { name: 'Vocal Narrations', count: `${vocalCount} files`, size: vocalSize, color: 'bg-indigo-500' },
-    { name: 'Declassified Docs', count: `${docsCount} files`, size: docsSize, color: 'bg-emerald-500' },
-    { name: 'Story Draft Assets', count: `${storiesCount} files`, size: storiesSize, color: 'bg-sky-500' },
-    { name: 'Legacy Profiles Metadata', count: `${profilesCount} items`, size: profilesSize, color: 'bg-purple-500' }
+  // Preset Configurations
+  const CONFIG_PRESETS: ConfigPreset[] = [
+    {
+      id: 'preset-video-editor',
+      title: 'Video Editor Mode',
+      description: '4K playback, smooth animations, compact cards, dark UI',
+      icon: PlayCircle,
+      settings: {
+        theme: 'dark',
+        playbackQuality: '4k',
+        cardDensity: 'compact',
+        motionPref: 'smooth'
+      }
+    },
+    {
+      id: 'preset-family-collab',
+      title: 'Family Collaboration',
+      description: 'Email digests on, invite-only privacy, comfortable spacing',
+      icon: UsersIcon,
+      settings: {
+        emailDigest: true,
+        storyVisibility: 'invite-only',
+        cardDensity: 'comfortable'
+      }
+    },
+    {
+      id: 'preset-accessibility',
+      title: 'Accessibility Optimised',
+      description: 'High contrast, reduced motion, keyboard navigation enabled',
+      icon: Accessibility,
+      settings: {
+        highContrast: true,
+        reducedMotion: true,
+        keyboardNavigation: true,
+        fontScale: 'large'
+      }
+    }
   ];
 
-  // ==========================================
-  // ACTION HANDLERS
-  // ==========================================
+  const handleApplyPreset = (preset: ConfigPreset) => {
+    if (preset.settings.theme) setTheme(preset.settings.theme as any);
+    if (preset.settings.playbackQuality) setPlaybackQuality(preset.settings.playbackQuality);
+    if (preset.settings.cardDensity) setCardDensity(preset.settings.cardDensity);
+    if (preset.settings.highContrast !== undefined) setHighContrast(preset.settings.highContrast);
+    if (preset.settings.reducedMotion !== undefined) setReducedMotion(preset.settings.reducedMotion);
 
+    showToast('success', `Applied ${preset.title}`, preset.description);
+    addHistoryLog(`Preset: ${preset.title}`, 'Control Center', 'Custom', preset.title);
+  };
+
+  // AI Assistant Action
+  const handleAiPromptSubmit = (promptText: string) => {
+    setAiPrompt(promptText);
+    showToast('info', 'AI Config Assistant analyzing...', 'Calculating optimal preference parameters');
+    setTimeout(() => {
+      if (promptText.toLowerCase().includes('video') || promptText.toLowerCase().includes('edit')) {
+        setAiRecommendation({
+          title: 'Optimize for Video Editing',
+          description: 'Enable 4K playback quality, compact card density, and smooth transitions.',
+          changes: { playbackQuality: '4k', cardDensity: 'compact', motionPref: 'smooth' }
+        });
+      } else if (promptText.toLowerCase().includes('accessib') || promptText.toLowerCase().includes('contrast')) {
+        setAiRecommendation({
+          title: 'Optimize Accessibility',
+          description: 'Enable high contrast, screen reader cues, and enlarged font scaling.',
+          changes: { highContrast: true, keyboardNavigation: true, fontScale: 'large' }
+        });
+      } else if (promptText.toLowerCase().includes('storage') || promptText.toLowerCase().includes('clean')) {
+        setAiRecommendation({
+          title: 'Reduce Storage Usage',
+          description: 'Clear temporary rendering thumbnails and cache files to free ~420MB.',
+          changes: {}
+        });
+      } else {
+        setAiRecommendation({
+          title: 'Recommended Workspace Settings',
+          description: 'Enable email digests, 2FA security, and auto-saving timeline drafts.',
+          changes: { emailDigest: true, twoFactorEnabled: true }
+        });
+      }
+    }, 500);
+  };
+
+  const handleApproveAiRecommendation = () => {
+    if (!aiRecommendation) return;
+    if (aiRecommendation.changes.playbackQuality) setPlaybackQuality(aiRecommendation.changes.playbackQuality);
+    if (aiRecommendation.changes.cardDensity) setCardDensity(aiRecommendation.changes.cardDensity);
+    if (aiRecommendation.changes.highContrast !== undefined) setHighContrast(aiRecommendation.changes.highContrast);
+    if (aiRecommendation.changes.emailDigest !== undefined) setEmailDigest(aiRecommendation.changes.emailDigest);
+
+    showToast('success', 'AI Recommendations Applied', aiRecommendation.title);
+    addHistoryLog('AI Assistant Optimization', 'AI Engine', 'Default', aiRecommendation.title);
+    setAiRecommendation(null);
+  };
+
+  // Action Handlers
   const handleClearCache = async () => {
     setConfirmModal({
       isOpen: true,
@@ -420,7 +661,7 @@ export function SettingsView() {
     setConfirmModal({
       isOpen: true,
       title: 'Critical: Wipe Database',
-      message: 'CRITICAL WARNING: This will permanently wipe ALL local stories, profiles, media archives, and configuration settings. This action is irreversible. Proceed?',
+      message: 'CRITICAL WARNING: This will permanently wipe ALL local stories, profiles, media archives, and configuration settings. Irreversible!',
       onConfirm: async () => {
         await persistenceService.clearAll();
         showToast('warning', 'Database Wiped', 'All local databases have been wiped. Reloading application...');
@@ -434,23 +675,15 @@ export function SettingsView() {
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await SettingsService.updateSettings({
-        firstName,
-        lastName,
-        citations,
-        biography
-      });
+      await SettingsService.updateSettings({ firstName, lastName, citations, biography });
       if (user) {
-        await AuthService.updateProfile(user.id, {
-          firstName,
-          lastName,
-          bio: biography
-        });
+        await AuthService.updateProfile(user.id, { firstName, lastName, bio: biography });
         await refreshUser();
       }
-      showToast('success', 'Profile updated successfully!', 'Your co-author credentials have been safely committed.');
+      showToast('success', 'Profile updated!', 'Your co-author credentials have been saved.');
+      addHistoryLog('Co-Author Profile', 'Profile', 'Previous', `${firstName} ${lastName}`);
     } catch (err: any) {
-      showToast('error', 'Update Failed', err.message || 'Could not save profile settings.');
+      showToast('error', 'Update Failed', err.message);
     }
   };
 
@@ -469,20 +702,19 @@ export function SettingsView() {
       });
       if (user) {
         const parts = fullName.split(' ');
-        const fName = parts[0] || firstName;
-        const lName = parts.slice(1).join(' ') || lastName;
         await AuthService.updateProfile(user.id, {
-          firstName: fName,
-          lastName: lName,
+          firstName: parts[0] || firstName,
+          lastName: parts.slice(1).join(' ') || lastName,
           displayName,
           country,
           timeZone: timezone
         });
         await refreshUser();
       }
-      showToast('success', 'Account credentials saved!', 'Personal and locale settings have been updated.');
+      showToast('success', 'Account details saved!', 'Personal and locale settings updated.');
+      addHistoryLog('Account Details', 'Account', 'Previous', fullName);
     } catch (err: any) {
-      showToast('error', 'Update Failed', err.message || 'Could not save account details.');
+      showToast('error', 'Update Failed', err.message);
     }
   };
 
@@ -507,293 +739,29 @@ export function SettingsView() {
       const passwordHash = await hashPassword(newPassword);
       await persistenceService.users.update(user.id, { passwordHash });
 
-      showToast('success', 'Password updated', 'Your authentication parameters have been modified successfully.');
+      showToast('success', 'Password updated', 'Your authentication parameters have been modified.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setShowPasswordFields(false);
+      addHistoryLog('Security Password', 'Security', 'Old Hash', 'New Hash');
     } catch (err: any) {
-      showToast('error', 'Update Failed', err.message || 'Could not update password.');
+      showToast('error', 'Update Failed', err.message);
     }
-  };
-
-  const handleSavePreferences = async (category: string) => {
-    try {
-      let updates: Partial<SettingsSchema> = {};
-      if (category === 'Personalization Appearance') {
-        updates = {
-          theme,
-          accentColor,
-          fontScale: fontScaling,
-          motionPref,
-          compactMode,
-          animationIntensity
-        };
-      } else if (category === 'Workspace Configurations') {
-        updates = {
-          sidebarBehavior,
-          rightPanelBehavior,
-          defaultView,
-          cardDensity,
-          tableDensity
-        };
-      } else if (category === 'Notifications Settings') {
-        updates = {
-          emailDigest,
-          inAppNotifs,
-          weeklyReminders,
-          securityLogs,
-          uploadNotifs,
-          storyNotifs,
-          timelineNotifs
-        };
-      } else if (category === 'Accessibility Preferences') {
-        updates = {
-          highContrast,
-          reducedMotion,
-          keyboardNavigation: keyboardNav,
-          screenReader,
-          focusVisibility
-        };
-      } else if (category === 'Privacy Settings') {
-        updates = {
-          analyticsEnabled,
-          dataSharing,
-          profileVisibility,
-          storyVisibility,
-          legacyProfilePrivacy,
-          searchVisibility
-        };
-      } else if (category === 'Playback Settings') {
-        updates = {
-          playbackQuality,
-          playbackAutoplay,
-          playbackMuteByDefault,
-          playbackTransitionSpeed
-        };
-      }
-
-      await SettingsService.updateSettings(updates);
-      showToast('success', `${category} Saved`, 'Preferences have been stored securely in system configurations.');
-    } catch (err: any) {
-      showToast('error', 'Save Failed', err.message);
-    }
-  };
-
-  const handleResetSection = async (section: string) => {
-    try {
-      const s = await SettingsService.resetSection(section);
-      if (section === 'appearance') {
-        setTheme(s.theme);
-        setAccentColor(s.accentColor);
-        setFontScaling(s.fontScale);
-        setMotionPref(s.motionPref);
-        setCompactMode(s.compactMode);
-        setAnimationIntensity(s.animationIntensity);
-      } else if (section === 'workspace') {
-        setSidebarBehavior(s.sidebarBehavior);
-        setRightPanelBehavior(s.rightPanelBehavior);
-        setDefaultView(s.defaultView);
-        setCardDensity(s.cardDensity);
-        setTableDensity(s.tableDensity);
-      } else if (section === 'notifications') {
-        setEmailDigest(s.emailDigest);
-        setInAppNotifs(s.inAppNotifs);
-        setWeeklyReminders(s.weeklyReminders);
-        setSecurityLogs(s.securityLogs);
-        setUploadNotifs(s.uploadNotifs);
-        setStoryNotifs(s.storyNotifs);
-        setTimelineNotifs(s.timelineNotifs);
-      } else if (section === 'accessibility') {
-        setHighContrast(s.highContrast);
-        setReducedMotion(s.reducedMotion);
-        setKeyboardNav(s.keyboardNavigation);
-        setScreenReader(s.screenReader);
-        setFocusVisibility(s.focusVisibility);
-      } else if (section === 'privacy') {
-        setAnalyticsEnabled(s.analyticsEnabled);
-        setDataSharing(s.dataSharing);
-        setProfileVisibility(s.profileVisibility);
-        setStoryVisibility(s.storyVisibility);
-        setLegacyProfilePrivacy(s.legacyProfilePrivacy);
-        setSearchVisibility(s.searchVisibility);
-      } else if (section === 'playback') {
-        setPlaybackQuality(s.playbackQuality);
-        setPlaybackAutoplay(s.playbackAutoplay);
-        setPlaybackMuteByDefault(s.playbackMuteByDefault);
-        setPlaybackTransitionSpeed(s.playbackTransitionSpeed);
-      } else if (section === 'account') {
-        setFullName(s.fullName || '');
-        setDisplayName(s.displayName || '');
-        setEmail(s.email || '');
-        setPhone(s.phone || '');
-        setDob(s.dob || '');
-        setCountry(s.country || '');
-        setTimezone(s.timeZone || '');
-        setPreferredLanguage(s.preferredLanguage || '');
-      } else if (section === 'profile') {
-        setFirstName(s.firstName || '');
-        setLastName(s.lastName || '');
-        setCitations(s.citations || '');
-        setBiography(s.biography || '');
-      }
-
-      showToast('success', `${section.toUpperCase()} Reset`, 'Section configurations have been restored to defaults.');
-    } catch (err: any) {
-      showToast('error', 'Reset Failed', err.message);
-    }
-  };
-
-  const handleResetEntireSettings = async () => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'Reset All Settings',
-      message: 'Are you sure you want to restore ALL settings across all categories to default values?',
-      onConfirm: async () => {
-        try {
-          const s = await SettingsService.resetEntireSettings();
-          // Appearance
-          setTheme(s.theme);
-          setAccentColor(s.accentColor);
-          setFontScaling(s.fontScale);
-          setMotionPref(s.motionPref);
-          setCompactMode(s.compactMode);
-          setAnimationIntensity(s.animationIntensity);
-          // Workspace
-          setSidebarBehavior(s.sidebarBehavior);
-          setRightPanelBehavior(s.rightPanelBehavior);
-          setDefaultView(s.defaultView);
-          setCardDensity(s.cardDensity);
-          setTableDensity(s.tableDensity);
-          // Notifications
-          setEmailDigest(s.emailDigest);
-          setInAppNotifs(s.inAppNotifs);
-          setWeeklyReminders(s.weeklyReminders);
-          setSecurityLogs(s.securityLogs);
-          setUploadNotifs(s.uploadNotifs);
-          setStoryNotifs(s.storyNotifs);
-          setTimelineNotifs(s.timelineNotifs);
-          // Accessibility
-          setHighContrast(s.highContrast);
-          setReducedMotion(s.reducedMotion);
-          setKeyboardNav(s.keyboardNavigation);
-          setScreenReader(s.screenReader);
-          setFocusVisibility(s.focusVisibility);
-          // Privacy
-          setAnalyticsEnabled(s.analyticsEnabled);
-          setDataSharing(s.dataSharing);
-          setProfileVisibility(s.profileVisibility);
-          setStoryVisibility(s.storyVisibility);
-          setLegacyProfilePrivacy(s.legacyProfilePrivacy);
-          setSearchVisibility(s.searchVisibility);
-          // Playback
-          setPlaybackQuality(s.playbackQuality);
-          setPlaybackAutoplay(s.playbackAutoplay);
-          setPlaybackMuteByDefault(s.playbackMuteByDefault);
-          setPlaybackTransitionSpeed(s.playbackTransitionSpeed);
-          // Account
-          setFullName(s.fullName || '');
-          setDisplayName(s.displayName || '');
-          setEmail(s.email || '');
-          setPhone(s.phone || '');
-          setDob(s.dob || '');
-          setCountry(s.country || '');
-          setTimezone(s.timeZone || '');
-          setPreferredLanguage(s.preferredLanguage || '');
-          // Profile
-          setFirstName(s.firstName || '');
-          setLastName(s.lastName || '');
-          setCitations(s.citations || '');
-          setBiography(s.biography || '');
-
-          showToast('success', 'All Preferences Reset', 'System configurations successfully restored to defaults.');
-        } catch (err: any) {
-          showToast('error', 'Reset Failed', err.message);
-        }
-      }
-    });
   };
 
   const handleExportSettings = async () => {
     try {
       const dataStr = await SettingsService.exportSettings();
       const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-
-      const exportFileDefaultName = 'reellegacy_settings.json';
-
       const linkElement = document.createElement('a');
       linkElement.setAttribute('href', dataUri);
-      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.setAttribute('download', 'reellegacy_settings.json');
       linkElement.click();
-      showToast('success', 'Export Successful', 'Your configuration settings have been exported as JSON.');
+      showToast('success', 'Export Successful', 'Configuration settings exported as JSON.');
     } catch (err: any) {
       showToast('error', 'Export Failed', err.message);
     }
-  };
-
-  const handleImportSettings = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const jsonStr = event.target?.result as string;
-        const s = await SettingsService.importSettings(jsonStr);
-
-        // Map state variables
-        setTheme(s.theme);
-        setAccentColor(s.accentColor);
-        setFontScaling(s.fontScale);
-        setMotionPref(s.motionPref);
-        setCompactMode(s.compactMode);
-        setAnimationIntensity(s.animationIntensity);
-        setSidebarBehavior(s.sidebarBehavior);
-        setRightPanelBehavior(s.rightPanelBehavior);
-        setDefaultView(s.defaultView);
-        setCardDensity(s.cardDensity);
-        setTableDensity(s.tableDensity);
-        setEmailDigest(s.emailDigest);
-        setInAppNotifs(s.inAppNotifs);
-        setWeeklyReminders(s.weeklyReminders);
-        setSecurityLogs(s.securityLogs);
-        setUploadNotifs(s.uploadNotifs);
-        setStoryNotifs(s.storyNotifs);
-        setTimelineNotifs(s.timelineNotifs);
-        setHighContrast(s.highContrast);
-        setReducedMotion(s.reducedMotion);
-        setKeyboardNav(s.keyboardNavigation);
-        setScreenReader(s.screenReader);
-        setFocusVisibility(s.focusVisibility);
-        setAnalyticsEnabled(s.analyticsEnabled);
-        setDataSharing(s.dataSharing);
-        setProfileVisibility(s.profileVisibility);
-        setStoryVisibility(s.storyVisibility);
-        setLegacyProfilePrivacy(s.legacyProfilePrivacy);
-        setSearchVisibility(s.searchVisibility);
-        setPlaybackQuality(s.playbackQuality);
-        setPlaybackAutoplay(s.playbackAutoplay);
-        setPlaybackMuteByDefault(s.playbackMuteByDefault);
-        setPlaybackTransitionSpeed(s.playbackTransitionSpeed);
-        setFullName(s.fullName || '');
-        setDisplayName(s.displayName || '');
-        setEmail(s.email || '');
-        setPhone(s.phone || '');
-        setDob(s.dob || '');
-        setCountry(s.country || '');
-        setTimezone(s.timeZone || '');
-        setPreferredLanguage(s.preferredLanguage || '');
-        setFirstName(s.firstName || '');
-        setLastName(s.lastName || '');
-        setCitations(s.citations || '');
-        setBiography(s.biography || '');
-
-        showToast('success', 'Import Successful', 'Configuration settings successfully imported and applied.');
-      } catch (err: any) {
-        showToast('error', 'Import Failed', err.message);
-      }
-    };
-    reader.readAsText(file);
   };
 
   const handleToggle2FA = async () => {
@@ -804,1680 +772,973 @@ export function SettingsView() {
       showToast(
         nextVal ? 'success' : 'warning', 
         nextVal ? 'Two-Factor Auth Initialized' : 'Two-Factor Auth Disabled', 
-        nextVal ? 'Security key generated. Store your backup recovery codes.' : 'Additional security is no longer active.'
+        nextVal ? 'Security key generated.' : '2FA deactivated.'
       );
+      addHistoryLog('2FA Security', 'Security', nextVal ? 'Off' : 'On', nextVal ? 'On' : 'Off');
     } catch (e: any) {
       showToast('error', 'Action failed', e.message);
     }
   };
 
-  const handleRevokeSession = (id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-    showToast('info', 'Active session revoked', 'The selected device session has been signed out.');
+  // Inspect Card in Right Panel
+  const handleInspectSetting = (title: string, category: string, details: string) => {
+    setSelection('settings', { title, category, details });
+    setRightPanelOpen(true);
   };
 
-  const handleTriggerVerification = () => {
-    showToast('loading', 'Sending verification mail...', 'A link was dispatched to ' + email);
-    setTimeout(() => {
-      showToast('success', 'Verification link dispatched', 'Check your mail client to verify ownership.');
-    }, 1500);
-  };
-
-  // ==========================================
-  // CATEGORIES DEFINITION (Settings Hub Overview)
-  // ==========================================
-
-  const categories = [
-    { id: 'account', label: 'My Account', icon: User, desc: 'Personal details, email verification, languages, active sessions', status: 'Active' },
-    { id: 'profile', label: 'Co-Author Profile', icon: Key, desc: 'Manage display name, citations prefix, biography details', status: 'Philip Shaba (Archivist)' },
-    { id: 'appearance', label: 'Theme & Appearance', icon: Paintbrush, desc: 'Tweak workspace themes, accents, scales, motion limits', status: theme === 'system' ? 'System Theme' : theme === 'dark' ? 'Dark Mode' : 'Light Theme' },
-    { id: 'workspace', label: 'Workspace Behaviour', icon: LayoutGrid, desc: 'Sidebar defaults, default opening view, list layouts', status: 'Comfortable Density' },
-    { id: 'notifications', label: 'Notification Channels', icon: BellRing, desc: 'Email digests, push warnings, weekly timeline logs', status: emailDigest ? 'All active' : 'Limited digests' },
-    { id: 'playback', label: 'Playback & Video', icon: PlayCircle, desc: 'Default preview quality, autoplay preferences, transitions', status: 'High Quality' },
-    { id: 'accessibility', label: 'Accessibility Tools', icon: Accessibility, desc: 'High-contrast ratios, focus borders, keyboard navigations', status: keyboardNav ? 'Full Compliance' : 'Standard' },
-    { id: 'privacy', label: 'Privacy & Sharing', icon: ShieldAlert, desc: 'Metrics toggle, cloud sync paths, draft permissions', status: 'Invite-Only Private' },
-    { id: 'security', label: 'Security & Keys', icon: Lock, desc: 'Password updates, login history, trusted device controls', status: twoFactorEnabled ? '2FA Active' : '2FA Standard' },
-    { id: 'storage', label: 'Storage & Statistics', icon: Database, desc: 'Detailed sizing breakdown for pictures, scripts and voiceovers', status: '1.18 GB / 15 GB Used' },
-    { id: 'shortcuts', label: 'Keyboard Shortcuts', icon: Keyboard, desc: 'Review key bindings for documentary curation, timelines, and clips', status: 'Standard Bindings' },
-    { id: 'integrations', label: 'Workspace Integrations', icon: Link2, desc: 'Connect Google Drive, OneDrive, and external backup systems', status: 'Connected' },
-    { id: 'about', label: 'About ReelLegacy', icon: Info, desc: 'Product version, license data, open source notices, changelogs', status: 'v0.1.0 (Dev Channel)' }
-  ] as const;
+  // Horizontal Navigation Workspace Tabs List
+  const workspaceTabs: { id: SettingsTab; label: string; icon: any; badge?: string }[] = [
+    { id: 'overview', label: 'Overview', icon: LayoutGrid, badge: 'Hub' },
+    { id: 'account', label: 'Account', icon: User },
+    { id: 'profile', label: 'Co-Author Bio', icon: Key },
+    { id: 'workspace', label: 'Workspace', icon: Layout },
+    { id: 'appearance', label: 'Appearance', icon: Paintbrush },
+    { id: 'notifications', label: 'Notifications', icon: BellRing },
+    { id: 'playback', label: 'Playback', icon: PlayCircle },
+    { id: 'accessibility', label: 'Accessibility', icon: Accessibility },
+    { id: 'privacy', label: 'Privacy', icon: ShieldAlert },
+    { id: 'security', label: 'Security', icon: Lock },
+    { id: 'storage', label: 'Storage', icon: Database },
+    { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
+    { id: 'integrations', label: 'Integrations', icon: Link2 },
+    { id: 'advanced', label: 'Advanced & Presets', icon: SlidersHorizontal, badge: 'Pro' },
+    { id: 'about', label: 'About', icon: Info }
+  ];
 
   return (
-    <div id="settings-view-root" className="space-y-6 animate-fade-in text-foreground pb-12 pt-2.5 md:pt-4 lg:pt-5">
-      {/* Settings Title Header */}
-      <div id="settings-view-title-card" className="border-b border-border pb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Settings className="w-6 h-6 text-cinema-amber-500" />
-            System Settings & Preferences
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Configure co-author profiles, themes, interface scales, privacy parameters, and cloud statistics.
-          </p>
-        </div>
-        
-        {/* Navigation Breadcrumb inside Setting tabs */}
-        {activeTab !== 'hub' && (
-          <Button 
-            id="back-to-hub-btn" 
-            variant="secondary" 
-            size="sm" 
-            onClick={() => setActiveTab('hub')}
-          >
-            <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Settings Hub
-          </Button>
-        )}
-      </div>
+    <div id="settings-control-center-root" className="space-y-6 animate-fade-in text-foreground pb-16 pt-2 md:pt-4">
+      {/* SECTION 1: HERO CONTROL CENTER OVERVIEW BANNER */}
+      <div id="settings-hero-banner" className="bg-gradient-to-br from-cinema-slate-900 via-cinema-slate-800 to-cinema-slate-950 text-white rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-xl border border-cinema-slate-800 space-y-6">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-cinema-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-cinema-ai/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Main Settings layout: Navigation sidebar + content panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start" id="settings-grid-layout">
-        
-        {/* Left Side Navigation Rail */}
-        <div className="space-y-1 lg:col-span-1 border border-border p-4 rounded-2xl bg-card" id="settings-navigation-rail">
-          {/* Settings Hub Button */}
-          <button
-            id="btn-tab-setting-hub"
-            onClick={() => setActiveTab('hub')}
-            className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all group cursor-pointer ${
-              activeTab === 'hub'
-                ? 'bg-cinema-amber-500/10 text-cinema-amber-500 border border-cinema-amber-500/20 font-semibold shadow-xs'
-                : 'border border-transparent hover:bg-muted/50 text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <Sliders className="w-4.5 h-4.5 shrink-0" />
-              <div>
-                <span className="text-xs font-bold block">Settings Overview</span>
-                <span className="text-[10px] text-muted-foreground/80 font-medium block truncate mt-0.5">Central Hub Dashboard</span>
-              </div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center text-[10px] uppercase font-mono font-bold tracking-widest text-cinema-amber-400 bg-cinema-amber-500/15 px-3 py-1 rounded-full border border-cinema-amber-500/30">
+                <Settings className="w-3.5 h-3.5 mr-1.5 text-cinema-amber-400 animate-spin-slow" /> ReelLegacy Control Center
+              </span>
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 font-bold">
+                System Healthy
+              </span>
             </div>
-            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
-          </button>
 
-          <div className="border-t border-border/60 my-2 pt-2">
-            <span className="px-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/45 block mb-1">
-              Settings Sections
-            </span>
-            {categories.map((tab) => {
-              const TabIcon = tab.icon;
-              const isActive = activeTab === tab.id;
+            <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white">
+              System Settings & Preferences
+            </h1>
+            <p className="text-xs md:text-sm text-cinema-slate-300 max-w-xl leading-relaxed">
+              Configure co-author profiles, UI layout density, security parameters, rendering presets, and cloud storage.
+            </p>
+          </div>
 
-              return (
-                <button
-                  key={tab.id}
-                  id={`btn-tab-setting-${tab.id}`}
-                  onClick={() => setActiveTab(tab.id as SettingsTab)}
-                  className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all group cursor-pointer mt-0.5 ${
-                    isActive
-                      ? 'bg-cinema-amber-500/10 text-cinema-amber-500 border border-cinema-amber-500/20 font-semibold'
-                      : 'border border-transparent hover:bg-muted/50 text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <TabIcon className={`w-4 h-4 shrink-0 ${isActive ? 'text-cinema-amber-500' : 'text-muted-foreground group-hover:text-foreground'}`} />
-                    <span className="text-xs font-bold truncate">{tab.label}</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
-                </button>
-              );
-            })}
+          {/* Quick Action Header Buttons */}
+          <div className="flex items-center gap-2 shrink-0" id="hero-quick-actions">
+            <Button
+              id="btn-hero-ai-assist"
+              variant="outline"
+              size="sm"
+              onClick={() => handleAiPromptSubmit('Optimise my workspace settings')}
+              className="border-cinema-ai/40 text-cinema-ai hover:bg-cinema-ai/10 text-xs font-bold cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" /> AI Config Assist
+            </Button>
+
+            <Button
+              id="btn-hero-export-json"
+              variant="secondary"
+              size="sm"
+              onClick={handleExportSettings}
+              className="text-xs cursor-pointer"
+            >
+              <Archive className="w-3.5 h-3.5 mr-1.5" /> Export JSON
+            </Button>
           </div>
         </div>
 
-        {/* Right Settings Body viewport */}
-        <div className="lg:col-span-3 border border-border p-6 md:p-8 bg-card rounded-2xl shadow-xs" id="settings-panels-container">
-          
-          {/* ==========================================
-              0. SETTINGS HUB OVERVIEW
-              ========================================== */}
-          {activeTab === 'hub' && (
-            <div id="settings-panel-hub" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-hub-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2 text-foreground">
-                  <Sliders className="w-5 h-5 text-cinema-amber-500" /> Settings Categories Index
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Browse and edit specific categories. Click on any category block to adjust credentials or customize visual shimmers.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="hub-cards-grid">
-                {categories.map((cat) => {
-                  const CatIcon = cat.icon;
-                  return (
-                    <button
-                      key={cat.id}
-                      id={`hub-cat-card-${cat.id}`}
-                      onClick={() => setActiveTab(cat.id as SettingsTab)}
-                      className="p-5 border border-border hover:border-cinema-amber-500/50 hover:bg-muted/10 rounded-2xl text-left transition-all duration-200 cursor-pointer flex gap-4 group"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0 border border-border/80 text-muted-foreground group-hover:text-cinema-amber-500 group-hover:border-cinema-amber-500/25 transition-colors">
-                        <CatIcon className="w-5 h-5" />
-                      </div>
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-foreground group-hover:text-cinema-amber-500 transition-colors">
-                            {cat.label}
-                          </span>
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 group-hover:translate-x-1 transition-transform" />
-                        </div>
-                        <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">
-                          {cat.desc}
-                        </p>
-                        <div className="pt-2 flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-cinema-amber-500" />
-                          <span className="text-[9px] font-mono font-bold text-muted-foreground uppercase tracking-wide truncate">
-                            {cat.status}
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+        {/* System Overview Compact Metric Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 font-mono" id="hero-metrics-grid">
+          <div className="bg-white/5 p-3 rounded-2xl border border-white/10 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-cinema-slate-400 uppercase block">Profile Complete</span>
+              <span className="text-base font-bold text-white">89%</span>
             </div>
-          )}
-
-          {/* ==========================================
-              1. ACCOUNT SETTINGS PANEL
-              ========================================== */}
-          {activeTab === 'account' && (
-            <div id="settings-panel-account" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-account-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <User className="w-5 h-5 text-cinema-amber-500" /> Account Management
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Manage personal identification data, date of birth, time zones, active connected devices and email verifications.
-                </p>
-              </div>
-
-              {/* Graphic Profile Card header */}
-              <div className="relative rounded-2xl overflow-hidden border border-border h-44 mb-6" id="account-visual-banner">
-                <img 
-                  src={coverImage} 
-                  alt="Account Cover" 
-                  className="w-full h-full object-cover opacity-75"
-                  referrerPolicy="no-referrer"
-                />
-                <button 
-                  id="change-cover-btn"
-                  onClick={() => showToast('info', 'Cover Image change placeholder triggered.')}
-                  className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white text-[10px] font-bold border border-white/15 cursor-pointer flex items-center gap-1 transition-all"
-                >
-                  <Camera className="w-3.5 h-3.5" /> Edit Cover
-                </button>
-                
-                {/* Overlay Profile Info block */}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 flex items-end gap-4 text-white">
-                  <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-white bg-cinema-amber-100 text-cinema-amber-600 flex items-center justify-center font-display font-bold shrink-0 shadow-lg">
-                    {avatar ? (
-                      <img 
-                        src={avatar} 
-                        alt="Profile Avatar" 
-                        className="w-full h-full object-cover" 
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      'PS'
-                    )}
-                    <button 
-                      id="change-avatar-btn"
-                      onClick={() => showToast('info', 'Avatar change placeholder triggered.')}
-                      className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer text-white"
-                      title="Update Avatar Photo"
-                    >
-                      <Camera className="w-4 h-4" />
-                    </button>
-                  </div>
-                  
-                  <div className="min-w-0 pb-1.5">
-                    <h4 className="font-display font-bold text-sm leading-tight">{fullName}</h4>
-                    <p className="text-[10px] text-zinc-300 font-mono">@{displayName} • {preferredLanguage}</p>
-                  </div>
-
-                  <div className="ml-auto flex items-center gap-1.5" id="verified-status-pill">
-                    {emailVerified ? (
-                      <span className="inline-flex items-center text-[9px] font-bold uppercase tracking-wide text-emerald-400 bg-emerald-500/15 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                        <CheckCircle2 className="w-3 h-3 mr-1" /> Owner Verified
-                      </span>
-                    ) : (
-                      <button 
-                        id="verify-email-trigger-btn"
-                        onClick={handleTriggerVerification}
-                        className="inline-flex items-center text-[9px] font-bold uppercase tracking-wide text-amber-400 bg-amber-500/15 border border-amber-500/20 px-2 py-0.5 rounded-full hover:bg-amber-500/25 cursor-pointer"
-                      >
-                        Unverified Email
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <form onSubmit={handleAccountSubmit} className="space-y-5" id="account-settings-form">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5" id="account-inputs-grid">
-                  <Input
-                    id="account-full-name"
-                    label="Full Name"
-                    placeholder="e.g. Philip Shaba"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                  />
-                  <Input
-                    id="account-display-name"
-                    label="Display Username"
-                    placeholder="e.g. PhilShaba"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                  />
-                  <Input
-                    id="account-email"
-                    label="Primary Email Address"
-                    type="email"
-                    placeholder="e.g. PhilShaba96@gmail.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    helperText="Primary communication endpoint for active vocal renders."
-                  />
-                  <Input
-                    id="account-phone"
-                    label="Phone Number"
-                    placeholder="e.g. +1 (555) 019-2831"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                  <DatePicker
-                    id="account-dob"
-                    label="Date of Birth"
-                    value={dob}
-                    onChange={(val) => setDob(val)}
-                  />
-                  <Select
-                    id="account-country-select"
-                    label="Country / Region"
-                    value={country}
-                    onChange={setCountry}
-                    options={[
-                      { value: 'United States', label: 'United States' },
-                      { value: 'United Kingdom', label: 'United Kingdom' },
-                      { value: 'Canada', label: 'Canada' },
-                      { value: 'Germany', label: 'Germany' },
-                      { value: 'France', label: 'France' }
-                    ]}
-                  />
-                  <Select
-                    id="account-timezone-select"
-                    label="Time Zone"
-                    value={timezone}
-                    onChange={setTimezone}
-                    options={[
-                      { value: 'America/Los_Angeles (PST)', label: 'America/Los_Angeles (PST)' },
-                      { value: 'America/New_York (EST)', label: 'America/New_York (EST)' },
-                      { value: 'Europe/London (GMT)', label: 'Europe/London (GMT)' },
-                      { value: 'Europe/Paris (CET)', label: 'Europe/Paris (CET)' }
-                    ]}
-                  />
-                  <Select
-                    id="account-lang-select"
-                    label="Preferred Language"
-                    value={preferredLanguage}
-                    onChange={setPreferredLanguage}
-                    options={[
-                      { value: 'English (US)', label: 'English (US)' },
-                      { value: 'English (UK)', label: 'English (UK)' },
-                      { value: 'Español', label: 'Español' },
-                      { value: 'Deutsch', label: 'Deutsch' }
-                    ]}
-                  />
-                </div>
-
-                <div className="flex justify-between items-center pt-4 border-t border-border" id="account-form-actions">
-                  <Button
-                    id="account-reset-btn"
-                    variant="outline"
-                    type="button"
-                    onClick={() => handleResetSection('account')}
-                  >
-                    Reset Defaults
-                  </Button>
-                  <Button id="account-submit-btn" variant="primary" type="submit">
-                    Save Account Settings
-                  </Button>
-                </div>
-              </form>
+            <div className="w-8 h-8 rounded-xl bg-cinema-amber-500/20 border border-cinema-amber-500/30 flex items-center justify-center text-cinema-amber-400">
+              <User className="w-4 h-4" />
             </div>
-          )}
+          </div>
 
-          {/* ==========================================
-              2. CO-AUTHOR PROFILE SETTINGS
-              ========================================== */}
-          {activeTab === 'profile' && (
-            <div id="settings-panel-profile" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-profile-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <Key className="w-5 h-5 text-cinema-amber-500" /> Co-Author Profile Settings
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Manage your identity mappings used inside compiled credits, citation footprints, and biography details.
-                </p>
-              </div>
-
-              <form onSubmit={handleProfileSubmit} className="space-y-5" id="profile-settings-form">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5" id="profile-name-row">
-                  <Input
-                    id="co-author-first-name"
-                    label="First Name"
-                    placeholder="e.g. Philip"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                  />
-                  <Input
-                    id="co-author-last-name"
-                    label="Last Name"
-                    placeholder="e.g. Shaba"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                  />
-                </div>
-
-                <Input
-                  id="co-author-citation"
-                  label="Default Document Citations Prefix"
-                  placeholder="e.g. Vance Family Archive"
-                  value={citations}
-                  onChange={(e) => setCitations(e.target.value)}
-                  helperText="Appended automatically to restored photos and certificates catalog cards."
-                />
-
-                <div className="space-y-1.5" id="bio-container">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Co-Author Biography</label>
-                  <textarea
-                    id="co-author-bio"
-                    rows={4}
-                    placeholder="Describe your genealogical background and archiving goals..."
-                    value={biography}
-                    onChange={(e) => setBiography(e.target.value)}
-                    className="w-full text-xs bg-muted/40 border border-border p-3 rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-cinema-amber-500"
-                  />
-                  <p className="text-[10px] text-muted-foreground">This summary will be injected into story metadata credits.</p>
-                </div>
-
-                <div className="flex justify-between items-center pt-4 border-t border-border" id="profile-form-actions">
-                  <Button
-                    id="profile-discard-btn"
-                    variant="outline"
-                    type="button"
-                    onClick={() => handleResetSection('profile')}
-                  >
-                    Reset Defaults
-                  </Button>
-                  <Button id="profile-submit-btn" variant="primary" type="submit">
-                    Save Profile
-                  </Button>
-                </div>
-              </form>
+          <div className="bg-white/5 p-3 rounded-2xl border border-white/10 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-cinema-slate-400 uppercase block">Security Rating</span>
+              <span className="text-base font-bold text-emerald-400">{twoFactorEnabled ? 'Strong (2FA)' : 'Standard'}</span>
             </div>
-          )}
-
-          {/* ==========================================
-              3. APPEARANCE & PERSONALIZATION
-              ========================================== */}
-          {activeTab === 'appearance' && (
-            <div id="settings-panel-appearance" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-appearance-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <Paintbrush className="w-5 h-5 text-cinema-amber-500" /> Color Themes & Personalization
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Configure color theme preferences, transition aesthetics, text sizing, and compact view controls.
-                </p>
-              </div>
-
-              <div className="space-y-6" id="appearance-form-rows">
-                {/* Theme selection card */}
-                <div className="space-y-2.5" id="appearance-theme-select-row">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Default Color Mode</label>
-                  <div className="grid grid-cols-3 gap-4" id="color-mode-cards-grid">
-                    {[
-                      { id: 'light', label: 'Light Theme', desc: 'Crisp light-gray canvases.', icon: Sun },
-                      { id: 'dark', label: 'Dark Mode', desc: 'Sleek, eye-safe midnight themes.', icon: Moon },
-                      { id: 'system', label: 'System Theme', desc: 'Saves battery based on OS settings.', icon: Laptop },
-                    ].map((mode) => {
-                      const Icon = mode.icon;
-                      const isActive = theme === mode.id;
-
-                      return (
-                        <button
-                          key={mode.id}
-                          id={`btn-mode-card-${mode.id}`}
-                          onClick={(e) => {
-                            setTheme(mode.id as 'light' | 'dark' | 'system', e);
-                            showToast('info', `Theme set to ${mode.label}`);
-                          }}
-                          className={`p-4 rounded-xl border text-left flex flex-col items-start gap-2.5 cursor-pointer hover:border-cinema-amber-500/50 transition-all ${
-                            isActive
-                              ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03] text-cinema-amber-500'
-                              : 'border-border/60 bg-card text-foreground'
-                          }`}
-                        >
-                          <Icon className="w-4.5 h-4.5" />
-                          <div>
-                            <span className="text-xs font-bold block">{mode.label}</span>
-                            <span className="text-[10px] text-muted-foreground block mt-0.5">{mode.desc}</span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border/40" id="appearance-placeholders-row">
-                  {/* Accent Swatches */}
-                  <div className="space-y-2" id="pref-accent-container">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Accent Color (Placeholder)</label>
-                    <div className="flex items-center gap-3 bg-muted/20 p-3 rounded-xl border border-border" id="accent-colors-swatch">
-                      {[
-                        { id: 'amber', color: 'bg-amber-500 border-amber-300' },
-                        { id: 'emerald', color: 'bg-emerald-500 border-emerald-300' },
-                        { id: 'sky', color: 'bg-sky-500 border-sky-300' },
-                        { id: 'indigo', color: 'bg-indigo-500 border-indigo-300' },
-                      ].map((accent) => (
-                        <button
-                          key={accent.id}
-                          id={`accent-swatch-${accent.id}`}
-                          onClick={() => {
-                            setAccentColor(accent.id);
-                            showToast('info', `Accent color placeholder updated to ${accent.id}`);
-                          }}
-                          className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-transform ${accent.color} ${accentColor === accent.id ? 'scale-115 ring-2 ring-cinema-amber-500/40' : 'opacity-70 hover:opacity-100'}`}
-                          title={`${accent.id} Accent`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Font Sizing */}
-                  <Select
-                    id="font-scale-select"
-                    label="Text Font Scaling"
-                    value={fontScaling}
-                    onChange={(val) => {
-                      setFontScaling(val);
-                      showToast('info', `Font scale configured to ${val}`);
-                    }}
-                    options={[
-                      { value: 'small', label: 'Small size (Default Compact)' },
-                      { value: 'medium', label: 'Standard Cozy (14px baseline)' },
-                      { value: 'large', label: 'Large visibility (Enhanced contrast)' }
-                    ]}
-                  />
-
-                  {/* Motion settings */}
-                  <Select
-                    id="motion-select"
-                    label="Animation Transitions"
-                    value={motionPref}
-                    onChange={(val) => {
-                      setMotionPref(val);
-                      showToast('info', `Motion settings adjusted: ${val}`);
-                    }}
-                    options={[
-                      { value: 'smooth', label: 'Cinematic Smooth (Fades and staggered entrance)' },
-                      { value: 'minimal', label: 'High Speed Minimal (Instant tab swaps)' }
-                    ]}
-                  />
-
-                  {/* Animation Intensity */}
-                  <Select
-                    id="anim-intensity-select"
-                    label="Animation Intensity"
-                    value={animationIntensity}
-                    onChange={(val) => {
-                      setAnimationIntensity(val);
-                      showToast('info', `Animation intensity set to ${val}`);
-                    }}
-                    options={[
-                      { value: 'gentle', label: 'Gentle (Subtle layout shifts)' },
-                      { value: 'moderate', label: 'Moderate (Standard fluid shimmers)' },
-                      { value: 'full', label: 'Full (High-fidelity spring motions)' }
-                    ]}
-                  />
-
-                  {/* Compact Mode Switch */}
-                  <div className="md:col-span-2 flex items-center justify-between p-4 rounded-xl border border-border bg-muted/10" id="compact-mode-toggle">
-                    <div className="space-y-0.5 pr-6">
-                      <span className="text-xs font-bold text-foreground block">Compact Interface Mode</span>
-                      <span className="text-[10px] text-muted-foreground block">Reduce vertical paddings and margins for high density monitors.</span>
-                    </div>
-                    <button
-                      id="btn-toggle-compact-mode"
-                      onClick={() => {
-                        setCompactMode(!compactMode);
-                        showToast('info', `Compact Mode toggled to: ${!compactMode}`);
-                      }}
-                      className={`w-10 h-5.5 rounded-full relative cursor-pointer transition-colors ${compactMode ? 'bg-cinema-amber-500' : 'bg-muted-foreground/30'}`}
-                    >
-                      <span className={`absolute top-0.75 w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${compactMode ? 'right-0.75' : 'left-0.75'}`} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center pt-4 border-t border-border" id="appearance-save-row">
-                  <Button
-                    id="reset-appearance-btn"
-                    variant="outline"
-                    onClick={() => handleResetSection('appearance')}
-                  >
-                    Reset Defaults
-                  </Button>
-                  <Button
-                    id="save-appearance-btn"
-                    variant="primary"
-                    onClick={() => handleSavePreferences('Personalization Appearance')}
-                  >
-                    Save Personalization
-                  </Button>
-                </div>
-              </div>
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <Lock className="w-4 h-4" />
             </div>
-          )}
+          </div>
 
-          {/* ==========================================
-              4. WORKSPACE OPTIONS PANEL
-              ========================================== */}
-          {activeTab === 'workspace' && (
-            <div id="settings-panel-workspace" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-workspace-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <LayoutGrid className="w-5 h-5 text-cinema-amber-500" /> Workspace Configurations
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Configure default behaviors, sidebar opening states, utility panel docking, and element grids.
-                </p>
-              </div>
-
-              <div className="space-y-5" id="workspace-form-rows">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6" id="workspace-inputs-grid">
-                  {/* Sidebar Behavior */}
-                  <Select
-                    id="sidebar-behavior-select"
-                    label="Sidebar Default State"
-                    value={sidebarBehavior}
-                    onChange={(val) => {
-                      setSidebarBehavior(val);
-                      showToast('info', `Sidebar behavior adjusted to: ${val}`);
-                    }}
-                    options={[
-                      { value: 'expanded', label: 'Expanded (Always display section labels)' },
-                      { value: 'collapsed', label: 'Collapsed (Render icon rails only)' }
-                    ]}
-                  />
-
-                  {/* Right Panel docked behavior */}
-                  <Select
-                    id="right-panel-behavior-select"
-                    label="Right Panel Behavior"
-                    value={rightPanelBehavior}
-                    onChange={setRightPanelBehavior}
-                    options={[
-                      { value: 'collapsible', label: 'Collapsible Drawer (Auto-closes on layout shrink)' },
-                      { value: 'fixed', label: 'Fixed Panel (Pushes viewport boundaries)' }
-                    ]}
-                  />
-
-                  {/* Opening route */}
-                  <Select
-                    id="default-view-select"
-                    label="Landing View Screen"
-                    value={defaultView}
-                    onChange={setDefaultView}
-                    options={[
-                      { value: 'dashboard', label: 'Cinematic Dashboard' },
-                      { value: 'stories', label: 'Story Library' },
-                      { value: 'profiles', label: 'Legacy Profiles' }
-                    ]}
-                  />
-
-                  {/* Card density config */}
-                  <Select
-                    id="card-density-select"
-                    label="Memoir Card Density"
-                    value={cardDensity}
-                    onChange={setCardDensity}
-                    options={[
-                      { value: 'comfortable', label: 'Comfortable (Generous negative spaces)' },
-                      { value: 'cozy', label: 'Cozy (Standard card titles)' },
-                      { value: 'compact', label: 'Brutalist (Compact grid limits)' }
-                    ]}
-                  />
-
-                  {/* Table Density */}
-                  <Select
-                    id="table-density-select"
-                    label="Table Row Spacing"
-                    value={tableDensity}
-                    onChange={setTableDensity}
-                    options={[
-                      { value: 'standard', label: 'Standard (44px vertical targets)' },
-                      { value: 'dense', label: 'Dense (Compact excel lists)' }
-                    ]}
-                  />
-                </div>
-
-                <div className="flex justify-between items-center pt-4 border-t border-border" id="workspace-save-row">
-                  <Button
-                    id="reset-workspace-btn"
-                    variant="outline"
-                    onClick={() => handleResetSection('workspace')}
-                  >
-                    Reset Defaults
-                  </Button>
-                  <Button
-                    id="save-workspace-btn"
-                    variant="primary"
-                    onClick={() => handleSavePreferences('Workspace Configurations')}
-                  >
-                    Save Workspace Prefs
-                  </Button>
-                </div>
-              </div>
+          <div className="bg-white/5 p-3 rounded-2xl border border-white/10 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-cinema-slate-400 uppercase block">Storage Used</span>
+              <span className="text-base font-bold text-white">{percentUsed}% ({totalEstimatedSize})</span>
             </div>
-          )}
-
-          {/* ==========================================
-              5. NOTIFICATION CHANNELS
-              ========================================== */}
-          {activeTab === 'notifications' && (
-            <div id="settings-panel-notifications" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-notifications-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <BellRing className="w-5 h-5 text-cinema-amber-500" /> Notification Channels Preferences
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Configure real-time triggers, email compiled summaries, in-app bell indicators, and activity logs.
-                </p>
-              </div>
-
-              <div className="space-y-4" id="notifications-settings-toggles">
-                {[
-                  {
-                    id: 'emailDigest',
-                    label: 'Send Email Digests',
-                    desc: 'Monthly compiled memoirs summaries, download logs, and co-author contributions reports.',
-                    state: emailDigest,
-                    setter: setEmailDigest
-                  },
-                  {
-                    id: 'inAppNotifs',
-                    label: 'In-App Shimmer Signals',
-                    desc: 'Display yellow indicator dots in the header bell whenever renders finish compiler queues.',
-                    state: inAppNotifs,
-                    setter: setInAppNotifs
-                  },
-                  {
-                    id: 'weeklyReminders',
-                    label: 'Weekly Archive Reminders',
-                    desc: 'Suggestions for scan uploads or text-to-speech recordings to fill empty chronology years.',
-                    state: weeklyReminders,
-                    setter: setWeeklyReminders
-                  },
-                  {
-                    id: 'securityLogs',
-                    label: 'Workspace Security Warnings',
-                    desc: 'Notify my primary email address whenever active logins occur from new devices.',
-                    state: securityLogs,
-                    setter: setSecurityLogs
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.id}
-                    id={`toggle-box-${item.id}`}
-                    className="flex items-start justify-between p-4 rounded-2xl border border-border bg-muted/10"
-                  >
-                    <div className="space-y-1 pr-6 flex-1">
-                      <span className="text-xs font-bold text-foreground block">{item.label}</span>
-                      <span className="text-[11px] text-muted-foreground block leading-normal">{item.desc}</span>
-                    </div>
-                    <button
-                      id={`btn-toggle-${item.id}`}
-                      onClick={() => {
-                        item.setter(!item.state);
-                        showToast('info', `${item.label} updated.`);
-                      }}
-                      className={`w-10 h-5.5 rounded-full relative cursor-pointer transition-colors ${item.state ? 'bg-cinema-amber-500' : 'bg-muted-foreground/30'}`}
-                    >
-                      <span className={`absolute top-0.75 w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${item.state ? 'right-0.75' : 'left-0.75'}`} />
-                    </button>
-                  </div>
-                ))}
-
-                <div className="flex justify-between items-center pt-4 border-t border-border" id="notifications-save-row">
-                  <Button
-                    id="reset-notifications-btn"
-                    variant="outline"
-                    onClick={() => handleResetSection('notifications')}
-                  >
-                    Reset Defaults
-                  </Button>
-                  <Button
-                    id="save-notifications-btn"
-                    variant="primary"
-                    onClick={() => handleSavePreferences('Notifications Settings')}
-                  >
-                    Save Preferences
-                  </Button>
-                </div>
-              </div>
+            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+              <Database className="w-4 h-4" />
             </div>
-          )}
+          </div>
 
-          {/* ==========================================
-              6. ACCESSIBILITY PANEL
-              ========================================== */}
-          {activeTab === 'accessibility' && (
-            <div id="settings-panel-accessibility" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-accessibility-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <Accessibility className="w-5 h-5 text-cinema-amber-500" /> Accessibility Options
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Tune compliance parameters, contrast overlays, focus visibility rings, and screen-readers markers.
-                </p>
-              </div>
-
-              <div className="space-y-4" id="accessibility-settings-toggles">
-                {[
-                  {
-                    id: 'highContrast',
-                    label: 'High Contrast Mode',
-                    desc: 'Swap subtle layout border lines for high contrast thick charcoal solids.',
-                    state: highContrast,
-                    setter: setHighContrast
-                  },
-                  {
-                    id: 'reducedMotion',
-                    label: 'Reduced Motion Settings',
-                    desc: 'Disable sliding menus and heavy loading shimmers for absolute static simplicity.',
-                    state: reducedMotion,
-                    setter: setReducedMotion
-                  },
-                  {
-                    id: 'keyboardNav',
-                    label: 'WCAG Keyboard Navigation Guides',
-                    desc: 'Inforce strict logical tab sequencing across overlays and profile modal panels.',
-                    state: keyboardNav,
-                    setter: setKeyboardNav
-                  },
-                  {
-                    id: 'screenReader',
-                    label: 'Enhanced Talkback Tagging',
-                    desc: 'Auto-inject descriptive alt texts on historical photo restorations.',
-                    state: screenReader,
-                    setter: setScreenReader
-                  },
-                  {
-                    id: 'focusVisibility',
-                    label: 'Thicker Input Focus Outlines',
-                    desc: 'Render high contrast borders surrounding the currently focused button elements.',
-                    state: focusVisibility,
-                    setter: setFocusVisibility
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.id}
-                    id={`accessibility-toggle-box-${item.id}`}
-                    className="flex items-start justify-between p-4 rounded-2xl border border-border bg-muted/10"
-                  >
-                    <div className="space-y-1 pr-6 flex-1">
-                      <span className="text-xs font-bold text-foreground block">{item.label}</span>
-                      <span className="text-[11px] text-muted-foreground block leading-normal">{item.desc}</span>
-                    </div>
-                    <button
-                      id={`btn-accessibility-toggle-${item.id}`}
-                      onClick={() => {
-                        item.setter(!item.state);
-                        showToast('info', `${item.label} adjusted.`);
-                      }}
-                      className={`w-10 h-5.5 rounded-full relative cursor-pointer transition-colors ${item.state ? 'bg-cinema-amber-500' : 'bg-muted-foreground/30'}`}
-                    >
-                      <span className={`absolute top-0.75 w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${item.state ? 'right-0.75' : 'left-0.75'}`} />
-                    </button>
-                  </div>
-                ))}
-
-                <div className="flex justify-between items-center pt-4 border-t border-border" id="accessibility-save-row">
-                  <Button
-                    id="reset-accessibility-btn"
-                    variant="outline"
-                    onClick={() => handleResetSection('accessibility')}
-                  >
-                    Reset Defaults
-                  </Button>
-                  <Button
-                    id="save-accessibility-btn"
-                    variant="primary"
-                    onClick={() => handleSavePreferences('Accessibility Preferences')}
-                  >
-                    Save Accessibility
-                  </Button>
-                </div>
-              </div>
+          <div className="bg-white/5 p-3 rounded-2xl border border-white/10 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-cinema-slate-400 uppercase block">Integrations</span>
+              <span className="text-base font-bold text-sky-400">5 Connected</span>
             </div>
-          )}
-
-          {/* ==========================================
-              7. PRIVACY & SHARING
-              ========================================== */}
-          {activeTab === 'privacy' && (
-            <div id="settings-panel-privacy" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-privacy-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <ShieldAlert className="w-5 h-5 text-cinema-amber-500" /> Privacy Shield & Permissions
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Manage database visibility indexes, declassified archives safety modes, and telemetry triggers.
-                </p>
-              </div>
-
-              <div className="space-y-5" id="privacy-form-rows">
-                <div className="space-y-4" id="privacy-settings-toggles">
-                  {/* Share Analytics */}
-                  <div className="flex items-start justify-between p-4 rounded-2xl border border-border bg-muted/10" id="toggle-box-analytics">
-                    <div className="space-y-1 pr-6 flex-1">
-                      <span className="text-xs font-bold text-foreground block">Share Anonymous Compiler Analytics</span>
-                      <span className="text-[11px] text-muted-foreground block leading-normal">
-                        Submit processing times and audio render lengths to help optimize ReelLegacy pipeline clusters.
-                      </span>
-                    </div>
-                    <button
-                      id="btn-toggle-analytics"
-                      onClick={() => setAnalyticsEnabled(!analyticsEnabled)}
-                      className={`w-10 h-5.5 rounded-full relative cursor-pointer transition-colors ${analyticsEnabled ? 'bg-cinema-amber-500' : 'bg-muted-foreground/30'}`}
-                    >
-                      <span className={`absolute top-0.75 w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${analyticsEnabled ? 'right-0.75' : 'left-0.75'}`} />
-                    </button>
-                  </div>
-
-                  {/* Cloud AI sync */}
-                  <div className="flex items-start justify-between p-4 rounded-2xl border border-border bg-muted/10" id="toggle-box-datashare">
-                    <div className="space-y-1 pr-6 flex-1">
-                      <span className="text-xs font-bold text-foreground block">Third-Party AI Transcription Sync</span>
-                      <span className="text-[11px] text-muted-foreground block leading-normal">
-                        Allows secure third-party synthesis modules to process voice letters to help construct biography details.
-                      </span>
-                    </div>
-                    <button
-                      id="btn-toggle-datashare"
-                      onClick={() => setDataSharing(!dataSharing)}
-                      className={`w-10 h-5.5 rounded-full relative cursor-pointer transition-colors ${dataSharing ? 'bg-cinema-amber-500' : 'bg-muted-foreground/30'}`}
-                    >
-                      <span className={`absolute top-0.75 w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${dataSharing ? 'right-0.75' : 'left-0.75'}`} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Profile Visibility */}
-                <div className="space-y-3 pt-2" id="pref-profile-visibility-box">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide block">Default Archives Visibility</label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="profile-visibility-options-grid">
-                    {[
-                      { id: 'private', label: 'Invite-Only Private Archive', desc: 'Secure encryption parameters. Shared family co-authors must log in.' },
-                      { id: 'public', label: 'Public Shared Link Access', desc: 'Allows sharing unique, read-only browser links of documentaries with relatives.' },
-                    ].map((mode) => (
-                      <button
-                        key={mode.id}
-                        id={`btn-visibility-mode-${mode.id}`}
-                        onClick={() => {
-                          setProfileVisibility(mode.id);
-                          showToast('info', `Archival visibility set to: ${mode.label}`);
-                        }}
-                        className={`p-4 rounded-xl border text-left cursor-pointer transition-colors ${
-                          profileVisibility === mode.id
-                            ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.02]'
-                            : 'border-border/50 hover:bg-muted/40'
-                        }`}
-                      >
-                        <span className="text-xs font-bold text-foreground block">{mode.label}</span>
-                        <span className="text-[10px] text-muted-foreground block leading-normal mt-1">{mode.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Search Visibility options */}
-                <Select
-                  id="search-visibility-select"
-                  label="Search Index Visibility"
-                  value={searchVisibility}
-                  onChange={setSearchVisibility}
-                  options={[
-                    { value: 'hidden', label: 'Hidden from global workspace search queries (Strict Private)' },
-                    { value: 'visible', label: 'Allow co-author search references to indexed legacy documents' }
-                  ]}
-                />
-
-                <div className="flex justify-between items-center pt-4 border-t border-border" id="privacy-save-row">
-                  <Button
-                    id="reset-privacy-btn"
-                    variant="outline"
-                    onClick={() => handleResetSection('privacy')}
-                  >
-                    Reset Defaults
-                  </Button>
-                  <Button
-                    id="save-privacy-btn"
-                    variant="primary"
-                    onClick={() => handleSavePreferences('Privacy Settings')}
-                  >
-                    Save Privacy Prefs
-                  </Button>
-                </div>
-              </div>
+            <div className="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sky-400">
+              <Link2 className="w-4 h-4" />
             </div>
-          )}
+          </div>
+        </div>
+      </div>
 
-          {/* ==========================================
-              8. SECURITY & KEYS PANEL
-              ========================================== */}
-          {activeTab === 'security' && (
-            <div id="settings-panel-security" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-security-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <Lock className="w-5 h-5 text-cinema-amber-500" /> Security, Passwords & Devices
+      {/* SECTION 2: SMART SEARCH & AI CONFIG ASSISTANT */}
+      <div id="smart-search-and-ai-container" className="space-y-3">
+        {/* Search Bar */}
+        <div className="relative" id="settings-search-bar">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-cinema-amber-500" />
+          <input
+            id="input-settings-search"
+            type="text"
+            placeholder="Search preferences, shortcuts, 2FA, theme, storage, or notifications... (Press '/' or ⌘K)"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full text-xs md:text-sm pl-11 pr-24 py-3 bg-card border border-border rounded-2xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-cinema-amber-500 transition-all shadow-xs"
+          />
+          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            {searchQuery ? (
+              <button
+                id="btn-clear-settings-search"
+                onClick={() => setSearchQuery('')}
+                className="text-muted-foreground hover:text-foreground p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            ) : (
+              <span className="hidden md:inline-flex items-center text-[10px] font-mono text-muted-foreground/70 bg-muted px-2 py-0.5 rounded border border-border/60">
+                ⌘K / /
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Search Chips when input is empty */}
+        {!searchQuery && (
+          <div className="flex items-center gap-1.5 flex-wrap text-xs text-muted-foreground pt-0.5" id="settings-quick-search-chips">
+            <span className="text-[11px] font-mono text-muted-foreground/70 uppercase tracking-wider mr-1">Quick Search:</span>
+            {['2FA Security', 'Theme Mode', '4K Playback', 'Thumbnail Cache', 'Google Drive', 'Keyboard Hotkeys'].map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => setSearchQuery(tag)}
+                className="text-[11px] font-mono bg-card border border-border/70 hover:border-cinema-amber-500/50 hover:text-cinema-amber-500 px-2.5 py-0.5 rounded-lg transition-all cursor-pointer"
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Live Search Results Panel */}
+        {searchQuery.trim() !== '' && (
+          <div id="settings-search-results-panel" className="bg-card border border-border rounded-2xl p-5 space-y-4 animate-fade-in shadow-md">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+              <div className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-cinema-amber-500" />
+                <h3 className="text-sm font-bold text-foreground">
+                  Search Results for <span className="text-cinema-amber-500 font-mono">"{searchQuery}"</span>
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Change passwords, enable multi-factor protections, review active login sessions, and trusted browsers list.
-                </p>
               </div>
-
-              <div className="space-y-6" id="security-content">
-                
-                {/* 2FA Toggle Banner */}
-                <div className="p-5 border border-border bg-muted/10 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4" id="two-factor-banner">
-                  <div className="space-y-1.5 max-w-md">
-                    <span className="inline-flex items-center text-[9px] uppercase tracking-wide font-bold text-cinema-amber-500 bg-cinema-amber-500/10 px-2 py-0.5 rounded border border-cinema-amber-500/15">
-                      Recommended security
-                    </span>
-                    <h4 className="text-sm font-bold text-foreground">Two-Factor Authenticated Protective Keys</h4>
-                    <p className="text-xs text-muted-foreground">
-                      Confirm active co-author login credentials using mobile security codes to protect biographical documents from leakage.
-                    </p>
-                    {twoFactorEnabled && (
-                      <p className="text-[10px] text-emerald-500 font-mono font-bold flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> Recovery Codes Generated: {backupCodesLeft} remaining
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    id="toggle-2fa-btn"
-                    variant={twoFactorEnabled ? 'secondary' : 'accent'}
-                    size="sm"
-                    onClick={handleToggle2FA}
-                  >
-                    {twoFactorEnabled ? 'Disable 2FA Protection' : 'Configure 2FA Protection'}
-                  </Button>
-                </div>
-
-                {/* Password update form */}
-                <div className="border border-border p-5 bg-card/50 rounded-2xl space-y-4" id="password-form-container">
-                  <div className="flex items-center justify-between pb-2 border-b border-border" id="pass-header">
-                    <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <Key className="w-4 h-4 text-cinema-amber-500" /> Password Management
-                    </span>
-                    {!showPasswordFields && (
-                      <button 
-                        id="show-password-form-btn"
-                        onClick={() => setShowPasswordFields(true)}
-                        className="text-xs text-cinema-amber-500 font-semibold cursor-pointer"
-                      >
-                        Change Password
-                      </button>
-                    )}
-                  </div>
-
-                  {showPasswordFields ? (
-                    <form onSubmit={handlePasswordSubmit} className="space-y-4" id="update-password-form">
-                      <Input
-                        id="current-password-input"
-                        label="Current Password"
-                        type="password"
-                        required
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                      />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Input
-                          id="new-password-input"
-                          label="New Password"
-                          type="password"
-                          required
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                        />
-                        <Input
-                          id="confirm-password-input"
-                          label="Confirm New Password"
-                          type="password"
-                          required
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                        />
-                      </div>
-                      <div className="flex justify-end gap-2 pt-2">
-                        <Button 
-                          id="cancel-pass-btn" 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => {
-                            setShowPasswordFields(false);
-                            setCurrentPassword('');
-                            setNewPassword('');
-                            setConfirmPassword('');
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                        <Button id="submit-pass-btn" variant="primary" size="sm" type="submit">
-                          Update Password
-                        </Button>
-                      </div>
-                    </form>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Passwords are required to follow minimum character lengths and contain uppercase alphabets, numeric values, and special marks.
-                    </p>
-                  )}
-                </div>
-
-                {/* Active Sessions list */}
-                <div className="border border-border rounded-2xl overflow-hidden bg-card" id="active-sessions-table-card">
-                  <div className="p-4 border-b border-border flex items-center justify-between bg-muted/10">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Clock className="w-4 h-4" /> Active Co-Author Browser Sessions
-                    </span>
-                    <span className="text-[10px] text-muted-foreground italic font-mono">Current IP: 192.168.1.104</span>
-                  </div>
-                  
-                  <div className="divide-y divide-border" id="sessions-table-list">
-                    {sessions.map((sess) => (
-                      <div key={sess.id} id={`session-row-${sess.id}`} className="p-4 flex items-center justify-between gap-4 text-xs hover:bg-muted/20">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-muted border border-border/80 flex items-center justify-center text-muted-foreground">
-                            {sess.device === 'iPhone 15' ? <Smartphone className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-foreground">{sess.browser} on {sess.device}</span>
-                              {sess.isCurrent && (
-                                <span className="bg-emerald-500/10 text-emerald-500 text-[8px] font-bold px-1.5 py-0.5 rounded-full border border-emerald-500/20">
-                                  Current Session
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-muted-foreground block mt-0.5">{sess.location} • {sess.ip}</span>
-                          </div>
-                        </div>
-
-                        {!sess.isCurrent ? (
-                          <button
-                            id={`revoke-session-btn-${sess.id}`}
-                            onClick={() => handleRevokeSession(sess.id)}
-                            className="text-xs text-red-500 hover:underline cursor-pointer font-semibold"
-                          >
-                            Revoke Device
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground font-mono">{sess.time}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Connected Devices hardware details */}
-                <div className="border border-border rounded-2xl overflow-hidden bg-card" id="hardware-devices-card">
-                  <div className="p-4 border-b border-border bg-muted/10">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Trusted Devices Hardware Register
-                    </span>
-                  </div>
-                  <div className="divide-y divide-border">
-                    {devices.map((device) => (
-                      <div key={device.id} id={`device-row-${device.id}`} className="p-4 flex items-center justify-between gap-4 text-xs hover:bg-muted/20">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-muted border border-border/80 flex items-center justify-center text-muted-foreground">
-                            {device.type === 'desktop' ? <Monitor className="w-4 h-4" /> : <Smartphone className="w-4 h-4" />}
-                          </div>
-                          <div>
-                            <span className="font-bold text-foreground block">{device.name}</span>
-                            <span className="text-[11px] text-muted-foreground block mt-0.5">{device.os}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                            device.status === 'online' 
-                              ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20' 
-                              : 'bg-muted text-muted-foreground border border-border'
-                          }`}>
-                            {device.status}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground font-mono">{device.lastActive}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <span className="text-xs font-mono text-muted-foreground bg-muted px-2.5 py-1 rounded-full font-bold">
+                {searchResults.length} {searchResults.length === 1 ? 'match' : 'matches'}
+              </span>
             </div>
-          )}
 
-          {/* ==========================================
-              9. STORAGE & SYSTEM INFORMATION
-              ========================================== */}
-          {activeTab === 'storage' && (
-            <div id="settings-panel-storage" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-storage-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <Database className="w-5 h-5 text-cinema-amber-500" /> Storage Capacity & Statistics
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Inspect estimated storage usage, active archives breakdown of photos and narrations, and system statistics.
-                </p>
-              </div>
-
-              <div className="space-y-6" id="storage-details">
-                {/* Visual Storage Meter */}
-                <div className="border border-border p-6 bg-muted/10 rounded-2xl space-y-4" id="storage-meter-card">
-                  <div className="flex justify-between items-center text-xs font-bold">
-                    <span className="text-foreground">Estimated Storage Utilization</span>
-                    <span className="text-cinema-amber-500 font-mono">{totalEstimatedSize} / 15.00 GB Used ({percentUsed}%)</span>
-                  </div>
-
-                  {/* Meter Bar */}
-                  <div className="w-full h-3 bg-muted border border-border rounded-full overflow-hidden flex" id="storage-meter-bar">
-                    <div className="h-full bg-amber-500" style={{ width: `${Math.max(1.5, percentUsed * 0.35)}%` }} title="Photos" />
-                    <div className="h-full bg-red-500" style={{ width: `${Math.max(1.5, percentUsed * 0.45)}%` }} title="Videos" />
-                    <div className="h-full bg-indigo-500" style={{ width: `${Math.max(1.5, percentUsed * 0.15)}%` }} title="Audio" />
-                    <div className="h-full bg-emerald-500" style={{ width: `${Math.max(1.5, percentUsed * 0.05)}%` }} title="Documents" />
-                  </div>
-
-                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] text-muted-foreground" id="storage-swatch-indicators">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 bg-amber-500 rounded" />
-                      <span>Photos ({photosSize})</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 bg-red-500 rounded" />
-                      <span>Videos ({videosSize})</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 bg-indigo-500 rounded" />
-                      <span>Audio ({vocalSize})</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 bg-emerald-500 rounded" />
-                      <span>Documents ({docsSize})</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 bg-muted-foreground/30 rounded" />
-                      <span>Free Space ({freeSize})</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Categories Sizing table */}
-                <div className="border border-border rounded-2xl overflow-hidden bg-card" id="sizing-breakdown-card">
-                  <div className="p-4 border-b border-border flex justify-between items-center bg-muted/10">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Storage Breakdown Register
-                    </span>
-                    <button 
-                      id="refresh-storage-btn"
-                      onClick={() => {
-                        recalculateStorageStats();
-                        showToast('success', 'Recalculating directory sizes...', 'Memory scans complete.');
-                      }}
-                      className="p-1 rounded text-muted-foreground hover:text-foreground cursor-pointer"
-                      title="Sync Storage sizes"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  
-                  <div className="divide-y divide-border" id="storage-grid-breakdown">
-                    {storageBreakdown.map((row) => (
-                      <div key={row.name} id={`storage-item-${row.name}`} className="p-4 flex items-center justify-between text-xs hover:bg-muted/10">
-                        <div className="flex items-center gap-3">
-                          <span className={`w-2.5 h-2.5 rounded-full ${row.color}`} />
-                          <span className="font-bold text-foreground">{row.name}</span>
-                        </div>
-                        <div className="flex items-center gap-4 text-muted-foreground font-semibold">
-                          <span>{row.count}</span>
-                          <span className="font-mono text-foreground font-bold">{row.size}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* System Information lists */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="system-stats-grid">
-                  <div className="border border-border p-5 bg-card/40 rounded-2xl space-y-3">
-                    <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Historical Archives Volume</h4>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <span className="text-muted-foreground block text-[10px]">Total Uploaded files</span>
-                        <span className="font-bold text-foreground text-sm">{photosCount + videosCount + vocalCount + docsCount} Files</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground block text-[10px]">Active Legacy Profiles</span>
-                        <span className="font-bold text-foreground text-sm">{profilesCount} Subjects</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="border border-border p-5 bg-card/40 rounded-2xl space-y-3">
-                    <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Cloud Synchronizer Status</h4>
-                    <div className="flex items-center justify-between text-xs">
-                      <div>
-                        <span className="text-muted-foreground block text-[10px]">Google Drive sync path</span>
-                        <span className="font-semibold text-emerald-500 font-mono">CONNECTED</span>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground">Last synced: Today, 09:12 AM</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Storage Management Actions */}
-                <div className="border border-red-500/10 p-5 bg-red-500/[0.02] rounded-2xl space-y-4" id="storage-destructive-actions">
-                  <h4 className="text-xs font-bold text-red-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4" /> Storage Management & Maintenance
-                  </h4>
-                  <p className="text-xs text-muted-foreground leading-normal">
-                    Perform system maintenance, discard temporary thumbnail renders, clear memory caches, or perform a complete wipe of the local workspace.
-                  </p>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                    <Button
-                      id="clear-cache-btn"
-                      variant="outline"
-                      onClick={handleClearCache}
-                      className="text-xs"
-                    >
-                      Clear Cache
-                    </Button>
-                    <Button
-                      id="clear-temp-btn"
-                      variant="outline"
-                      onClick={handleClearTemporaryFiles}
-                      className="text-xs"
-                    >
-                      Clear Temp Files
-                    </Button>
-                    <Button
-                      id="reset-local-db-btn"
-                      variant="secondary"
-                      onClick={handleResetLocalDatabase}
-                      className="text-xs text-red-500 border-red-500/20 hover:bg-red-500/10"
-                    >
-                      Reset Local Database
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ==========================================
-              Playback & Video Panel
-              ========================================== */}
-          {activeTab === 'playback' && (
-            <div id="settings-panel-playback" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-playback-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <PlayCircle className="w-5 h-5 text-cinema-amber-500" /> Playback & Video Preferences
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Adjust standard quality parameters, autoplay settings, default volume, and transition velocities.
-                </p>
-              </div>
-
-              <div className="space-y-6" id="playback-content">
-                <div className="space-y-4">
-                  {/* Default Preview Quality */}
-                  <Select
-                    id="playback-quality-select"
-                    label="Default Video Quality"
-                    value={playbackQuality}
-                    onChange={setPlaybackQuality}
-                    options={[
-                      { value: 'auto', label: 'Auto (Balanced with network bandwidth)' },
-                      { value: 'high', label: 'High Quality (1080p, Full fidelity)' },
-                      { value: 'medium', label: 'Medium Quality (720p, Optimized)' },
-                      { value: 'low', label: 'Low Quality (480p, Data saver)' }
-                    ]}
-                  />
-
-                  {/* Transition Speed */}
-                  <Select
-                    id="playback-transition-select"
-                    label="Transition Velocity"
-                    value={playbackTransitionSpeed}
-                    onChange={setPlaybackTransitionSpeed}
-                    options={[
-                      { value: 'instant', label: 'Instant (No delay, immediate cuts)' },
-                      { value: 'fast', label: 'Fast (0.2s quick crossfades)' },
-                      { value: 'normal', label: 'Normal (0.5s standard pacing)' },
-                      { value: 'slow', label: 'Slow (1.2s atmospheric dissolves)' }
-                    ]}
-                  />
-
-                  {/* Toggles */}
-                  {[
-                    {
-                      id: 'playbackAutoplay',
-                      label: 'Autoplay Preview Video Loops',
-                      desc: 'Automatically play documentary clips when hovering over library cards.',
-                      state: playbackAutoplay,
-                      setter: setPlaybackAutoplay
-                    },
-                    {
-                      id: 'playbackMuteByDefault',
-                      label: 'Mute Audio Narrations By Default',
-                      desc: 'Always load rendering preview modules in mute state. Volume controls remain manual.',
-                      state: playbackMuteByDefault,
-                      setter: setPlaybackMuteByDefault
-                    }
-                  ].map((item) => (
-                    <div
-                      key={item.id}
-                      id={`playback-toggle-box-${item.id}`}
-                      className="flex items-start justify-between p-4 rounded-2xl border border-border bg-muted/10"
-                    >
-                      <div className="space-y-1 pr-6 flex-1">
-                        <span className="text-xs font-bold text-foreground block">{item.label}</span>
-                        <span className="text-[11px] text-muted-foreground block leading-normal">{item.desc}</span>
-                      </div>
-                      <button
-                        id={`btn-playback-toggle-${item.id}`}
-                        onClick={() => {
-                          item.setter(!item.state);
-                          showToast('info', `${item.label} adjusted.`);
-                        }}
-                        className={`w-10 h-5.5 rounded-full relative cursor-pointer transition-colors ${item.state ? 'bg-cinema-amber-500' : 'bg-muted-foreground/30'}`}
-                      >
-                        <span className={`absolute top-0.75 w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${item.state ? 'right-0.75' : 'left-0.75'}`} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex justify-between items-center pt-4 border-t border-border" id="playback-save-row">
-                  <Button
-                    id="reset-playback-btn"
-                    variant="outline"
-                    onClick={() => handleResetSection('playback')}
-                  >
-                    Reset Defaults
-                  </Button>
-                  <Button
-                    id="save-playback-btn"
-                    variant="primary"
-                    onClick={() => handleSavePreferences('Playback Settings')}
-                  >
-                    Save Playback Prefs
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ==========================================
-              Keyboard Shortcuts Panel
-              ========================================== */}
-          {activeTab === 'shortcuts' && (
-            <div id="settings-panel-shortcuts" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-shortcuts-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <Keyboard className="w-5 h-5 text-cinema-amber-500" /> Keyboard Shortcuts & Navigation Bindings
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Speed up documentary curation, timeline editing, and audio clips manipulation using standard keyboard hotkeys.
-                </p>
-              </div>
-
-              <div className="space-y-4" id="shortcuts-content">
-                <div className="border border-border rounded-2xl overflow-hidden bg-card">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-muted/30 text-muted-foreground font-bold uppercase tracking-wider text-[10px]">
-                      <tr>
-                        <th className="p-3">Command Action</th>
-                        <th className="p-3">Hotkey Binding</th>
-                        <th className="p-3">Context Scope</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {[
-                        { action: 'Play / Pause Video', binding: 'Space', scope: 'Media & Playback' },
-                        { action: 'Toggle Sidebar Menu', binding: 'Ctrl + B', scope: 'Workspace Shell' },
-                        { action: 'New Legacy Profile', binding: 'Ctrl + N', scope: 'Profiles Page' },
-                        { action: 'Quick Timeline Zoom In', binding: '+', scope: 'Timeline Curation' },
-                        { action: 'Quick Timeline Zoom Out', binding: '-', scope: 'Timeline Curation' },
-                        { action: 'Toggle Fullscreen Player', binding: 'F', scope: 'Preview Player' },
-                        { action: 'Declassify Document Draft', binding: 'Ctrl + S', scope: 'Editor Workspace' }
-                      ].map((item, idx) => (
-                        <tr key={idx} className="hover:bg-muted/10">
-                          <td className="p-3 font-semibold text-foreground">{item.action}</td>
-                          <td className="p-3">
-                            <kbd className="px-2 py-1 bg-muted border border-border/80 rounded font-mono font-bold text-[10px] text-foreground shadow-xs">
-                              {item.binding}
-                            </kbd>
-                          </td>
-                          <td className="p-3 text-muted-foreground italic">{item.scope}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="p-4 rounded-xl bg-muted/10 border border-border flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Custom hotkey re-mapping is currently in development.</span>
-                  <span className="text-[10px] uppercase font-bold text-cinema-amber-500 bg-cinema-amber-500/10 px-2.5 py-0.5 rounded border border-cinema-amber-500/15">Coming Soon</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ==========================================
-              Workspace Integrations Panel
-              ========================================== */}
-          {activeTab === 'integrations' && (
-            <div id="settings-panel-integrations" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-integrations-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <Link2 className="w-5 h-5 text-cinema-amber-500" /> External Workspace Integrations
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Connect cloud repositories to backing storage adapters for automatic secondary file backups and biographical imports.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="integrations-grid">
-                {[
-                  {
-                    name: 'Google Drive Sync',
-                    desc: 'Store parallel photographic backups and declassified documentation directly in your Google cloud.',
-                    status: 'Connected',
-                    connected: true,
-                    info: 'PhilShaba96@gmail.com'
-                  },
-                  {
-                    name: 'Microsoft OneDrive Adapter',
-                    desc: 'Synchronize timeline event transcripts and family biographical records to personal Microsoft archives.',
-                    status: 'Disconnected',
-                    connected: false,
-                    info: 'Inactive'
-                  },
-                  {
-                    name: 'Dropbox Personal Archives',
-                    desc: 'Import batch audio narrations and legacy media scans immediately from target dropbox workspace folders.',
-                    status: 'Disconnected',
-                    connected: false,
-                    info: 'Inactive'
-                  },
-                  {
-                    name: 'Ancestry.com Data Connector',
-                    desc: 'Pull genetic maps, historical birth indexes, and census records to help populate subject chronologies.',
-                    status: 'Development Draft',
-                    connected: false,
-                    info: 'Sandbox API Only'
-                  }
-                ].map((item, idx) => (
-                  <div key={idx} className="border border-border rounded-2xl p-5 bg-card/60 flex flex-col justify-between gap-4">
-                    <div className="space-y-1.5">
+            {searchResults.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {searchResults.map((item) => (
+                  <div key={item.id} className="p-3.5 bg-muted/30 border border-border/80 rounded-xl space-y-2 hover:border-cinema-amber-500/40 transition-all flex flex-col justify-between">
+                    <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-foreground">{item.name}</span>
-                        <span className={`text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${
-                          item.connected 
-                            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
-                            : item.status === 'Disconnected'
-                            ? 'bg-muted text-muted-foreground border-border'
-                            : 'bg-cinema-amber-500/10 text-cinema-amber-500 border-cinema-amber-500/20'
-                        }`}>
-                          {item.status}
+                        <span className="font-bold text-xs text-foreground">{item.title}</span>
+                        <span className="text-[10px] font-mono font-bold uppercase text-cinema-amber-500 bg-cinema-amber-500/10 px-2 py-0.5 rounded-full border border-cinema-amber-500/20">
+                          {item.category}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
                     </div>
-
-                    <div className="flex items-center justify-between border-t border-border/40 pt-3">
-                      <span className="text-[10px] text-muted-foreground font-mono">{item.info}</span>
+                    <div className="pt-2 flex items-center justify-between border-t border-border/30">
+                      <span className="text-[10px] text-muted-foreground font-mono">Tab: {item.tab}</span>
                       <Button
-                        id={`btn-integration-connect-${idx}`}
-                        variant={item.connected ? 'outline' : 'secondary'}
-                        size="sm"
+                        id={`btn-jump-to-${item.id}`}
+                        variant="ghost"
+                        size="xs"
                         onClick={() => {
-                          showToast('info', `${item.name} connection triggered. Since cloud sync is local-only in this stage, this acts as a development preview.`);
+                          setActiveTab(item.tab);
+                          setSearchQuery('');
                         }}
+                        className="text-xs text-cinema-amber-500 hover:text-cinema-amber-400 font-bold cursor-pointer"
                       >
-                        {item.connected ? 'Configure Connection' : 'Establish Connection'}
+                        Configure Setting <ChevronRight className="w-3 h-3 ml-1" />
                       </Button>
                     </div>
                   </div>
                 ))}
               </div>
+            ) : (
+              <EmptyState
+                type="search"
+                title="No matching settings found"
+                description={`We couldn't find any configuration matching "${searchQuery}". Try searching for 2FA, Theme, 4K, Storage, or Google Drive.`}
+                primaryActionLabel="Clear Search Filter"
+                onPrimaryAction={() => setSearchQuery('')}
+              />
+            )}
+          </div>
+        )}
+
+        {/* AI Configuration Assistant Box */}
+        {aiRecommendation && (
+          <div id="ai-recommendation-box" className="p-4 bg-cinema-ai/10 border border-cinema-ai/30 rounded-2xl space-y-3 text-xs animate-fade-in">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-cinema-ai text-xs font-mono uppercase flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" /> {aiRecommendation.title}
+              </span>
+              <button onClick={() => setAiRecommendation(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-          )}
-
-          {/* ==========================================
-              10. ABOUT REELLEGACY
-              ========================================== */}
-          {activeTab === 'about' && (
-            <div id="settings-panel-about" className="space-y-6">
-              <div className="border-b border-border pb-4" id="panel-about-header">
-                <h3 className="font-display text-base font-bold flex items-center gap-2">
-                  <Info className="w-5 h-5 text-cinema-amber-500" /> About ReelLegacy Studio
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Product information, license specifications, release channels, and credits logs.
-                </p>
-              </div>
-
-              <div className="space-y-6" id="about-content">
-                {/* Visual Cover card for About */}
-                <div className="bg-gradient-to-br from-cinema-slate-900 via-cinema-slate-800 to-cinema-slate-950 text-white rounded-2xl p-6 border border-cinema-slate-800 text-center space-y-4" id="about-jumbotron">
-                  <div className="w-12 h-12 rounded-xl bg-logo-tile-bg/15 border border-cinema-amber-500/20 flex items-center justify-center mx-auto">
-                    <Sparkles className="w-6 h-6 text-cinema-amber-500 animate-pulse" />
-                  </div>
-                  <div className="space-y-1">
-                    <h4 className="font-display text-xl font-bold tracking-tight">ReelLegacy Studio</h4>
-                    <p className="text-xs text-cinema-slate-400">
-                      Preserving human memory and family histories via automated generative cinema.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Details list info */}
-                <div className="border border-border rounded-2xl overflow-hidden bg-card" id="build-details-card">
-                  <div className="p-4 border-b border-border bg-muted/10">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Software Build Information
-                    </span>
-                  </div>
-                  
-                  <div className="divide-y divide-border text-xs">
-                    <div className="p-4 flex items-center justify-between">
-                      <span className="text-muted-foreground font-semibold">Active Version</span>
-                      <span className="font-bold text-foreground">v0.1.0</span>
-                    </div>
-                    <div className="p-4 flex items-center justify-between">
-                      <span className="text-muted-foreground font-semibold">Build Number</span>
-                      <span className="font-mono text-foreground">2026.07.13.04</span>
-                    </div>
-                    <div className="p-4 flex items-center justify-between">
-                      <span className="text-muted-foreground font-semibold">Release Channel</span>
-                      <span className="font-semibold text-cinema-amber-500 uppercase tracking-wide">Developer Early Access</span>
-                    </div>
-                    <div className="p-4 flex items-center justify-between">
-                      <span className="text-muted-foreground font-semibold">Software License</span>
-                      <span className="text-foreground">Apache License 2.0 (Open Source Notices)</span>
-                    </div>
-                    <div className="p-4 flex items-center justify-between">
-                      <span className="text-muted-foreground font-semibold">Workspace Credits</span>
-                      <span className="text-foreground font-semibold">ReelLegacy geneologists, historians & engineers</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Changelog register */}
-                <div className="border border-border p-5 rounded-2xl bg-card space-y-3" id="changelog-container">
-                  <span className="text-xs font-bold text-foreground uppercase tracking-wide block">Recent Changelog (Placeholder)</span>
-                  <div className="space-y-2 text-xs leading-relaxed text-muted-foreground">
-                    <div className="flex gap-2">
-                      <span className="font-mono font-bold text-cinema-amber-500 shrink-0">v0.1.0</span>
-                      <div>
-                        <span className="font-bold text-foreground block">Workspace Settings & Navigation Polish</span>
-                        <span className="text-[11px] block mt-0.5">Built modular preferences, added high contrast toggles and synchronized layout headers.</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 pt-2 border-t border-border/40">
-                      <span className="font-mono font-bold text-cinema-amber-500 shrink-0">v0.0.9</span>
-                      <div>
-                        <span className="font-bold text-foreground block">Custom Soundboard Restorations</span>
-                        <span className="text-[11px] block mt-0.5">Mapped custom voice capture synthesizers, added WAV parallel file uploads loader.</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Links Row */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-center text-xs font-bold text-cinema-amber-500" id="useful-links-strip">
-                  <a href="#docs" className="p-3 border border-border/80 bg-card rounded-xl hover:bg-muted hover:border-cinema-amber-500/20 transition-all">
-                    Documentation
-                  </a>
-                  <a href="#support" className="p-3 border border-border/80 bg-card rounded-xl hover:bg-muted hover:border-cinema-amber-500/20 transition-all">
-                    Archivist Support
-                  </a>
-                  <a href="#privacy" className="p-3 border border-border/80 bg-card rounded-xl hover:bg-muted hover:border-cinema-amber-500/20 transition-all col-span-2 sm:col-span-1">
-                    Privacy Shield
-                  </a>
-                </div>
-              </div>
+            <p className="text-foreground/90 text-xs leading-relaxed">{aiRecommendation.description}</p>
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                id="btn-approve-ai-rec"
+                variant="primary"
+                size="xs"
+                onClick={handleApproveAiRecommendation}
+                className="bg-cinema-ai hover:bg-cinema-ai/90 text-white font-bold cursor-pointer"
+              >
+                Approve & Apply Changes
+              </Button>
+              <Button
+                id="btn-dismiss-ai-rec"
+                variant="ghost"
+                size="xs"
+                onClick={() => setAiRecommendation(null)}
+                className="text-xs"
+              >
+                Dismiss
+              </Button>
             </div>
-          )}
+          </div>
+        )}
+      </div>
 
+      {/* SECTION 3: HORIZONTAL WORKSPACE NAVIGATION TABS (NO INTERNAL SIDEBAR) */}
+      <div id="settings-horizontal-workspace-nav" className="border-b border-border/80 pb-1 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 min-w-max">
+          {workspaceTabs.map((tab) => {
+            const TabIcon = tab.icon || Settings;
+            const isSelected = activeTab === tab.id;
+
+            return (
+              <button
+                key={tab.id}
+                id={`setting-workspace-tab-${tab.id}`}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                  isSelected
+                    ? 'bg-cinema-amber-500/15 text-cinema-amber-500 border border-cinema-amber-500/30 shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent'
+                }`}
+              >
+                <TabIcon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded font-bold uppercase ${
+                    isSelected ? 'bg-cinema-amber-500/20 text-cinema-amber-500' : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
+      {/* SECTION 4: WORKSPACE CONTENT PANELS */}
+      <div id="settings-workspace-content-body" className="space-y-6">
+
+        {/* 1. OVERVIEW WORKSPACE (HUB DASHBOARD) */}
+        {activeTab === 'overview' && (
+          <div id="workspace-overview" className="space-y-6 animate-fade-in">
+            {/* Context Recommendations */}
+            <div className="space-y-3" id="overview-recommendations">
+              <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-cinema-amber-500" /> System Recommendations
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="p-3.5 bg-card border border-border/80 rounded-2xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-foreground">Two-Factor Authentication</span>
+                    <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full font-bold ${twoFactorEnabled ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-500'}`}>
+                      {twoFactorEnabled ? 'Active' : 'Recommended'}
+                    </span>
+                  </div>
+                  <p className="text-muted-foreground text-[11px]">Add an extra security layer to protect family archive scripts.</p>
+                  <Button
+                    id="btn-rec-2fa"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setActiveTab('security')}
+                    className="cursor-pointer text-xs"
+                  >
+                    Configure 2FA
+                  </Button>
+                </div>
+
+                <div className="p-3.5 bg-card border border-border/80 rounded-2xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-foreground">Cloud Storage Auto-Sync</span>
+                    <span className="text-[9px] font-mono bg-sky-500/15 text-sky-400 px-2 py-0.5 rounded-full font-bold">
+                      Google Drive
+                    </span>
+                  </div>
+                  <p className="text-muted-foreground text-[11px]">Connect external backup providers to safeguard 4K masters.</p>
+                  <Button
+                    id="btn-rec-integrations"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setActiveTab('integrations')}
+                    className="cursor-pointer text-xs"
+                  >
+                    Manage Integrations
+                  </Button>
+                </div>
+
+                <div className="p-3.5 bg-card border border-border/80 rounded-2xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-foreground">Cache Optimization</span>
+                    <span className="text-[9px] font-mono bg-emerald-500/15 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
+                      Ready
+                    </span>
+                  </div>
+                  <p className="text-muted-foreground text-[11px]">Clear temporary render thumbnails to free storage space.</p>
+                  <Button
+                    id="btn-rec-clear-cache"
+                    variant="outline"
+                    size="xs"
+                    onClick={handleClearCache}
+                    className="cursor-pointer text-xs"
+                  >
+                    Clear Cache
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Overview Quick Category Cards Grid */}
+            <div className="space-y-3" id="overview-categories-grid">
+              <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
+                All Configuration Workspaces
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  { id: 'account', label: 'My Account', desc: 'Email verification, locale, timezone', icon: User, status: 'Active' },
+                  { id: 'profile', label: 'Co-Author Bio', desc: 'Display name, citations prefix', icon: Key, status: 'Archivist' },
+                  { id: 'appearance', label: 'Appearance', desc: 'Themes, accent colors, typography scaling', icon: Paintbrush, status: theme },
+                  { id: 'workspace', label: 'Workspace Layout', desc: 'Sidebar defaults, density, opening view', icon: LayoutGrid, status: 'Comfortable' },
+                  { id: 'notifications', label: 'Notifications', desc: 'Email digests, push warnings, weekly logs', icon: BellRing, status: 'Enabled' },
+                  { id: 'playback', label: 'Playback & Video', desc: '4K preview quality, transitions', icon: PlayCircle, status: playbackQuality },
+                  { id: 'accessibility', label: 'Accessibility', desc: 'High-contrast, screen reader, hotkeys', icon: Accessibility, status: 'Standard' },
+                  { id: 'privacy', label: 'Privacy & Sharing', desc: 'Cloud sync paths, draft permissions', icon: ShieldAlert, status: 'Private' },
+                  { id: 'security', label: 'Security & Keys', icon: Lock, desc: 'Password updates, login history, devices', status: twoFactorEnabled ? '2FA Active' : 'Standard' },
+                  { id: 'storage', label: 'Storage Stats', icon: Database, desc: 'Detailed breakdown for pictures & video', status: `${percentUsed}% Used` },
+                  { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard, desc: 'Keyboard hotkey bindings', status: 'Standard' },
+                  { id: 'integrations', label: 'Integrations', icon: Link2, desc: 'Google Drive, Dropbox, CareerCanvas', status: '5 Connected' }
+                ].map((cat) => {
+                  const CatIcon = cat.icon || Settings;
+                  return (
+                    <div
+                      key={cat.id}
+                      id={`card-cat-overview-${cat.id}`}
+                      onClick={() => setActiveTab(cat.id as SettingsTab)}
+                      className="p-4 bg-card border border-border/80 hover:border-cinema-amber-500/50 rounded-2xl transition-all cursor-pointer space-y-2 group shadow-xs hover:scale-[1.01]"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="w-8 h-8 rounded-xl bg-muted/60 border border-border flex items-center justify-center text-foreground group-hover:text-cinema-amber-500 group-hover:border-cinema-amber-500/40">
+                          <CatIcon className="w-4 h-4" />
+                        </div>
+                        <span className="text-[10px] font-mono text-cinema-amber-500 bg-cinema-amber-500/10 px-2 py-0.5 rounded font-bold uppercase">
+                          {cat.status}
+                        </span>
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-bold text-foreground group-hover:text-cinema-amber-500 transition-colors">{cat.label}</h3>
+                        <p className="text-[11px] text-muted-foreground">{cat.desc}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. ACCOUNT WORKSPACE */}
+        {activeTab === 'account' && (
+          <form id="workspace-account-form" onSubmit={handleAccountSubmit} className="space-y-6 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-border/80 pb-3">
+                <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <User className="w-4 h-4 text-cinema-amber-500" /> Account Identity & Credentials
+                </h3>
+                <Button id="btn-inspect-account" type="button" variant="ghost" size="xs" onClick={() => handleInspectSetting('Account Identity', 'Account', 'Account credentials and locale settings.')}>
+                  Inspect
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Full Name</label>
+                  <Input id="input-account-fullname" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Display Name</label>
+                  <Input id="input-account-displayname" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Email Address</label>
+                  <Input id="input-account-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Phone Number</label>
+                  <Input id="input-account-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Country / Region</label>
+                  <Input id="input-account-country" value={country} onChange={(e) => setCountry(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Timezone</label>
+                  <Input id="input-account-timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button id="btn-save-account" type="submit" variant="primary" size="sm" className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-black font-bold">
+                  Save Account Settings
+                </Button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* 3. CO-AUTHOR PROFILE WORKSPACE */}
+        {activeTab === 'profile' && (
+          <form id="workspace-profile-form" onSubmit={handleProfileSubmit} className="space-y-6 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-border/80 pb-3">
+                <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <Key className="w-4 h-4 text-cinema-amber-500" /> Co-Author Profile & Bio
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">First Name</label>
+                  <Input id="input-profile-firstname" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Last Name</label>
+                  <Input id="input-profile-lastname" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-muted-foreground font-medium mb-1">Citations & Family Archive Title</label>
+                  <Input id="input-profile-citations" value={citations} onChange={(e) => setCitations(e.target.value)} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-muted-foreground font-medium mb-1">Archivist Biography</label>
+                  <textarea
+                    id="input-profile-biography"
+                    rows={4}
+                    value={biography}
+                    onChange={(e) => setBiography(e.target.value)}
+                    className="w-full text-xs p-3 bg-card border border-border rounded-xl text-foreground focus:outline-none focus:border-cinema-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button id="btn-save-profile" type="submit" variant="primary" size="sm" className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-black font-bold">
+                  Save Profile Settings
+                </Button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* 4. WORKSPACE BEHAVIOUR */}
+        {activeTab === 'workspace' && (
+          <div id="workspace-layout-config" className="space-y-6 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border/80 pb-3">
+                <LayoutGrid className="w-4 h-4 text-cinema-amber-500" /> Layout & Density Defaults
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Sidebar Initial Behavior</label>
+                  <Select
+                    id="select-sidebar-behavior"
+                    value={sidebarBehavior}
+                    onChange={(val) => setSidebarBehavior(val)}
+                    options={[
+                      { value: 'expanded', label: 'Expanded (Default)' },
+                      { value: 'collapsed', label: 'Compact Icons Only' },
+                      { value: 'auto-hide', label: 'Auto-Collapse on Small Screens' }
+                    ]}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Card Grid Density</label>
+                  <Select
+                    id="select-card-density"
+                    value={cardDensity}
+                    onChange={(val) => setCardDensity(val)}
+                    options={[
+                      { value: 'comfortable', label: 'Comfortable (Spacious)' },
+                      { value: 'compact', label: 'Compact (High Information)' }
+                    ]}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 5. APPEARANCE WORKSPACE */}
+        {activeTab === 'appearance' && (
+          <div id="workspace-appearance-config" className="space-y-6 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border/80 pb-3">
+                <Paintbrush className="w-4 h-4 text-cinema-amber-500" /> Theme Mode & Aesthetics
+              </h3>
+
+              <div className="grid grid-cols-3 gap-3" id="theme-mode-selector">
+                {[
+                  { id: 'light', label: 'Light Mode', icon: Sun },
+                  { id: 'dark', label: 'Dark Mode', icon: Moon },
+                  { id: 'system', label: 'System Theme', icon: Laptop }
+                ].map((t) => {
+                  const TIcon = t.icon;
+                  const isSel = theme === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      id={`btn-theme-${t.id}`}
+                      onClick={() => {
+                        setTheme(t.id as any);
+                        showToast('info', `Theme set to ${t.label}`);
+                        addHistoryLog('Theme Mode', 'Appearance', theme, t.id);
+                      }}
+                      className={`p-4 rounded-2xl border flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${
+                        isSel
+                          ? 'bg-cinema-amber-500/15 border-cinema-amber-500 text-cinema-amber-500 font-bold'
+                          : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <TIcon className="w-5 h-5" />
+                      <span className="text-xs">{t.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 6. NOTIFICATIONS WORKSPACE */}
+        {activeTab === 'notifications' && (
+          <div id="workspace-notifications-config" className="space-y-6 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border/80 pb-3">
+                <BellRing className="w-4 h-4 text-cinema-amber-500" /> Notification Channels & Digest
+              </h3>
+
+              <div className="space-y-3 text-xs">
+                {[
+                  { label: 'Weekly Family Digest Email', state: emailDigest, set: setEmailDigest, desc: 'Receive a weekly summary of story drafts and timeline edits.' },
+                  { label: 'In-App Operational Alerts', state: inAppNotifs, set: setInAppNotifs, desc: 'Show toast alerts for 4K rendering completion and uploads.' },
+                  { label: 'Security & Auth Audit Logs', state: securityLogs, set: setSecurityLogs, desc: 'Receive immediate alerts when new devices log into your account.' }
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-muted/30 border border-border/60 rounded-xl">
+                    <div>
+                      <h4 className="font-bold text-foreground">{item.label}</h4>
+                      <p className="text-[11px] text-muted-foreground">{item.desc}</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={item.state}
+                      onChange={(e) => item.set(e.target.checked)}
+                      className="w-4 h-4 accent-cinema-amber-500 cursor-pointer"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 7. PLAYBACK WORKSPACE */}
+        {activeTab === 'playback' && (
+          <div id="workspace-playback-config" className="space-y-6 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border/80 pb-3">
+                <PlayCircle className="w-4 h-4 text-cinema-amber-500" /> Video & Preview Quality
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Preview Render Quality</label>
+                  <Select
+                    id="select-playback-quality"
+                    value={playbackQuality}
+                    onChange={(val) => setPlaybackQuality(val)}
+                    options={[
+                      { value: '1080p', label: '1080p HD (Balanced)' },
+                      { value: '4k', label: '4K Ultra HD (Pro Archive)' },
+                      { value: '720p', label: '720p Fast Preview' }
+                    ]}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 8. ACCESSIBILITY WORKSPACE */}
+        {activeTab === 'accessibility' && (
+          <div id="workspace-accessibility-config" className="space-y-6 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border/80 pb-3">
+                <Accessibility className="w-4 h-4 text-cinema-amber-500" /> Accessibility Compliance
+              </h3>
+
+              <div className="space-y-3 text-xs">
+                {[
+                  { label: 'High-Contrast Mode', state: highContrast, set: setHighContrast, desc: 'Enhance border contrast and typography ratios.' },
+                  { label: 'Reduced Motion', state: reducedMotion, set: setReducedMotion, desc: 'Disable heavy transition animations for motion sensitivity.' },
+                  { label: 'Full Keyboard Navigation', state: keyboardNav, set: setKeyboardNav, desc: 'Enable hotkey bindings across all workspace views.' }
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-muted/30 border border-border/60 rounded-xl">
+                    <div>
+                      <h4 className="font-bold text-foreground">{item.label}</h4>
+                      <p className="text-[11px] text-muted-foreground">{item.desc}</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={item.state}
+                      onChange={(e) => item.set(e.target.checked)}
+                      className="w-4 h-4 accent-cinema-amber-500 cursor-pointer"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 9. PRIVACY WORKSPACE */}
+        {activeTab === 'privacy' && (
+          <div id="workspace-privacy-config" className="space-y-6 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border/80 pb-3">
+                <ShieldAlert className="w-4 h-4 text-cinema-amber-500" /> Privacy & Data Sovereignty
+              </h3>
+
+              <div className="space-y-3 text-xs">
+                {[
+                  { label: 'Workspace Telemetry & Analytics', state: analyticsEnabled, set: setAnalyticsEnabled, desc: 'Help improve ReelLegacy by sharing anonymous performance telemetry.' },
+                  { label: 'Strict Private Storage Schema', state: !dataSharing, set: (val: boolean) => setDataSharing(!val), desc: 'Ensure private family photos are never indexed or shared.' }
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-muted/30 border border-border/60 rounded-xl">
+                    <div>
+                      <h4 className="font-bold text-foreground">{item.label}</h4>
+                      <p className="text-[11px] text-muted-foreground">{item.desc}</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={item.state}
+                      onChange={(e) => item.set(e.target.checked)}
+                      className="w-4 h-4 accent-cinema-amber-500 cursor-pointer"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 10. SECURITY WORKSPACE */}
+        {activeTab === 'security' && (
+          <div id="workspace-security-config" className="space-y-6 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-border/80 pb-3">
+                <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-cinema-amber-500" /> Two-Factor Authentication & Devices
+                </h3>
+                <Button
+                  id="btn-toggle-2fa"
+                  variant={twoFactorEnabled ? 'destructive' : 'primary'}
+                  size="xs"
+                  onClick={handleToggle2FA}
+                  className="cursor-pointer font-bold"
+                >
+                  {twoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA'}
+                </Button>
+              </div>
+
+              <div className="text-xs space-y-2">
+                <p className="text-muted-foreground">Active Sessions & Trusted Devices:</p>
+                {devices.map((dev) => (
+                  <div key={dev.id} className="p-3 bg-muted/30 border border-border/60 rounded-xl flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-foreground">{dev.name}</h4>
+                      <span className="text-[10px] text-muted-foreground font-mono">{dev.os} • {dev.lastActive}</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">
+                      {dev.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 11. STORAGE WORKSPACE */}
+        {activeTab === 'storage' && (
+          <div id="workspace-storage-config" className="space-y-6 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border/80 pb-3">
+                <Database className="w-4 h-4 text-cinema-amber-500" /> Storage Statistics & Quota
+              </h3>
+
+              <div className="space-y-2 font-mono">
+                <div className="flex justify-between text-xs">
+                  <span>Used: {totalEstimatedSize}</span>
+                  <span>Free: {freeSize} / 15.00 GB</span>
+                </div>
+                <div className="w-full h-3 bg-muted rounded-full overflow-hidden flex">
+                  <div className="bg-cinema-amber-500 h-full" style={{ width: `${percentUsed}%` }} />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <Button id="btn-clear-cache-storage" variant="outline" size="xs" onClick={handleClearCache} className="cursor-pointer">
+                  Clear Thumbnail Cache
+                </Button>
+                <Button id="btn-clear-temp-storage" variant="outline" size="xs" onClick={handleClearTemporaryFiles} className="cursor-pointer">
+                  Clear Temp Recordings
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 12. KEYBOARD SHORTCUTS WORKSPACE */}
+        {activeTab === 'shortcuts' && (
+          <div id="workspace-shortcuts-config" className="space-y-4 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-2">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                <Keyboard className="w-4 h-4 text-cinema-amber-500" /> Keyboard Hotkeys Reference
+              </h3>
+              <p className="text-xs text-muted-foreground">Unified hotkey mappings across ReelLegacy modules.</p>
+            </div>
+
+            <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border/60 text-xs font-mono">
+              {[
+                { key: '/', desc: 'Focus Global Search' },
+                { key: 'Esc', desc: 'Close Overlays & Modals' },
+                { key: 'Ctrl + S', desc: 'Save Story Script Draft' },
+                { key: 'Ctrl + Shift + L', desc: 'Toggle Light / Dark Theme' }
+              ].map((sc, idx) => (
+                <div key={idx} className="p-3 flex items-center justify-between">
+                  <span className="font-bold text-cinema-amber-400 bg-muted px-2 py-0.5 rounded border border-border/60">{sc.key}</span>
+                  <span className="text-muted-foreground">{sc.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 13. INTEGRATIONS WORKSPACE */}
+        {activeTab === 'integrations' && (
+          <div id="workspace-integrations-config" className="space-y-6 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border/80 pb-3">
+                <Link2 className="w-4 h-4 text-cinema-amber-500" /> Workspace Cloud Integrations
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                {[
+                  { name: 'Google Drive Sync', desc: 'Backup family photos & 4K renders', status: 'Connected' },
+                  { name: 'Dropbox Vault', desc: 'Auto-export high-res TIFF scans', status: 'Connected' },
+                  { name: 'CareerCanvas Sync', desc: 'Cross-link biographical records', status: 'Connected' }
+                ].map((ig, idx) => (
+                  <div key={idx} className="p-3 bg-muted/30 border border-border/60 rounded-xl flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-foreground">{ig.name}</h4>
+                      <p className="text-[10px] text-muted-foreground">{ig.desc}</p>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">
+                      {ig.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 14. ADVANCED & PRESETS WORKSPACE (INCLUDES ISOLATED DANGER ZONE) */}
+        {activeTab === 'advanced' && (
+          <div id="workspace-advanced-config" className="space-y-6 animate-fade-in">
+            {/* Presets */}
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border/80 pb-3">
+                <SlidersHorizontal className="w-4 h-4 text-cinema-amber-500" /> Reusable Configuration Profiles
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {CONFIG_PRESETS.map((preset) => (
+                  <div key={preset.id} className="p-3.5 bg-muted/30 border border-border/60 rounded-2xl space-y-2 text-xs flex flex-col justify-between">
+                    <div>
+                      <h4 className="font-bold text-foreground">{preset.title}</h4>
+                      <p className="text-[11px] text-muted-foreground">{preset.description}</p>
+                    </div>
+                    <Button
+                      id={`btn-apply-preset-${preset.id}`}
+                      variant="outline"
+                      size="xs"
+                      onClick={() => handleApplyPreset(preset)}
+                      className="cursor-pointer border-cinema-amber-500/40 text-cinema-amber-500 font-bold self-start mt-2"
+                    >
+                      Apply Profile
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Configuration History Log */}
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-3">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border/80 pb-3">
+                <History className="w-4 h-4 text-cinema-amber-500" /> Recent Configuration Log & Rollback
+              </h3>
+
+              <div className="divide-y divide-border/60 text-xs font-mono">
+                {configHistory.map((log) => (
+                  <div key={log.id} className="py-2.5 flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-foreground">{log.settingName}</span>
+                      <span className="text-[10px] text-muted-foreground ml-2">({log.category}) • {log.timestamp}</span>
+                      <div className="text-[10px] text-muted-foreground">Changed: {log.oldVal} → {log.newVal}</div>
+                    </div>
+                    <Button
+                      id={`btn-rollback-${log.id}`}
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => handleRollback(log)}
+                      className="text-xs text-cinema-amber-500 hover:bg-cinema-amber-500/10"
+                    >
+                      Rollback
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ISOLATED DANGER ZONE */}
+            <div id="settings-isolated-danger-zone" className="p-5 bg-card border-2 border-red-500/30 rounded-2xl space-y-4">
+              <div className="flex items-center gap-2 border-b border-red-500/20 pb-3">
+                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+                <div>
+                  <h3 className="font-bold text-sm text-red-500">Isolated Danger Zone</h3>
+                  <p className="text-xs text-muted-foreground">Destructive system actions requiring explicit confirmation.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <Button
+                  id="btn-danger-wipe-db"
+                  variant="destructive"
+                  size="xs"
+                  onClick={handleResetLocalDatabase}
+                  className="cursor-pointer font-bold"
+                >
+                  Wipe Local Database
+                </Button>
+                <Button
+                  id="btn-danger-reset-all"
+                  variant="outline"
+                  size="xs"
+                  onClick={handleResetLocalDatabase}
+                  className="cursor-pointer border-red-500/40 text-red-500 hover:bg-red-500/10 font-bold"
+                >
+                  Reset Entire Workspace
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 15. ABOUT WORKSPACE */}
+        {activeTab === 'about' && (
+          <div id="workspace-about-config" className="space-y-4 animate-fade-in">
+            <div className="bg-card border border-border p-5 rounded-2xl space-y-3 text-xs">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                <Info className="w-4 h-4 text-cinema-amber-500" /> About ReelLegacy
+              </h3>
+              <p className="text-muted-foreground leading-relaxed">
+                ReelLegacy v2.8 (Build 2026.07) • Generative Archival Cinema Engine. Built under Apache-2.0 License.
+              </p>
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* Confirmation Modal Container */}
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={confirmModal.onConfirm}
         title={confirmModal.title}
         message={confirmModal.message}
+        onConfirm={async () => {
+          await confirmModal.onConfirm();
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        }}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
+  );
+}
+
+function UsersIcon(props: any) {
+  return (
+    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
   );
 }

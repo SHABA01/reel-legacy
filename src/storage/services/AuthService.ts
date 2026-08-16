@@ -7,6 +7,16 @@ import { persistenceService } from './PersistenceService';
 import { UserSchema, SessionSchema } from '../schemas/schemas';
 import { hashPassword, comparePassword } from '../utils/crypto';
 
+/**
+ * AuthService
+ * 
+ * Manages user registration, local credential verification, session tokens, and password reset.
+ * 
+ * [SECURITY BOUNDARY NOTICE]
+ * This service implements development & offline session simulation. For production deployment,
+ * this boundary must be backed by a secure identity provider (e.g. Firebase Auth, OAuth 2.0, or
+ * a dedicated authentication microservice) with Argon2id/bcrypt password hashing and HTTP-only cookies.
+ */
 export class AuthService {
   /**
    * Registers a new local user account.

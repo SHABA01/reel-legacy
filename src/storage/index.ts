@@ -5,6 +5,7 @@
 
 export * from './adapters/StorageAdapter';
 export * from './adapters/LocalStorageAdapter';
+export * from './adapters/RemoteApiAdapter';
 export * from './repositories/BaseRepository';
 export * from './repositories/LegacyProfileRepository';
 export * from './repositories/StoryRepository';

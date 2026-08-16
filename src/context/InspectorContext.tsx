@@ -6,6 +6,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useOverlay } from './OverlayContext';
+import { ContextMode, ROUTE_CONTEXT_MODES } from './contextMode';
 
 export type InspectorSelectionType =
   | 'none'
@@ -19,10 +20,18 @@ export type InspectorSelectionType =
   | 'profile'
   | 'template'
   | 'render'
+  | 'integration'
   | 'career'
   | 'document'
   | 'import'
-  | 'setting';
+  | 'setting'
+  | 'search'
+  | 'notifications'
+  | 'help'
+  | 'task'
+  | 'recommendation'
+  | 'activity'
+  | 'widget';
 
 export interface InspectorSelection {
   type: InspectorSelectionType;
@@ -33,6 +42,7 @@ export interface InspectorSelection {
 
 export interface InspectorContextType {
   route: string;
+  contextMode: ContextMode;
   selection: InspectorSelection;
   setSelection: (type: InspectorSelectionType, data?: any, meta?: any) => void;
   clearSelection: () => void;
@@ -68,31 +78,49 @@ export function InspectorProvider({ children }: { children: React.ReactNode }) {
     if (path.startsWith('/workspace/story-templates')) return 'story-templates';
     if (path.startsWith('/workspace/render-queue')) return 'render-queue';
     if (path.startsWith('/workspace/studio-analytics')) return 'studio-analytics';
+    if (path.startsWith('/workspace/integrations')) return 'integrations';
+    if (path.startsWith('/workspace/search') || path.startsWith('/workspace/global-search')) return 'search';
+    if (path.startsWith('/workspace/notifications')) return 'notifications';
+    if (path.startsWith('/workspace/help')) return 'help';
     if (path.startsWith('/workspace/settings')) return 'settings';
     return 'dashboard';
   }, [location.pathname, location.search]);
 
-  // Reset selection when route changes significantly
+  // Derive Context Mode from route
+  const contextMode = useMemo(() => {
+    return ROUTE_CONTEXT_MODES[route] || ContextMode.None;
+  }, [route]);
+
+  // Reset selection & set context panel open defaults when route changes
   useEffect(() => {
     setSelectionState({ type: 'none' });
     setActiveTab('ai-director');
-  }, [route]);
+
+    const mode = ROUTE_CONTEXT_MODES[route] || ContextMode.None;
+    if (mode === ContextMode.Required) {
+      setRightPanelOpen(true);
+    } else if (mode === ContextMode.Optional || mode === ContextMode.None) {
+      setRightPanelOpen(false);
+    }
+  }, [route, setRightPanelOpen]);
 
   const setSelection = useCallback((type: InspectorSelectionType, data?: any, meta?: any) => {
     setSelectionState({ type, data, id: data?.id, meta });
-    // Auto open inspector panel when user selects an object
-    if (type !== 'none') {
+    // Auto open inspector panel when user selects an object on Required/Optional routes
+    if (type !== 'none' && contextMode !== ContextMode.None) {
       setRightPanelOpen(true);
     }
-  }, [setRightPanelOpen]);
+  }, [setRightPanelOpen, contextMode]);
 
   const clearSelection = useCallback(() => {
     setSelectionState({ type: 'none' });
   }, []);
 
   const openInspector = useCallback(() => {
-    setRightPanelOpen(true);
-  }, [setRightPanelOpen]);
+    if (contextMode !== ContextMode.None) {
+      setRightPanelOpen(true);
+    }
+  }, [setRightPanelOpen, contextMode]);
 
   const closeInspector = useCallback(() => {
     setRightPanelOpen(false);
@@ -101,6 +129,7 @@ export function InspectorProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       route,
+      contextMode,
       selection,
       setSelection,
       clearSelection,
@@ -112,6 +141,7 @@ export function InspectorProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       route,
+      contextMode,
       selection,
       setSelection,
       clearSelection,

@@ -125,7 +125,7 @@ export function Sidebar() {
     { id: 'render', label: 'Render Queue', icon: Film, category: 'production' },
     { id: 'analytics', label: 'Studio Analytics', icon: BarChart3, category: 'system' },
     { id: 'integrations', label: 'Integrations', icon: Link2, category: 'system' },
-    { id: 'search', label: 'Global Search', icon: Search, category: 'system' },
+    { id: 'search', label: 'Advanced Search', icon: Search, category: 'system' },
     { id: 'notifications', label: 'Notifications', icon: Bell, category: 'system' },
     { id: 'help', label: 'Help Center', icon: HelpCircle, category: 'system' },
     { id: 'settings', label: 'Settings', icon: Settings, category: 'system' },

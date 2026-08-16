@@ -29,6 +29,10 @@ import {
   Clock,
   Shield,
   Zap,
+  BookOpen,
+  HelpCircle,
+  Keyboard,
+  Compass,
 } from 'lucide-react';
 import { InspectorSelection } from './InspectorContext';
 
@@ -117,11 +121,51 @@ export function getDynamicInspectorHeader(
 
   // 2. DASHBOARD
   if (route === 'dashboard') {
+    if (selection.type === 'story' && selection.data) {
+      return {
+        title: selection.data.title || 'Story Draft',
+        subtitle: selection.data.type || `Progress: ${selection.data.progress || 0}%`,
+        badge: 'DRAFT INSPECTOR',
+        badgeColor: 'text-cinema-amber-400 bg-cinema-amber-500/15 border-cinema-amber-500/30',
+      };
+    }
+    if (selection.type === 'task' && selection.data) {
+      return {
+        title: selection.data.title || selection.data.label || 'Action Task',
+        subtitle: `Priority: ${selection.data.priority || 'Normal'} • Status: ${selection.data.dueStatus || 'Pending'}`,
+        badge: 'TASK INSPECTOR',
+        badgeColor: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
+      };
+    }
+    if (selection.type === 'recommendation' && selection.data) {
+      return {
+        title: selection.data.title || 'AI Recommendation',
+        subtitle: selection.data.reason || 'Automated Studio Advice',
+        badge: 'AI ADVISOR',
+        badgeColor: 'text-purple-400 bg-purple-500/15 border-purple-500/30',
+      };
+    }
+    if (selection.type === 'activity' && selection.data) {
+      return {
+        title: selection.data.title || 'Studio Activity',
+        subtitle: selection.data.time || 'Operational Event Log',
+        badge: 'ACTIVITY ITEM',
+        badgeColor: 'text-blue-400 bg-blue-500/15 border-blue-500/30',
+      };
+    }
+    if (selection.type === 'widget' && selection.data) {
+      return {
+        title: selection.data.title || 'Workspace Snapshot',
+        subtitle: selection.data.subtitle || 'Operational Status Overview',
+        badge: 'SNAPSHOT WIDGET',
+        badgeColor: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
+      };
+    }
     return {
-      title: 'Studio Command Center',
-      subtitle: 'System health, AI usage & active render telemetry',
-      badge: 'TELEMETRY ENGINE',
-      badgeColor: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
+      title: 'Mission Control Inspector',
+      subtitle: 'Contextual insights, recommended actions & operational triage',
+      badge: 'MISSION CONTROL',
+      badgeColor: 'text-cinema-amber-400 bg-cinema-amber-500/15 border-cinema-amber-500/30',
     };
   }
 
@@ -253,6 +297,78 @@ export function getDynamicInspectorHeader(
     };
   }
 
+  // 11. INTEGRATIONS
+  if (route === 'integrations') {
+    if (selection.type === 'integration' && selection.data) {
+      return {
+        title: selection.data.name || 'Service Connector',
+        subtitle: selection.data.category || 'External Service Node',
+        badge: 'INTEGRATION INSPECTOR',
+        badgeColor: 'text-blue-400 bg-blue-500/15 border-blue-500/30',
+      };
+    }
+    return {
+      title: 'Integration Inspector',
+      subtitle: 'Ecosystem health, sync status & OAuth security',
+      badge: 'CONFIGURATION ARCHETYPE',
+      badgeColor: 'text-cinema-amber-400 bg-cinema-amber-500/15 border-cinema-amber-500/30',
+    };
+  }
+
+  // 12. SEARCH / EXPLORER
+  if (route === 'search') {
+    if (selection.data) {
+      return {
+        title: selection.data.title || selection.data.name || 'Search Result',
+        subtitle: selection.data.subtitle || selection.data.meta || 'Discovered Record',
+        badge: 'SEARCH INSPECTOR',
+        badgeColor: 'text-cinema-amber-400 bg-cinema-amber-500/15 border-cinema-amber-500/30',
+      };
+    }
+    return {
+      title: 'Intelligence Discovery Hub',
+      subtitle: 'Global knowledge graph & semantic memory indexer',
+      badge: 'EXPLORER ARCHETYPE',
+      badgeColor: 'text-cinema-amber-400 bg-cinema-amber-500/15 border-cinema-amber-500/30',
+    };
+  }
+
+  // 13. NOTIFICATIONS / OPERATIONS
+  if (route === 'notifications') {
+    if (selection.data) {
+      return {
+        title: selection.data.title || 'Notification Event',
+        subtitle: selection.data.description || 'System Activity Item',
+        badge: 'OPERATIONS INSPECTOR',
+        badgeColor: 'text-cinema-amber-400 bg-cinema-amber-500/15 border-cinema-amber-500/30',
+      };
+    }
+    return {
+      title: 'Operations Center',
+      subtitle: 'System triage, event audit trail & operational intelligence',
+      badge: 'OPERATIONS ARCHETYPE',
+      badgeColor: 'text-cinema-amber-400 bg-cinema-amber-500/15 border-cinema-amber-500/30',
+    };
+  }
+
+  // 14. HELP CENTER / KNOWLEDGE HUB
+  if (route === 'help') {
+    if (selection.data) {
+      return {
+        title: selection.data.title || 'Help Article',
+        subtitle: selection.data.excerpt || 'Knowledge Hub Reference',
+        badge: 'ARTICLE INSPECTOR',
+        badgeColor: 'text-cinema-amber-400 bg-cinema-amber-500/15 border-cinema-amber-500/30',
+      };
+    }
+    return {
+      title: 'Help Center & Guidance',
+      subtitle: 'Documentation, feature guides & AI learning companion',
+      badge: 'KNOWLEDGE ARCHETYPE',
+      badgeColor: 'text-cinema-amber-400 bg-cinema-amber-500/15 border-cinema-amber-500/30',
+    };
+  }
+
   // 11. SETTINGS
   return {
     title: 'System Preferences',
@@ -280,6 +396,25 @@ export function getDynamicInspectorTabs(
 
   // Route-aware tab rules
   if (route === 'dashboard') {
+    if (selection.type === 'story') {
+      return [propertiesTab, aiDirectorTab, activityTab, metadataTab];
+    }
+    if (selection.type === 'task') {
+      return [
+        { id: 'task-details', label: 'Task Details', icon: CheckCircle2 },
+        aiDirectorTab,
+        { id: 'quick-actions', label: 'Actions', icon: Zap },
+      ];
+    }
+    if (selection.type === 'recommendation') {
+      return [
+        { id: 'ai-recommendation', label: 'AI Recommendation', icon: Sparkles },
+        { id: 'quick-actions', label: 'Actions', icon: Zap },
+      ];
+    }
+    if (selection.type === 'activity') {
+      return [activityTab, metadataTab];
+    }
     return [aiDirectorTab, telemetryTab, activityTab, metadataTab, commentsTab];
   }
 
@@ -357,9 +492,54 @@ export function getDynamicInspectorTabs(
     ];
   }
 
+  if (route === 'integrations') {
+    return [
+      { id: 'service-details', label: 'Service Details', icon: Link2 },
+      { id: 'sync-status', label: 'Sync Status', icon: Activity },
+      { id: 'permissions', label: 'Permissions', icon: CheckCircle2 },
+      { id: 'activity', label: 'Activity', icon: History },
+    ];
+  }
+
+  if (route === 'search') {
+    return [
+      { id: 'result-details', label: 'Details', icon: FileText },
+      { id: 'relationships', label: 'Relationships', icon: Layers },
+      { id: 'ai-insights', label: 'AI Insights', icon: Sparkles },
+      { id: 'activity', label: 'Activity', icon: History },
+      { id: 'quick-actions', label: 'Actions', icon: Zap },
+    ];
+  }
+
+  if (route === 'notifications') {
+    return [
+      { id: 'notif-details', label: 'Details', icon: FileText },
+      { id: 'affected-story', label: 'Entity Context', icon: BookOpen },
+      { id: 'ai-explanation', label: 'AI Diagnosis', icon: Sparkles },
+      { id: 'activity-timeline', label: 'Event History', icon: History },
+      { id: 'quick-actions', label: 'Actions', icon: Zap },
+    ];
+  }
+
+  if (route === 'help') {
+    return [
+      { id: 'article-outline', label: 'Doc Outline', icon: FileText },
+      { id: 'related-docs', label: 'Related Guides', icon: BookOpen },
+      { id: 'ai-learning', label: 'AI Companion', icon: Sparkles },
+      { id: 'shortcuts-ref', label: 'Key Bindings', icon: Keyboard },
+      { id: 'quick-actions', label: 'Actions', icon: Zap },
+    ];
+  }
+
   if (route === 'settings') {
     return [telemetryTab, metadataTab, activityTab];
   }
 
   return [aiDirectorTab, propertiesTab, metadataTab, commentsTab, activityTab];
 }
+
+export {
+  getDynamicInspectorHeader as getHeaderConfigForSelection,
+  getDynamicInspectorTabs as getInspectorTabsForRoute,
+};
+

@@ -4,8 +4,14 @@
  */
 
 /**
- * Generates a secure cryptographic hash of a password using SHA-256.
- * Falls back to a custom non-trivial deterministic hash if window.crypto is unavailable (e.g. in sandbox iframes).
+ * [DEVELOPMENT / OFFLINE AUTHENTICATION NOTE]
+ * Generates a client-side hash for offline development and testing.
+ * 
+ * SECURITY NOTICE:
+ * Plain SHA-256 / client-side hashing is NOT sufficient for production password security.
+ * In a production backend, authentication must be verified server-side with slow, memory-hard
+ * key-derivation algorithms such as Argon2id, bcrypt, or scrypt, with per-user cryptographic salts
+ * and HTTP-only secure cookie sessions.
  */
 export async function hashPassword(password: string): Promise<string> {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
