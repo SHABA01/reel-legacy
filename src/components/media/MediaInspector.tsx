@@ -129,12 +129,12 @@ export function MediaInspector({
     <aside className="w-80 shrink-0 border-l border-border bg-card/80 backdrop-blur-md flex flex-col h-full overflow-hidden text-xs">
       {/* Header */}
       <div className="p-3 border-b border-border flex items-center justify-between shrink-0">
-        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-cinema-amber-400 flex items-center gap-1.5">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-cinema-amber-600 dark:text-cinema-amber-400 flex items-center gap-1.5">
           <Info className="w-3.5 h-3.5" /> Inspector DAM
         </span>
         <button
           onClick={onClose}
-          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
@@ -153,7 +153,7 @@ export function MediaInspector({
         <div className="absolute top-2 right-2 flex items-center gap-1">
           <button
             onClick={() => onUpdateAsset({ ...asset, favorite: !asset.favorite })}
-            className="p-1 rounded bg-black/80 text-amber-400 hover:scale-110 transition-transform"
+            className="p-1 rounded bg-black/80 text-amber-400 hover:scale-110 transition-transform cursor-pointer"
           >
             <Star className={`w-3.5 h-3.5 ${asset.favorite ? 'fill-amber-400' : ''}`} />
           </button>
@@ -164,31 +164,31 @@ export function MediaInspector({
       <div className="flex items-center justify-around border-b border-border bg-muted/40 p-1 text-[10px] font-mono shrink-0">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-2 py-1 rounded transition-colors ${activeTab === 'overview' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`px-2 py-1 rounded transition-colors cursor-pointer ${activeTab === 'overview' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
         >
           Overview
         </button>
         <button
           onClick={() => setActiveTab('metadata')}
-          className={`px-2 py-1 rounded transition-colors ${activeTab === 'metadata' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`px-2 py-1 rounded transition-colors cursor-pointer ${activeTab === 'metadata' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
         >
           Meta
         </button>
         <button
           onClick={() => setActiveTab('ai')}
-          className={`px-2 py-1 rounded transition-colors flex items-center gap-1 ${activeTab === 'ai' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`px-2 py-1 rounded transition-colors cursor-pointer flex items-center gap-1 ${activeTab === 'ai' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
         >
           <Sparkles className="w-2.5 h-2.5" /> AI
         </button>
         <button
           onClick={() => setActiveTab('relationships')}
-          className={`px-2 py-1 rounded transition-colors ${activeTab === 'relationships' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`px-2 py-1 rounded transition-colors cursor-pointer ${activeTab === 'relationships' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
         >
           Links
         </button>
         <button
           onClick={() => setActiveTab('versions')}
-          className={`px-2 py-1 rounded transition-colors ${activeTab === 'versions' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`px-2 py-1 rounded transition-colors cursor-pointer ${activeTab === 'versions' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
         >
           Versions
         </button>
@@ -209,11 +209,11 @@ export function MediaInspector({
             <div className="space-y-1.5 pt-2 border-t border-border text-[11px]">
               <div className="flex justify-between text-muted-foreground">
                 <span>Production Readiness</span>
-                <span className="font-mono font-bold text-emerald-400">{asset.readinessStatus}</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{asset.readinessStatus}</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>Quality Rating</span>
-                <span className="font-mono text-amber-400">{'★'.repeat(asset.qualityRating || 4)}</span>
+                <span className="font-mono text-amber-500 dark:text-amber-400">{'★'.repeat(asset.qualityRating || 4)}</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>File Size</span>
@@ -278,10 +278,10 @@ export function MediaInspector({
           <div className="space-y-3 text-[11px]">
             <div className="p-2.5 rounded-lg bg-cinema-amber-500/10 border border-cinema-amber-500/30 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-mono font-bold text-cinema-amber-400 uppercase text-[10px] flex items-center gap-1">
+                <span className="font-mono font-bold text-cinema-amber-600 dark:text-cinema-amber-400 uppercase text-[10px] flex items-center gap-1">
                   <Sparkles className="w-3 h-3" /> AI Vision & Audio Analysis
                 </span>
-                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-cinema-amber-500/20 text-cinema-amber-300 font-bold">
+                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-cinema-amber-500/20 text-cinema-amber-800 dark:text-cinema-amber-300 font-bold">
                   Score: {analysis.qualityScore}/100
                 </span>
               </div>
@@ -305,14 +305,14 @@ export function MediaInspector({
 
               {analysis.damageDetected && (
                 <div className="pt-2 border-t border-rose-500/30 space-y-2">
-                  <div className="text-rose-400 font-semibold flex items-center gap-1">
+                  <div className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" /> Damage / Degradation Detected
                   </div>
                   <p className="text-muted-foreground text-[10px]">{analysis.restorationRecommendation}</p>
                   <button
                     onClick={handleApplyRestoration}
                     disabled={isRestoring}
-                    className="w-full py-1.5 rounded-lg bg-cinema-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-1 hover:bg-cinema-amber-400 transition-colors shadow-sm disabled:opacity-50"
+                    className="w-full py-1.5 rounded-lg bg-cinema-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-1 hover:bg-cinema-amber-400 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" /> {isRestoring ? 'Restoring...' : 'Run AI Restoration'}
                   </button>
@@ -322,7 +322,7 @@ export function MediaInspector({
               {analysis.ocrText && (
                 <div className="pt-2 border-t border-cinema-amber-500/20 space-y-1">
                   <span className="text-muted-foreground font-semibold block">Extracted OCR Text:</span>
-                  <p className="p-2 rounded bg-black/40 font-mono text-[10px] text-foreground leading-relaxed">
+                  <p className="p-2 rounded bg-muted/80 border border-border/60 font-mono text-[10px] text-foreground leading-relaxed">
                     "{analysis.ocrText}"
                   </p>
                 </div>
@@ -332,14 +332,14 @@ export function MediaInspector({
                 <div className="pt-2 border-t border-cinema-amber-500/20 space-y-1.5">
                   <span className="text-muted-foreground font-semibold block">Speech Transcript & Audio:</span>
                   {analysis.speechTranscript ? (
-                    <p className="p-2 rounded bg-black/40 font-mono text-[10px] text-foreground leading-relaxed">
+                    <p className="p-2 rounded bg-muted/80 border border-border/60 font-mono text-[10px] text-foreground leading-relaxed">
                       "{analysis.speechTranscript}"
                     </p>
                   ) : (
                     <button
                       onClick={handleRunTranscription}
                       disabled={isTranscribing}
-                      className="w-full py-1.5 rounded-lg bg-muted text-foreground font-bold text-xs flex items-center justify-center gap-1 hover:bg-muted/80 transition-colors disabled:opacity-50"
+                      className="w-full py-1.5 rounded-lg bg-muted text-foreground font-bold text-xs flex items-center justify-center gap-1 hover:bg-muted/80 transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       <Volume2 className="w-3.5 h-3.5 text-cinema-amber-500" /> {isTranscribing ? 'Transcribing...' : 'Run Speech Transcription'}
                     </button>
@@ -375,16 +375,16 @@ export function MediaInspector({
             </div>
 
             <div className="p-2.5 rounded-lg bg-muted/60 space-y-2 border border-border">
-              <span className="font-mono text-[10px] font-bold text-cinema-amber-400 uppercase flex items-center gap-1">
+              <span className="font-mono text-[10px] font-bold text-cinema-amber-600 dark:text-cinema-amber-400 uppercase flex items-center gap-1">
                 <Link2 className="w-3 h-3" /> Connected Story Elements
               </span>
 
               <div className="space-y-1">
                 <span className="text-muted-foreground font-medium block">Scenes Using This Asset:</span>
                 {relationships.linkedScenes.map(sc => (
-                  <div key={sc.id} className="p-1.5 rounded bg-black/30 font-mono text-[10px] text-foreground flex items-center justify-between">
+                  <div key={sc.id} className="p-1.5 rounded bg-muted/80 border border-border/60 font-mono text-[10px] text-foreground flex items-center justify-between">
                     <span>{sc.title}</span>
-                    <span className="text-cinema-amber-400 font-bold">Attached</span>
+                    <span className="text-cinema-amber-600 dark:text-cinema-amber-400 font-bold">Attached</span>
                   </div>
                 ))}
               </div>
@@ -392,9 +392,9 @@ export function MediaInspector({
               <div className="space-y-1 pt-2 border-t border-border">
                 <span className="text-muted-foreground font-medium block">Characters Appearing:</span>
                 {relationships.linkedCharacters.map(c => (
-                  <div key={c.id} className="p-1.5 rounded bg-black/30 font-mono text-[10px] text-foreground flex items-center justify-between">
+                  <div key={c.id} className="p-1.5 rounded bg-muted/80 border border-border/60 font-mono text-[10px] text-foreground flex items-center justify-between">
                     <span>{c.name}</span>
-                    <span className="text-emerald-400 font-bold">Tagged</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">Tagged</span>
                   </div>
                 ))}
               </div>
@@ -437,7 +437,7 @@ export function MediaInspector({
                       const updatedVersions = (asset.versions || []).map(v => ({ ...v, isCurrent: v.id === ver.id }));
                       onUpdateAsset({ ...asset, versions: updatedVersions });
                     }}
-                    className="p-1 rounded text-cinema-amber-400 hover:bg-cinema-amber-500/20 font-mono text-[10px]"
+                    className="p-1 rounded text-cinema-amber-600 dark:text-cinema-amber-400 hover:bg-cinema-amber-500/20 font-mono text-[10px] cursor-pointer"
                   >
                     Switch
                   </button>

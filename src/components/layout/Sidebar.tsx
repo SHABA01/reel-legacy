@@ -12,19 +12,12 @@ import {
   LayoutDashboard,
   BookOpen,
   Users,
-  History,
   Image,
-  Mic,
   LayoutTemplate,
   Film,
-  BarChart3,
-  Link2,
   Settings,
   ChevronLeft,
   ChevronRight,
-  Search,
-  Bell,
-  HelpCircle,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -118,16 +111,8 @@ export function Sidebar() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, category: 'home' },
     { id: 'profiles', label: 'Legacy Profiles', icon: Users, category: 'storytelling' },
     { id: 'stories', label: 'Story Library', icon: BookOpen, category: 'storytelling' },
-    { id: 'studio', label: 'Story Studio', icon: Film, category: 'storytelling' },
     { id: 'media', label: 'Media Library', icon: Image, category: 'assets' },
-    { id: 'narration', label: 'Narration Studio', icon: Mic, category: 'assets' },
     { id: 'templates', label: 'Story Templates', icon: LayoutTemplate, category: 'production' },
-    { id: 'render', label: 'Render Queue', icon: Film, category: 'production' },
-    { id: 'analytics', label: 'Studio Analytics', icon: BarChart3, category: 'system' },
-    { id: 'integrations', label: 'Integrations', icon: Link2, category: 'system' },
-    { id: 'search', label: 'Advanced Search', icon: Search, category: 'system' },
-    { id: 'notifications', label: 'Notifications', icon: Bell, category: 'system' },
-    { id: 'help', label: 'Help Center', icon: HelpCircle, category: 'system' },
     { id: 'settings', label: 'Settings', icon: Settings, category: 'system' },
   ];
 

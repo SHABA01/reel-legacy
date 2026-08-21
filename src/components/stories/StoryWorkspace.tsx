@@ -25,7 +25,6 @@ import {
   Globe,
   Lock,
   Eye,
-  Building,
   Award,
   GraduationCap,
   Gift,
@@ -56,7 +55,6 @@ import {
   Plus,
   FolderOpen,
   MapPin,
-  Briefcase,
   SlidersHorizontal,
   Bookmark,
   CheckCircle,
@@ -141,18 +139,6 @@ interface LocalPerson {
   timelineReferences: string[];
   mediaReferences: string[];
   email?: string;
-}
-
-interface LocalCareerEntry {
-  id: string;
-  company: string;
-  position: string;
-  years: string;
-  responsibilities: string[];
-  achievements: string[];
-  skillsUsed: string[];
-  promotions: string;
-  location: string;
 }
 
 interface LocalDocument {
@@ -285,7 +271,7 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
 
   // Selected item inside workspaces which populates the dynamic right inspector
   const [selectedInspectorItem, setSelectedInspectorItem] = useState<{
-    type: 'story' | 'timeline' | 'media' | 'person' | 'career' | 'document';
+    type: 'story' | 'timeline' | 'media' | 'person' | 'document' | 'import';
     id: string;
     data: any;
   }>({
@@ -302,7 +288,6 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
         story: 'story',
         timeline: 'timeline',
         media: 'media',
-        career: 'career',
         document: 'document',
         import: 'import',
       };
@@ -826,45 +811,6 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
       }
     ];
   });
-
-  // 8. CAREER HISTORY STATE
-  const [careerSubTab, setCareerSubTab] = useState<'employment' | 'imports'>('imports');
-  const [careerHistory, setCareerHistory] = useState<LocalCareerEntry[]>([
-    {
-      id: 'car-1',
-      company: 'North Portland Secondary',
-      position: 'Literary Humanities Teacher',
-      years: '1966 – 1970',
-      location: 'Portland, ME',
-      responsibilities: [
-        'Curated independent reading lists for high school sophomores',
-        'Instructed elective seminars in early American transcendentalism'
-      ],
-      achievements: [
-        'Organized school’s first annual multi-school historical book fair'
-      ],
-      skillsUsed: ['Curriculum Planning', 'Lecturing', 'Literary Criticism'],
-      promotions: 'Senior Elective Coordinator in 1969'
-    },
-    {
-      id: 'car-2',
-      company: 'Salem Literacy Center',
-      position: 'Executive Administrative Director',
-      years: '1974 – 2010',
-      location: 'Salem, MA',
-      responsibilities: [
-        'Pioneered basic adult literacy curriculum pathways',
-        'Managed municipal grant writing, fundraising, and city outreach',
-        'Supervised a rotation of sixty local volunteer teachers and tutors'
-      ],
-      achievements: [
-        'Graduated over 3,000 adult learners with vocational literacy certificates',
-        'Secured state-level continuous operating endowment'
-      ],
-      skillsUsed: ['Grant Writing', 'Budget Allocation', 'Volunteer Management', 'Civic Leadership'],
-      promotions: 'N/A (Co-Founder)',
-    }
-  ]);
 
   // 9. DOCUMENTS CATALOGUE STATE
   const [documents, setDocuments] = useState<DocumentSchema[]>([]);
@@ -3250,370 +3196,6 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
                   }}
                   showToast={showToast}
                 />
-              </motion.div>
-            )}
-
-            {/* CAREER HISTORY RETROSPECTIVE WORKSPACE */}
-            {activeSection === 'career' && (
-              <motion.div
-                key="workspace-career"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6 relative"
-                id="pane-career"
-                onDragOver={(e) => { e.preventDefault(); setIsDraggingImport(true); }}
-                onDragLeave={() => setIsDraggingImport(false)}
-                onDrop={handleImportDrop}
-              >
-                {/* Hidden File Input */}
-                <input
-                  type="file"
-                  ref={importsFileInputRef}
-                  onChange={handleImportFileChange}
-                  className="hidden"
-                  multiple
-                  accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
-                />
-
-                {/* Drag and Drop Hover Overlay */}
-                {isDraggingImport && (
-                  <div className="absolute inset-4 z-40 bg-background/95 backdrop-blur-xs border-2 border-dashed border-cinema-amber-500 rounded-2xl flex flex-col items-center justify-center space-y-4 pointer-events-none animate-fade-in">
-                    <div className="w-16 h-16 rounded-full bg-cinema-amber-500/10 flex items-center justify-center text-cinema-amber-500">
-                      <FileText className="w-8 h-8 animate-bounce" />
-                    </div>
-                    <div className="text-center">
-                      <h4 className="font-bold text-foreground text-sm uppercase">Drop your files here</h4>
-                      <p className="text-xs text-muted-foreground mt-1">Accepts PDFs, CVs, Memoirs & Notes up to 50MB</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Header Row */}
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                        <Briefcase className="w-4 h-4 text-cinema-amber-500" /> Career Retrospective & Credentials Sandbox
-                      </h3>
-                      <span className="text-[10px] font-mono font-bold bg-cinema-amber-500/15 text-cinema-amber-500 px-1.5 py-0.5 rounded border border-cinema-amber-500/20 uppercase">
-                        {imports.length} Sources Loaded
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Log corporate history manually or import credentials (Resumes, CVs, Biographies, memoirs, and diaries) to organize local timeline points.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto">
-                    {/* Switcher Tabs */}
-                    <div className="p-1.5 bg-muted rounded-xl border border-border flex items-center gap-1">
-                      <button
-                        onClick={() => setCareerSubTab('imports')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                          careerSubTab === 'imports'
-                            ? 'bg-card text-foreground border border-border shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        Source Imports ({imports.length})
-                      </button>
-                      <button
-                        onClick={() => setCareerSubTab('employment')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                          careerSubTab === 'employment'
-                            ? 'bg-card text-foreground border border-border shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        <Building className="w-3.5 h-3.5" />
-                        Employment Ledger ({careerHistory.length})
-                      </button>
-                    </div>
-
-                    {careerSubTab === 'imports' && (
-                      <button
-                        onClick={handleOpenImportUpload}
-                        className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-600 active:scale-98 text-slate-950 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm h-[38px]"
-                      >
-                        <Plus className="w-4 h-4 stroke-[3]" />
-                        Upload Source
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Sub Tab: IMPORTS WORKSPACE */}
-                {careerSubTab === 'imports' && (
-                  <div className="space-y-6">
-                    {/* Drag & Drop prompt zone */}
-                    <div
-                      onClick={handleOpenImportUpload}
-                      className="border-2 border-dashed border-border hover:border-cinema-amber-500/50 bg-card hover:bg-muted/10 p-8 rounded-2xl cursor-pointer text-center space-y-3 transition-all"
-                    >
-                      <div className="w-12 h-12 rounded-full bg-cinema-amber-500/10 flex items-center justify-center text-cinema-amber-500 mx-auto">
-                        <UploadCloud className="w-6 h-6" />
-                      </div>
-                      <div className="max-w-md mx-auto space-y-1">
-                        <h4 className="text-sm font-black text-foreground uppercase tracking-wide">
-                          Drag & drop source files here
-                        </h4>
-                        <p className="text-xs text-muted-foreground font-semibold leading-relaxed">
-                          Bulk drop PDFs, CV documents, text biography drafts, or scanned images. Your files are processed entirely in the browser and saved locally.
-                        </p>
-                      </div>
-                      <div className="flex justify-center gap-2 text-[10px] font-mono text-muted-foreground font-bold">
-                        <span className="bg-muted px-2 py-0.5 rounded border border-border/60">PDF</span>
-                        <span className="bg-muted px-2 py-0.5 rounded border border-border/60">TXT</span>
-                        <span className="bg-muted px-2 py-0.5 rounded border border-border/60">IMAGE</span>
-                        <span className="bg-muted px-2 py-0.5 rounded border border-border/60">DOCX</span>
-                      </div>
-                    </div>
-
-                    {/* Filter and Search controls */}
-                    <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-muted/40 p-3 rounded-2xl border border-border/80">
-                      <div className="flex flex-wrap items-center gap-1 w-full lg:w-auto">
-                        {['All', 'Resume / CV', 'Biography', 'Memoir', 'Personal Notes', 'Favorites'].map(cat => (
-                          <button
-                            key={cat}
-                            onClick={() => setImportFilter(cat)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                              importFilter === cat 
-                                ? 'bg-card text-foreground border border-border shadow-xs' 
-                                : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                          >
-                            {cat === 'All' ? 'All Formats' : cat}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
-                        {/* Search Input */}
-                        <div className="relative w-full sm:w-64">
-                          <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-                          <input
-                            type="text"
-                            placeholder="Search imports..."
-                            value={importSearchQuery}
-                            onChange={(e) => setImportSearchQuery(e.target.value)}
-                            className="w-full bg-card border border-border rounded-xl pl-9 pr-8 py-1.5 text-xs focus:outline-none focus:border-cinema-amber-500 font-medium"
-                          />
-                          {importSearchQuery && (
-                            <button
-                              onClick={() => setImportSearchQuery('')}
-                              className="absolute right-2 top-2 p-0.5 hover:bg-muted rounded-full text-muted-foreground hover:text-foreground cursor-pointer"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Sort Dropdown */}
-                        <Select
-                          id="import-sort-by"
-                          value={importSortBy}
-                          onChange={(val) => setImportSortBy(val as any)}
-                          options={[
-                            { value: 'recently-uploaded', label: 'Recently Added' },
-                            { value: 'name', label: 'Sort by Name' },
-                            { value: 'size', label: 'Sort by Size' },
-                            { value: 'type', label: 'Sort by Type' }
-                          ]}
-                          className="w-40"
-                        />
-
-                        {/* Archive Toggle */}
-                        <button
-                          onClick={() => setShowArchivedImports(!showArchivedImports)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer h-[32px] shrink-0 ${
-                            showArchivedImports
-                              ? 'bg-red-500/10 border-red-500/25 text-red-500'
-                              : 'bg-card border-border hover:bg-muted text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          <Archive className="w-3.5 h-3.5" />
-                          {showArchivedImports ? 'Archived Vault' : 'Show Vault'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Ledger / Cards List */}
-                    {filteredImports.length === 0 ? (
-                      <div className="text-center py-12 border border-border/80 rounded-2xl bg-muted/20">
-                        <FileText className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-                        <h4 className="text-sm font-black text-foreground uppercase tracking-wide">No Sources Found</h4>
-                        <p className="text-xs text-muted-foreground font-semibold mt-1">
-                          {importSearchQuery ? 'No imports matched your active filter or search query.' : 'No uploaded resume or biography sources found.'}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {filteredImports.map((item) => {
-                          const isSelected = selectedInspectorItem.type === 'import' && selectedInspectorItem.id === item.id;
-                          return (
-                            <div
-                              key={item.id}
-                              onClick={() => setSelectedInspectorItem({ type: 'import', id: item.id, data: item })}
-                              className={`p-4 bg-card border rounded-2xl cursor-pointer hover:shadow-md transition-all flex flex-col justify-between space-y-4 ${
-                                isSelected
-                                  ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03]'
-                                  : 'border-border hover:border-muted-foreground/30'
-                              }`}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-start gap-3 min-w-0">
-                                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
-                                    <FileText className="w-5 h-5" />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <h4 className="text-sm font-bold text-foreground truncate uppercase tracking-tight" title={item.displayName}>
-                                      {item.displayName}
-                                    </h4>
-                                    <p className="text-[10px] text-muted-foreground font-semibold truncate" title={item.originalFilename}>
-                                      {item.originalFilename}
-                                    </p>
-                                    <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[9px] font-mono font-bold uppercase">
-                                      <span className="bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                                        {item.importType}
-                                      </span>
-                                      <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-1.5 py-0.5 rounded">
-                                        {item.importStatus}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleToggleFavoriteImport(item.id, !item.favorite);
-                                  }}
-                                  className={`p-1 hover:bg-muted rounded-full transition-colors ${
-                                    item.favorite ? 'text-cinema-amber-500' : 'text-muted-foreground/40 hover:text-foreground'
-                                  }`}
-                                  title={item.favorite ? 'Unfavorite' : 'Favorite'}
-                                >
-                                  ★
-                                </button>
-                              </div>
-
-                              {item.description && (
-                                <p className="text-xs text-muted-foreground leading-relaxed font-semibold line-clamp-2">
-                                  {item.description}
-                                </p>
-                              )}
-
-                              <div className="flex items-center justify-between pt-3 border-t border-border/60 text-[10px] font-mono text-muted-foreground font-bold">
-                                <span>{item.fileSize} • {new Date(item.uploadDate).toLocaleDateString()}</span>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpenImportPreview(item);
-                                    }}
-                                    className="p-1 hover:text-foreground hover:bg-muted rounded"
-                                    title="View & Edit Metadata"
-                                  >
-                                    <Eye className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      item.archived ? handleRestoreImport(item.id) : handleArchiveImport(item.id);
-                                    }}
-                                    className="p-1 hover:text-foreground hover:bg-muted rounded"
-                                    title={item.archived ? 'Restore' : 'Archive to Vault'}
-                                  >
-                                    <Archive className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteImport(item.id);
-                                    }}
-                                    className="p-1 hover:text-red-500 hover:bg-red-500/10 rounded"
-                                    title="Permanently Delete"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Sub Tab: MANUAL RETROSPECTIVE TIMELINE */}
-                {careerSubTab === 'employment' && (
-                  <div className="space-y-6 animate-fade-in">
-                    <div className="space-y-6" id="career-timeline">
-                      {careerHistory.map((job) => {
-                        const isSelected = selectedInspectorItem.type === 'career' && selectedInspectorItem.id === job.id;
-                        return (
-                          <div
-                            key={job.id}
-                            onClick={() => setSelectedInspectorItem({ type: 'career', id: job.id, data: job })}
-                            className={`p-5 bg-card border rounded-2xl cursor-pointer hover:shadow-md transition-all space-y-3 ${
-                              isSelected 
-                                ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03]' 
-                                : 'border-border hover:border-muted-foreground/30'
-                            }`}
-                          >
-                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 text-xs">
-                              <div>
-                                <span className="font-mono text-cinema-amber-600 dark:text-cinema-amber-400 font-bold block">{job.years}</span>
-                                <h4 className="text-sm font-black text-foreground mt-0.5">{job.position}</h4>
-                                <span className="text-muted-foreground font-semibold flex items-center gap-1">
-                                  <Building className="w-3.5 h-3.5 text-muted-foreground" /> {job.company} — {job.location}
-                                </span>
-                              </div>
-                              {job.promotions && (
-                                <span className="text-[10px] font-mono font-bold uppercase bg-muted border border-border text-muted-foreground px-2 py-0.5 rounded-md self-start">
-                                  {job.promotions}
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-2 border-t border-border/50">
-                              <div className="space-y-2">
-                                <span className="font-bold uppercase tracking-wider text-[10px] text-muted-foreground font-mono">Daily Responsibilities</span>
-                                <ul className="list-disc list-inside space-y-1 text-muted-foreground leading-relaxed font-semibold">
-                                  {job.responsibilities.map((resp, idx) => (
-                                    <li key={idx} className="truncate max-w-[340px]">{resp}</li>
-                                  ))}
-                                </ul>
-                              </div>
-
-                              <div className="space-y-2">
-                                <span className="font-bold uppercase tracking-wider text-[10px] text-muted-foreground font-mono">Major Achievements</span>
-                                <ul className="list-disc list-inside space-y-1 text-muted-foreground leading-relaxed font-semibold">
-                                  {job.achievements.map((ach, idx) => (
-                                    <li key={idx} className="truncate max-w-[340px] text-foreground/80">{ach}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </div>
-
-                            {/* Skills tag set */}
-                            <div className="flex flex-wrap items-center gap-1.5 pt-2 text-xs">
-                              <span className="text-muted-foreground font-bold font-mono text-[9px] uppercase">Validated Skills:</span>
-                              {job.skillsUsed.map((sk, idx) => (
-                                <span key={idx} className="text-[9px] font-mono font-bold bg-muted text-muted-foreground border border-border/80 px-2 py-0.5 rounded">
-                                  {sk}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </motion.div>
             )}
 

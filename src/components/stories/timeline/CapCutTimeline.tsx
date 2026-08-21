@@ -210,14 +210,14 @@ export function CapCutTimeline({ storyTitle, scenes = [], onTimeUpdate }: CapCut
             <SkipBack className="w-4 h-4" />
           </Button>
 
-          <div className="font-mono font-black text-sm bg-background border border-border px-3 py-1 rounded-lg text-cinema-amber-400">
+          <div className="font-mono font-black text-sm bg-muted/60 border border-border px-3 py-1 rounded-lg text-cinema-amber-600 dark:text-cinema-amber-400">
             {formatTime(currentTime)} / {formatTime(totalDuration)}
           </div>
         </div>
 
         {/* AI TIMELINE ASSISTANT BAR */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-mono font-bold text-cinema-amber-400 bg-cinema-amber-500/10 px-2 py-1 rounded border border-cinema-amber-500/20 uppercase tracking-wider flex items-center gap-1">
+          <span className="text-[10px] font-mono font-bold text-cinema-amber-600 dark:text-cinema-amber-400 bg-cinema-amber-500/10 px-2 py-1 rounded border border-cinema-amber-500/20 uppercase tracking-wider flex items-center gap-1">
             <Sparkles className="w-3 h-3 animate-pulse" /> AI Timeline Tools:
           </span>
 
@@ -231,7 +231,7 @@ export function CapCutTimeline({ storyTitle, scenes = [], onTimeUpdate }: CapCut
             <button
               key={idx}
               onClick={() => handleAITimelineAction(tool.label, tool.desc)}
-              className="px-2.5 py-1 bg-background hover:bg-cinema-amber-500 hover:text-slate-950 text-foreground border border-border/80 hover:border-cinema-amber-500 text-[11px] font-bold rounded-lg transition-all"
+              className="px-2.5 py-1 bg-card hover:bg-cinema-amber-500 hover:text-slate-950 text-foreground border border-border/80 hover:border-cinema-amber-500 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
             >
               {tool.label}
             </button>
@@ -242,26 +242,26 @@ export function CapCutTimeline({ storyTitle, scenes = [], onTimeUpdate }: CapCut
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSnapEnabled(!snapEnabled)}
-            className={`px-2 py-1 text-[10px] font-mono font-bold rounded border transition-colors ${
+            className={`px-2 py-1 text-[10px] font-mono font-bold rounded border transition-colors cursor-pointer ${
               snapEnabled
-                ? 'bg-cinema-amber-500/15 text-cinema-amber-400 border-cinema-amber-500/30'
+                ? 'bg-cinema-amber-500/15 text-cinema-amber-600 dark:text-cinema-amber-400 border-cinema-amber-500/30'
                 : 'text-muted-foreground border-border'
             }`}
           >
             SNAP: {snapEnabled ? 'ON' : 'OFF'}
           </button>
 
-          <div className="flex items-center gap-1 bg-background border border-border p-1 rounded-lg">
+          <div className="flex items-center gap-1 bg-card border border-border p-1 rounded-lg">
             <button
               onClick={() => setZoomLevel((z) => Math.max(0.8, z - 0.2))}
-              className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
+              className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
             <span className="text-[10px] font-mono font-bold text-foreground px-1">{zoomLevel.toFixed(1)}x</span>
             <button
               onClick={() => setZoomLevel((z) => Math.min(3.0, z + 0.2))}
-              className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
+              className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
@@ -270,7 +270,7 @@ export function CapCutTimeline({ storyTitle, scenes = [], onTimeUpdate }: CapCut
       </div>
 
       {/* MULTI-TRACK STACK CONTAINER */}
-      <div className="relative border border-border/80 rounded-xl overflow-hidden bg-background/80 flex flex-col min-h-[320px]">
+      <div className="relative border border-border/80 rounded-xl overflow-hidden bg-card flex flex-col min-h-[320px]">
         {/* TIMELINE RULER */}
         <div className="h-8 bg-muted/60 border-b border-border flex items-center pl-44 pr-4 relative overflow-hidden">
           {Array.from({ length: 13 }).map((_, i) => {
@@ -297,12 +297,12 @@ export function CapCutTimeline({ storyTitle, scenes = [], onTimeUpdate }: CapCut
 
         {/* TRACK DEFINITIONS */}
         {[
-          { id: 'video', label: '📹 Video Track', icon: Video, color: 'text-cinema-amber-400' },
-          { id: 'narration', label: '🎙️ Narration Track', icon: Mic, color: 'text-purple-400' },
-          { id: 'music', label: '🎵 Music Track', icon: Music, color: 'text-indigo-400' },
-          { id: 'effects', label: '✨ Transitions Track', icon: Sparkles, color: 'text-cyan-400' },
-          { id: 'subtitles', label: '💬 Subtitles Track', icon: MessageSquare, color: 'text-emerald-400' },
-          { id: 'broll', label: '🖼️ Archival B-Roll', icon: ImageIcon, color: 'text-amber-400' },
+          { id: 'video', label: '📹 Video Track', icon: Video, color: 'text-cinema-amber-600 dark:text-cinema-amber-400' },
+          { id: 'narration', label: '🎙️ Narration Track', icon: Mic, color: 'text-purple-600 dark:text-purple-400' },
+          { id: 'music', label: '🎵 Music Track', icon: Music, color: 'text-indigo-600 dark:text-indigo-400' },
+          { id: 'effects', label: '✨ Transitions Track', icon: Sparkles, color: 'text-cyan-600 dark:text-cyan-400' },
+          { id: 'subtitles', label: '💬 Subtitles Track', icon: MessageSquare, color: 'text-emerald-600 dark:text-emerald-400' },
+          { id: 'broll', label: '🖼️ Archival B-Roll', icon: ImageIcon, color: 'text-amber-600 dark:text-amber-400' },
         ].map((tr) => {
           const trackClips = clips.filter((c) => c.trackId === tr.id);
           const trState = trackStates[tr.id] || { muted: false, locked: false, hidden: false };

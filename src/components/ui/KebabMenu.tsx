@@ -102,15 +102,6 @@ export function KebabMenu({
                         ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 font-bold'
                         : 'text-foreground hover:bg-muted'
                     }`}
-                    style={{
-                      color: item.disabled
-                        ? undefined
-                        : isDestructive
-                        ? undefined
-                        : resolvedTheme === 'light'
-                        ? '#000000'
-                        : undefined,
-                    }}
                   >
                     <span className="flex-shrink-0 flex items-center justify-center">
                       {displayIcon}

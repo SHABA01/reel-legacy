@@ -62,7 +62,7 @@ export function WaveformEditor({
   };
 
   return (
-    <div className="bg-card/40 border border-border/80 rounded-2xl p-4 space-y-3" id="narration-waveform-editor">
+    <div className="bg-card border border-border rounded-2xl p-4 space-y-3 shadow-sm" id="narration-waveform-editor">
       {/* HEADER & WAVEFORM CONTROLS */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2">
         <div className="flex items-center gap-2">
@@ -95,7 +95,7 @@ export function WaveformEditor({
           <button
             onClick={() => setSnapEnabled(!snapEnabled)}
             className={`py-1 px-2 rounded text-[10px] font-mono font-bold transition-colors cursor-pointer ${
-              snapEnabled ? 'bg-cinema-amber-500/20 text-cinema-amber-400 border border-cinema-amber-500/40' : 'text-muted-foreground'
+              snapEnabled ? 'bg-cinema-amber-500/20 text-cinema-amber-600 dark:text-cinema-amber-400 border border-cinema-amber-500/40' : 'text-muted-foreground'
             }`}
           >
             SNAP {snapEnabled ? 'ON' : 'OFF'}
@@ -109,7 +109,7 @@ export function WaveformEditor({
         className="relative h-28 bg-black/90 rounded-xl border border-border/80 overflow-hidden cursor-pointer select-none group"
       >
         {/* TIMECODE GRID LINES */}
-        <div className="absolute inset-0 flex justify-between px-2 text-[9px] font-mono text-cinema-slate-500 pointer-events-none z-10 pt-1">
+        <div className="absolute inset-0 flex justify-between px-2 text-[9px] font-mono text-slate-400 pointer-events-none z-10 pt-1">
           <span>00:00</span>
           <span>{Math.round(durationSec / 2)}s</span>
           <span>{Math.round(durationSec)}s</span>

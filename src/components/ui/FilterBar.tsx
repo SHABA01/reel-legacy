@@ -116,9 +116,8 @@ export function FilterBar({
             className={`h-10 px-3.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-all cursor-pointer hover:scale-105 hover:shadow-sm ${
               showAdvancedFilters || hasActiveFilters
                 ? 'border-cinema-amber-500 bg-cinema-amber-500/5 text-cinema-amber-600 dark:text-cinema-amber-400'
-                : 'border-border bg-muted hover:bg-muted/75 text-black dark:text-white'
+                : 'border-border bg-muted hover:bg-muted/75 text-foreground'
             }`}
-            style={{ color: resolvedTheme === 'light' ? '#000000' : undefined }}
           >
             <SlidersHorizontal className="w-4 h-4" />
             <span>Filters</span>
