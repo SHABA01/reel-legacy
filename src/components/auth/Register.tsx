@@ -120,9 +120,7 @@ export function Register() {
         setSuccessMsg('Account created! Generating biographic space & verifying email...');
         showToast('success', 'Registration Successful!', 'Your personal archive workspace has been provisioned.');
         
-        setTimeout(() => {
-          navigate('/verify-email');
-        }, 1500);
+        navigate('/verify-email');
       } catch (err: any) {
         setErrorMsg(err.message || 'An unexpected error occurred during registration.');
         showToast('error', 'Registration Failed', err.message || 'Please check form errors.');

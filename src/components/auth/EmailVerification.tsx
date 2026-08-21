@@ -11,6 +11,7 @@ import { AuthLayout } from './AuthLayout';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Mail, CheckCircle2, AlertTriangle, ShieldCheck, ArrowRight, Loader, LogOut, Edit2 } from 'lucide-react';
+import { isSupabaseConfigured, getSupabaseClient } from '../../lib/supabase';
 
 export function EmailVerification() {
   const { user, verifyEmailToken, sendVerificationEmail, changeEmailInVerification, logout } = useAuth();
@@ -18,6 +19,7 @@ export function EmailVerification() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
+  const code = searchParams.get('code');
 
   // Interactive Verification states
   const [verificationState, setVerificationState] = useState<'idle' | 'loading' | 'success' | 'expired' | 'invalid'>('idle');
@@ -30,15 +32,68 @@ export function EmailVerification() {
   const [emailError, setEmailError] = useState<string | undefined>(undefined);
   const [isPending, startTransition] = useTransition();
 
-  // If a token is supplied in the URL, verify it immediately
+  // If a token or Supabase confirmation hash is supplied, verify it
   useEffect(() => {
+    let isMounted = true;
+
+    // Check for Supabase email confirmation hash or code
+    const hash = window.location.hash;
+    const hasVerificationHash = hash && (hash.includes('access_token') || hash.includes('type=signup') || hash.includes('type=email_change'));
+
+    if (isSupabaseConfigured() && (hasVerificationHash || code)) {
+      setVerificationState('loading');
+      const client = getSupabaseClient();
+      if (!client) return;
+
+      const handleVerification = async () => {
+        try {
+          if (code) {
+            const { error: exchangeError } = await client.auth.exchangeCodeForSession(code);
+            if (exchangeError) throw exchangeError;
+          }
+
+          // Fetch current session to verify token validity
+          const { data: { session }, error } = await client.auth.getSession();
+          if (error) throw error;
+
+          if (session?.user && isMounted) {
+            setVerificationState('success');
+            setStatusMessage('Email verified successfully');
+            showToast('success', 'Email Verified', 'Email verified successfully');
+
+            // Clear ONLY the current local verification session so the user explicitly signs in
+            await client.auth.signOut({ scope: 'local' });
+
+            // Clean up the URL hash
+            if (typeof window !== 'undefined') {
+              window.history.replaceState(null, '', window.location.pathname);
+            }
+          } else if (isMounted) {
+            setVerificationState('success');
+            setStatusMessage('Email verified successfully');
+          }
+        } catch (err: any) {
+          if (!isMounted) return;
+          setVerificationState('invalid');
+          setStatusMessage(err.message || 'Verification link is invalid or expired.');
+          showToast('error', 'Verification Failed', err.message || 'Verification failed.');
+        }
+      };
+
+      handleVerification();
+      return () => {
+        isMounted = false;
+      };
+    }
+
     if (token) {
       setVerificationState('loading');
       verifyEmailToken(token).then((result) => {
+        if (!isMounted) return;
         if (result.success) {
           setVerificationState('success');
-          setStatusMessage(result.message);
-          showToast('success', 'Email Verified', result.message);
+          setStatusMessage('Email verified successfully');
+          showToast('success', 'Email Verified', 'Email verified successfully');
         } else {
           if (token === 'expired') {
             setVerificationState('expired');
@@ -51,9 +106,13 @@ export function EmailVerification() {
       });
     } else if (user?.isVerified) {
       setVerificationState('success');
-      setStatusMessage('Your email address is already verified.');
+      setStatusMessage('Email verified successfully');
     }
-  }, [token, user?.isVerified, verifyEmailToken, showToast]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token, code, user?.isVerified, verifyEmailToken, showToast]);
 
   const handleResend = async () => {
     if (!user?.email) return;
@@ -118,26 +177,26 @@ export function EmailVerification() {
         {/* Token Verification SUCCESS State */}
         {verificationState === 'success' && (
           <div className="text-center py-6 space-y-6 animate-fade-in" id="verification-success">
-            {/* Success Illustration Placeholder */}
+            {/* Success Illustration */}
             <div className="w-20 h-20 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-xl shadow-emerald-500/5">
               <ShieldCheck className="w-10 h-10 animate-bounce" />
             </div>
             <div className="space-y-2">
-              <h2 className="font-display text-xl font-bold text-white">Verified Successfully!</h2>
+              <h2 className="font-display text-xl font-bold text-foreground">Email verified successfully</h2>
               <p className="text-xs text-emerald-400 font-semibold px-4 py-1.5 rounded-full bg-emerald-500/5 border border-emerald-500/10 inline-block">
-                Secure Session Active
+                Verification Complete
               </p>
-              <p className="text-xs text-[#94a3b8] max-w-sm mx-auto leading-relaxed pt-2">
-                {statusMessage || 'Your biographic profile is validated and authorized. You have been granted complete cinematic editing capabilities.'}
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed pt-2">
+                Your archive account has been confirmed. Please sign in with your email and password to access the studio.
               </p>
             </div>
             <Button 
               id="verification-continue-btn"
-              onClick={() => navigate('/workspace/dashboard')}
+              onClick={() => navigate('/login')}
               variant="primary"
               className="w-full py-3 rounded-xl font-bold bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             >
-              Enter Studio Workspace <ArrowRight className="w-4 h-4" />
+              Proceed to Login <ArrowRight className="w-4 h-4" />
             </Button>
           </div>
         )}

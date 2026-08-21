@@ -347,3 +347,47 @@ export interface ImportSchema extends BaseEntity {
   version: number;
 }
 
+export interface StoryChapterSchema extends BaseEntity {
+  storyId: string;
+  title: string;
+  summary?: string;
+  orderIndex: number;
+  timePeriod?: string;
+  estimatedDurationSeconds: number;
+  duration?: string;
+}
+
+export interface StorySceneSchema extends BaseEntity {
+  chapterId: string;
+  storyId: string;
+  sceneNumber: number;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  purpose?: string;
+  storySegment: string;
+  sceneType: string;
+  estimatedDuration?: string;
+  durationSeconds: number;
+  notes?: string;
+  status: string;
+  layout: string;
+  narrationText?: string;
+  narrationStatus: string;
+  assignedVoice?: string;
+  estimatedReadingTime?: string;
+  musicTrack?: string;
+  musicMood?: string;
+  musicVolume: number;
+  fadeIn: boolean;
+  fadeOut: boolean;
+  cameraMovement?: string;
+  zoomStyle?: string;
+  panDirection?: string;
+  focusPoint?: string;
+  transitionType?: string;
+  primaryCharacterId?: string;
+  quotes?: string[];
+  settings?: Record<string, any>;
+}
+

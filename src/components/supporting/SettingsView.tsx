@@ -726,6 +726,18 @@ export function SettingsView() {
     }
     if (!user) return;
     try {
+      const { isSupabaseConfigured } = await import('../../lib/supabase');
+      if (isSupabaseConfigured()) {
+        await AuthService.resetPasswordByEmail('', newPassword);
+        showToast('success', 'Password updated', 'Your account credentials have been updated securely.');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setShowPasswordFields(false);
+        addHistoryLog('Security Password', 'Security', 'Previous', 'Updated');
+        return;
+      }
+
       const userSchema = await persistenceService.users.getById(user.id);
       if (!userSchema) throw new Error('User not found.');
 

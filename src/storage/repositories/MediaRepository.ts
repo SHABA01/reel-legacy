@@ -5,8 +5,9 @@
 
 import { BaseRepository } from './BaseRepository';
 import { MediaAssetSchema } from '../schemas/schemas';
+import { IMediaRepository } from './contracts';
 
-export class MediaRepository extends BaseRepository<MediaAssetSchema> {
+export class MediaRepository extends BaseRepository<MediaAssetSchema> implements IMediaRepository {
   protected storageKey = 'media_assets';
 
   async getFavorites(): Promise<MediaAssetSchema[]> {
@@ -27,6 +28,14 @@ export class MediaRepository extends BaseRepository<MediaAssetSchema> {
   async getByProfileId(profileId: string): Promise<MediaAssetSchema[]> {
     const items = await this.getAll();
     return items.filter(item => (item.profileId === profileId || item.legacyProfileId === profileId) && !item.archived);
+  }
+
+  async getByCategory(category: string): Promise<MediaAssetSchema[]> {
+    const items = await this.getAll();
+    return items.filter(item => 
+      !item.archived && 
+      (item.category === category || (item.categories && item.categories.includes(category)))
+    );
   }
 
   async archive(id: string): Promise<MediaAssetSchema | null> {
@@ -99,10 +108,8 @@ export class MediaRepository extends BaseRepository<MediaAssetSchema> {
       if (sortBy === 'type') {
         return a.type.localeCompare(b.type);
       }
-      // Default: recently-uploaded
-      const dateA = new Date(a.uploadDate || a.createdAt || 0).getTime();
-      const dateB = new Date(b.uploadDate || b.createdAt || 0).getTime();
-      return dateB - dateA;
+      // default recently uploaded
+      return new Date(b.uploadDate || b.updatedAt).getTime() - new Date(a.uploadDate || a.updatedAt).getTime();
     });
   }
 }

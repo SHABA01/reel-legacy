@@ -5,8 +5,9 @@
 
 import { BaseRepository } from './BaseRepository';
 import { StorySchema } from '../schemas/schemas';
+import { IStoryRepository } from './contracts';
 
-export class StoryRepository extends BaseRepository<StorySchema> {
+export class StoryRepository extends BaseRepository<StorySchema> implements IStoryRepository {
   protected storageKey = 'stories';
 
   async getPinned(): Promise<StorySchema[]> {
@@ -22,6 +23,21 @@ export class StoryRepository extends BaseRepository<StorySchema> {
   async getByProfileId(profileId: string): Promise<StorySchema[]> {
     const items = await this.getAll();
     return items.filter(item => item.associatedProfileId === profileId);
+  }
+
+  async getByOwnerId(ownerId: string): Promise<StorySchema[]> {
+    const items = await this.getAll();
+    return items.filter(item => (item as any).ownerId === ownerId || (item as any).userId === ownerId);
+  }
+
+  async getByStatus(status: StorySchema['status']): Promise<StorySchema[]> {
+    const items = await this.getAll();
+    return items.filter(item => item.status === status);
+  }
+
+  async getByCategory(category: string): Promise<StorySchema[]> {
+    const items = await this.getAll();
+    return items.filter(item => item.category === category);
   }
 
   async search(query: string): Promise<StorySchema[]> {
@@ -41,7 +57,7 @@ export class StoryRepository extends BaseRepository<StorySchema> {
     const original = await this.getById(id);
     if (!original) return null;
 
-    const dup = {
+    const dup: StorySchema = {
       ...original,
       id: `story-${Date.now()}`,
       title: `${original.title} (Copy)`,
@@ -67,7 +83,7 @@ export class StoryRepository extends BaseRepository<StorySchema> {
   }
 
   async restore(id: string): Promise<StorySchema | null> {
-    return this.update(id, { status: 'In Progress' });
+    return this.update(id, { status: 'Draft' });
   }
 
   async favorite(id: string, isFav: boolean): Promise<StorySchema | null> {
@@ -84,6 +100,10 @@ export class StoryRepository extends BaseRepository<StorySchema> {
 
   async unpublish(id: string): Promise<StorySchema | null> {
     return this.update(id, { status: 'Draft' });
+  }
+
+  async updateProgress(id: string, progress: number): Promise<StorySchema | null> {
+    return this.update(id, { completionProgress: Math.min(100, Math.max(0, progress)) });
   }
 
   async filter(criteria: Partial<StorySchema>): Promise<StorySchema[]> {

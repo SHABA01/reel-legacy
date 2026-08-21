@@ -54,14 +54,15 @@ export function Login() {
         setSuccessMsg('Authentication successful! Initializing workspace...');
         showToast('success', 'Logged in successfully!', `Welcome back, ${user.displayName || 'Storyteller'}.`);
         
-        // Delay navigation slightly to let user see success state/animation
-        setTimeout(() => {
-          if (!user.isVerified) {
-            navigate('/verify-email');
-          } else {
-            navigate('/workspace/dashboard');
-          }
-        }, 1200);
+        const pendingRedirect = localStorage.getItem('rl_redirect_after_auth');
+        if (pendingRedirect) {
+          localStorage.removeItem('rl_redirect_after_auth');
+          navigate(pendingRedirect);
+        } else if (!user.isVerified) {
+          navigate('/verify-email');
+        } else {
+          navigate('/workspace/dashboard');
+        }
       } catch (err: any) {
         setErrorMsg(err.message || 'An unexpected error occurred during login.');
         showToast('error', 'Login Failed', err.message || 'Please check your credentials.');

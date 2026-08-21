@@ -4,7 +4,8 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AuthService, persistenceService } from '../storage';
+import { AuthService, persistenceService, mapSupabaseUserToSchema } from '../storage';
+import { isSupabaseConfigured, getSupabaseClient } from '../lib/supabase';
 
 export interface User {
   id: string;
@@ -73,19 +74,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return localStorage.getItem('rl_remember_me') === 'true';
   });
 
-  // Load session on startup
+  // Load session on startup and subscribe to auth lifecycle events
   useEffect(() => {
+    let isMounted = true;
+
+    if (isSupabaseConfigured()) {
+      const client = getSupabaseClient();
+      if (!client) {
+        setIsLoading(false);
+        return;
+      }
+
+      // 1. Initial session restoration
+      client.auth.getSession().then(({ data: { session }, error }) => {
+        if (!isMounted) return;
+        if (error) {
+          console.error('Supabase session restoration error:', error);
+        }
+
+        const isVerificationCallback = typeof window !== 'undefined' && 
+          (window.location.pathname === '/verify-email' || window.location.hash.includes('type=signup') || window.location.hash.includes('type=email_change'));
+
+        if (isVerificationCallback) {
+          setIsLoading(false);
+          return;
+        }
+
+        if (session?.user) {
+          const userSchema = mapSupabaseUserToSchema(session.user);
+          const mapped = mapSchemaToUser(userSchema);
+          setUser(mapped);
+          setIsAuthenticated(mapped.isVerified);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+        setIsLoading(false);
+      });
+
+      // 2. Real-time auth state listener
+      const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+        if (!isMounted) return;
+
+        const isVerificationCallback = typeof window !== 'undefined' && 
+          (window.location.pathname === '/verify-email' || window.location.hash.includes('type=signup') || window.location.hash.includes('type=email_change'));
+
+        if (isVerificationCallback && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
+          return;
+        }
+
+        if (session?.user) {
+          const userSchema = mapSupabaseUserToSchema(session.user);
+          const mapped = mapSchemaToUser(userSchema);
+          setUser(mapped);
+          setIsAuthenticated(mapped.isVerified);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+        setIsLoading(false);
+      });
+
+      return () => {
+        isMounted = false;
+        subscription.unsubscribe();
+      };
+    }
+
+    // Local Development Fallback
     const restoreSession = async () => {
       setIsLoading(true);
       try {
         const storedToken = localStorage.getItem('rl_session_token') || sessionStorage.getItem('rl_session_token');
         if (storedToken) {
           const userSchema = await AuthService.restoreSession(storedToken);
-          if (userSchema) {
+          if (userSchema && isMounted) {
             setUser(mapSchemaToUser(userSchema));
             setIsAuthenticated(true);
-          } else {
-            // Token was expired or invalid; clean it up
+          } else if (isMounted) {
             localStorage.removeItem('rl_session_token');
             sessionStorage.removeItem('rl_session_token');
           }
@@ -93,11 +159,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.error('Session restoration failed:', e);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     restoreSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Update rememberMe preference in localStorage
@@ -106,9 +178,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [rememberMe]);
 
   /**
-   * Refetches the user data from storage to keep context synced.
+   * Refetches the user data from storage/Supabase to keep context synced.
    */
   const refreshUser = async () => {
+    if (isSupabaseConfigured()) {
+      const client = getSupabaseClient();
+      if (!client) return;
+      try {
+        const { data: { user: sbUser } } = await client.auth.getUser();
+        if (sbUser) {
+          setUser(mapSchemaToUser(mapSupabaseUserToSchema(sbUser)));
+        }
+      } catch (e) {
+        console.error('Failed to refresh Supabase auth user:', e);
+      }
+      return;
+    }
+
     if (!user) return;
     try {
       const updatedSchema = await persistenceService.users.getById(user.id);
@@ -123,7 +209,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password_val: string, remember: boolean): Promise<User> => {
     setIsLoading(true);
     try {
-      // Direct pass for sandbox connectivity error
+      if (isSupabaseConfigured()) {
+        const { user: userSchema } = await AuthService.login(email, password_val, remember);
+        const mappedUser = mapSchemaToUser(userSchema);
+        setUser(mappedUser);
+        setIsAuthenticated(true);
+        setRememberMe(remember);
+        return mappedUser;
+      }
+
+      // Local Development Fallback
       if (email === 'error@reellegacy.com') {
         throw new Error('Network failure. Please verify your connection.');
       }
@@ -135,7 +230,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAuthenticated(true);
       setRememberMe(remember);
 
-      // Store token based on rememberMe option
       if (remember) {
         localStorage.setItem('rl_session_token', session.token);
         sessionStorage.removeItem('rl_session_token');
@@ -163,21 +257,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }): Promise<User> => {
     setIsLoading(true);
     try {
-      // Simulate sandbox connectivity error
+      if (isSupabaseConfigured()) {
+        const userSchema = await AuthService.register(data);
+        const mappedUser = mapSchemaToUser(userSchema);
+        setUser(mappedUser);
+        // Only set authenticated if verified (which is false when email confirmation is enabled)
+        setIsAuthenticated(mappedUser.isVerified);
+        return mappedUser;
+      }
+
+      // Local Development Fallback
       if (data.email === 'error@reellegacy.com') {
         throw new Error('Network failure. Could not contact registration server.');
       }
 
       const userSchema = await AuthService.register(data);
-      
-      // Automatically log the user in to initialize active session
       const { user: loggedInUser, session } = await AuthService.login(data.email, data.password, rememberMe);
       
       const mappedUser = mapSchemaToUser(loggedInUser);
       setUser(mappedUser);
       setIsAuthenticated(true);
 
-      // Store token
       if (rememberMe) {
         localStorage.setItem('rl_session_token', session.token);
         sessionStorage.removeItem('rl_session_token');
@@ -198,12 +298,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async (): Promise<void> => {
     setIsLoading(true);
     try {
-      const storedToken = localStorage.getItem('rl_session_token') || sessionStorage.getItem('rl_session_token');
-      if (storedToken) {
-        await AuthService.logout(storedToken);
+      if (isSupabaseConfigured()) {
+        await AuthService.logout();
+      } else {
+        const storedToken = localStorage.getItem('rl_session_token') || sessionStorage.getItem('rl_session_token');
+        if (storedToken) {
+          await AuthService.logout(storedToken);
+        }
       }
     } catch (e) {
-      console.error('Logout error on backend session:', e);
+      console.error('Logout error on session:', e);
     } finally {
       setUser(null);
       setIsAuthenticated(false);
@@ -214,15 +318,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const sendVerificationEmail = async (email: string): Promise<void> => {
-    // Sandbox simulate failure
+    if (isSupabaseConfigured()) {
+      const client = getSupabaseClient();
+      if (client) {
+        const { error } = await client.auth.resend({
+          type: 'signup',
+          email: email.toLowerCase().trim()
+        });
+        if (error) throw new Error(error.message);
+      }
+      return;
+    }
+
     if (email === 'fail@reellegacy.com') {
       throw new Error('Could not resend email. Please try again.');
     }
-    // Fully functional stub
     return Promise.resolve();
   };
 
   const verifyEmailToken = async (token: string): Promise<{ success: boolean; message: string }> => {
+    if (isSupabaseConfigured()) {
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          const { error } = await client.auth.verifyOtp({
+            token_hash: token,
+            type: 'email'
+          });
+          if (error) {
+            return { success: false, message: error.message };
+          }
+          await refreshUser();
+          return { success: true, message: 'Your email address has been successfully verified.' };
+        } catch (e: any) {
+          return { success: false, message: e.message || 'Verification failed.' };
+        }
+      }
+    }
+
     return new Promise(async (resolve) => {
       if (token === 'expired') {
         resolve({ success: false, message: 'The verification link has expired. Please request a new one.' });
@@ -247,12 +380,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const forgotPassword = async (email: string): Promise<void> => {
     setIsLoading(true);
     try {
+      if (isSupabaseConfigured()) {
+        await AuthService.requestPasswordReset(email);
+        return;
+      }
+
       if (email === 'error@reellegacy.com') {
         throw new Error('Network failure. Please try again.');
       }
       
       await AuthService.requestPasswordReset(email);
-      // Retain email securely in local state to permit password replace simulation
       localStorage.setItem('rl_reset_password_email', email);
     } catch (err) {
       setIsLoading(false);
@@ -265,6 +402,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const resetPassword = async (token: string, password_val: string): Promise<void> => {
     setIsLoading(true);
     try {
+      if (isSupabaseConfigured()) {
+        await AuthService.resetPasswordByEmail('', password_val);
+        return;
+      }
+
       if (token === 'expired') {
         throw new Error('The reset password link has expired.');
       }
@@ -291,14 +433,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) {
       throw new Error('Must be signed in to change verification email.');
     }
+
+    if (isSupabaseConfigured()) {
+      const client = getSupabaseClient();
+      if (!client) throw new Error('Supabase client unavailable.');
+      const { error } = await client.auth.updateUser({ email: newEmail.toLowerCase().trim() });
+      if (error) throw new Error(error.message);
+      await refreshUser();
+      return;
+    }
     
-    // Check if the target email is already taken
     const isAvailable = await AuthService.checkEmailAvailability(newEmail);
     if (!isAvailable) {
       throw new Error('This email address is already in use by another archive account.');
     }
 
-    // Direct repository update
     const updatedUserSchema = await persistenceService.users.update(user.id, {
       email: newEmail
     });
@@ -341,3 +490,4 @@ export function useAuth() {
   }
   return context;
 }
+

@@ -29,7 +29,7 @@ export abstract class BaseRepository<T extends { id: string; createdAt?: string;
     }
   }
 
-  async create(item: Omit<T, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<T> {
+  async create(item: Omit<T, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; schemaVersion?: number }): Promise<T> {
     const items = await this.getAll();
     const newItem = {
       ...item,

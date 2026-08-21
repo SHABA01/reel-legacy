@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Film, Loader } from 'lucide-react';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -28,18 +28,22 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  if (user && !user.isVerified) {
+    return <Navigate to="/verify-email" replace />;
+  }
+
   return <>{children}</>;
 }
 
 export function GuestRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
     return <AuthLoadingScreen />;
   }
 
-  if (isAuthenticated) {
+  if (isAuthenticated && user?.isVerified) {
     const from = localStorage.getItem('rl_redirect_after_auth') || '/workspace/dashboard';
     // Clear redirect after fetching
     localStorage.removeItem('rl_redirect_after_auth');

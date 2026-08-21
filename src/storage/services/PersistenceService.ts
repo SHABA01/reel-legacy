@@ -3,10 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IStorageAdapter, StorageAdapter } from '../adapters/StorageAdapter';
+import { IStorageAdapter } from '../adapters/StorageAdapter';
 import { LocalStorageAdapter } from '../adapters/LocalStorageAdapter';
+import { isSupabaseConfigured, getSupabaseClient } from '../../lib/supabase';
+
+// Repository Contracts
+import {
+  ILegacyProfileRepository,
+  IStoryRepository,
+  IStoryChapterRepository,
+  IStorySceneRepository,
+  IMediaRepository,
+} from '../repositories/contracts';
+
+// Local / Default Repository Implementations
 import { LegacyProfileRepository } from '../repositories/LegacyProfileRepository';
 import { StoryRepository } from '../repositories/StoryRepository';
+import { StoryChapterRepository } from '../repositories/StoryChapterRepository';
+import { StorySceneRepository } from '../repositories/StorySceneRepository';
 import { MediaRepository } from '../repositories/MediaRepository';
 import { TimelineRepository } from '../repositories/TimelineRepository';
 import { DocumentRepository } from '../repositories/DocumentRepository';
@@ -17,20 +31,31 @@ import { UserRepository } from '../repositories/UserRepository';
 import { SessionRepository } from '../repositories/SessionRepository';
 import { ImportRepository } from '../repositories/ImportRepository';
 
+// Supabase Entity-Level Relational Repositories
+import { SupabaseLegacyProfileRepository } from '../supabase/repositories/SupabaseLegacyProfileRepository';
+import { SupabaseStoryRepository } from '../supabase/repositories/SupabaseStoryRepository';
+import { SupabaseStoryChapterRepository } from '../supabase/repositories/SupabaseStoryChapterRepository';
+import { SupabaseStorySceneRepository } from '../supabase/repositories/SupabaseStorySceneRepository';
+import { SupabaseMediaRepository } from '../supabase/repositories/SupabaseMediaRepository';
+
 /**
  * Central Persistence Service Registry
  * 
- * Orchestrates domain repositories with pluggable storage adapters
- * (LocalStorageAdapter, RemoteApiAdapter, etc.) without altering
- * downstream service contracts or component interfaces.
+ * Orchestrates domain repositories with pluggable backend implementations.
+ * When Supabase environment variables are provided, it initializes real
+ * relational, entity-level Supabase repositories for the target domains.
+ * When running in offline or local mode, it provides resilient LocalStorage repositories.
  */
 export class PersistenceService {
   private static instance: PersistenceService;
   private adapter: IStorageAdapter;
+  private useSupabaseIfAvailable: boolean = true;
 
-  public profiles!: LegacyProfileRepository;
-  public stories!: StoryRepository;
-  public media!: MediaRepository;
+  public profiles!: ILegacyProfileRepository;
+  public stories!: IStoryRepository;
+  public chapters!: IStoryChapterRepository;
+  public scenes!: IStorySceneRepository;
+  public media!: IMediaRepository;
   public timeline!: TimelineRepository;
   public documents!: DocumentRepository;
   public imports!: ImportRepository;
@@ -47,9 +72,25 @@ export class PersistenceService {
 
   private initializeRepositories(adapter: IStorageAdapter): void {
     this.adapter = adapter;
-    this.profiles = new LegacyProfileRepository(this.adapter);
-    this.stories = new StoryRepository(this.adapter);
-    this.media = new MediaRepository(this.adapter);
+    const client = this.useSupabaseIfAvailable && isSupabaseConfigured() ? getSupabaseClient() : null;
+
+    if (client) {
+      // Production Relational Entity Repositories
+      this.profiles = new SupabaseLegacyProfileRepository(client);
+      this.stories = new SupabaseStoryRepository(client);
+      this.chapters = new SupabaseStoryChapterRepository(client);
+      this.scenes = new SupabaseStorySceneRepository(client);
+      this.media = new SupabaseMediaRepository(client);
+    } else {
+      // Local Development Fallback Repositories
+      this.profiles = new LegacyProfileRepository(this.adapter);
+      this.stories = new StoryRepository(this.adapter);
+      this.chapters = new StoryChapterRepository(this.adapter);
+      this.scenes = new StorySceneRepository(this.adapter);
+      this.media = new MediaRepository(this.adapter);
+    }
+
+    // Baseline Repositories (will be migrated in subsequent phases)
     this.timeline = new TimelineRepository(this.adapter);
     this.documents = new DocumentRepository(this.adapter);
     this.imports = new ImportRepository(this.adapter);
@@ -75,6 +116,15 @@ export class PersistenceService {
 
   public getAdapter(): IStorageAdapter {
     return this.adapter;
+  }
+
+  public isUsingSupabase(): boolean {
+    return this.useSupabaseIfAvailable && isSupabaseConfigured();
+  }
+
+  public setUseSupabase(use: boolean): void {
+    this.useSupabaseIfAvailable = use;
+    this.initializeRepositories(this.adapter);
   }
 
   public async clearAll(): Promise<void> {
