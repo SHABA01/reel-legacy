@@ -83,6 +83,11 @@ import { useToast } from '../../context/ToastContext';
 import { useBreadcrumbs } from '../../context/BreadcrumbContext';
 import { useInspector } from '../../context/InspectorContext';
 import { ExtendedStory } from './mockStoriesData';
+import { StoryStudioModeNav, StoryStudioMode, mapSectionToMode } from './StoryStudioModeNav';
+import { StoryCastMode } from './modes/StoryCastMode';
+import { ScenesMediaMode } from './modes/ScenesMediaMode';
+import { AudioMusicMode } from './modes/AudioMusicMode';
+import { PreviewExportMode } from './modes/PreviewExportMode';
 import { StoryWizard } from './StoryWizard';
 import { CharactersWorkspace, StoryCharacter } from './CharactersWorkspace';
 import { ScenesWorkspace, StoryScene } from './ScenesWorkspace';
@@ -190,7 +195,19 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   const [searchParams, setSearchParams] = useSearchParams();
   const { setBreadcrumbs } = useBreadcrumbs();
 
+  const modeParam = searchParams.get('mode');
   const initialSectionParam = searchParams.get('section') || searchParams.get('tab');
+
+  const [activeMode, setActiveMode] = useState<StoryStudioMode>(() => {
+    if (modeParam && ['story_cast', 'scenes_media', 'audio_music', 'preview_export'].includes(modeParam)) {
+      return modeParam as StoryStudioMode;
+    }
+    if (initialSectionParam) {
+      return mapSectionToMode(initialSectionParam);
+    }
+    return 'story_cast';
+  });
+
   const [activeSection, setActiveSection] = useState<string>(() => {
     if (initialSectionParam) {
       if (initialSectionParam === 'story') return 'info';
@@ -198,8 +215,42 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
       if (initialSectionParam === 'assets') return 'media';
       return initialSectionParam;
     }
+    if (modeParam === 'scenes_media') return 'scenes';
+    if (modeParam === 'audio_music') return 'narration';
+    if (modeParam === 'preview_export') return 'preview';
     return 'overview';
   });
+
+  // Keep state in sync with URL search params changes (e.g. Browser Back / Forward)
+  useEffect(() => {
+    const currentMode = searchParams.get('mode');
+    const currentSection = searchParams.get('section') || searchParams.get('tab');
+    if (currentMode && ['story_cast', 'scenes_media', 'audio_music', 'preview_export'].includes(currentMode)) {
+      setActiveMode((prev) => (prev !== currentMode ? (currentMode as StoryStudioMode) : prev));
+    } else if (currentSection) {
+      const derived = mapSectionToMode(currentSection);
+      setActiveMode((prev) => (prev !== derived ? derived : prev));
+    }
+    if (currentSection) {
+      let resolved = currentSection;
+      if (currentSection === 'story') resolved = 'info';
+      if (currentSection === 'characters') resolved = 'people';
+      if (currentSection === 'assets') resolved = 'media';
+      setActiveSection((prev) => (prev !== resolved ? resolved : prev));
+    }
+  }, [searchParams]);
+
+  const handleModeChange = useCallback((newMode: StoryStudioMode) => {
+    setActiveMode(newMode);
+    let targetSection = 'overview';
+    if (newMode === 'story_cast') targetSection = 'overview';
+    else if (newMode === 'scenes_media') targetSection = 'scenes';
+    else if (newMode === 'audio_music') targetSection = 'narration';
+    else if (newMode === 'preview_export') targetSection = 'preview';
+
+    setActiveSection(targetSection);
+    setSearchParams({ id: initialStory.id, mode: newMode, section: targetSection });
+  }, [initialStory.id, setSearchParams]);
 
   const onCloseRef = useRef(onClose);
   useEffect(() => {
@@ -212,57 +263,62 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
       onCloseRef.current?.();
     };
 
-    const sectionLabelMap: Record<string, string> = {
-      overview: 'Overview',
-      story: 'Story',
-      info: 'Story',
-      biography: 'Story',
-      timeline: 'Timeline',
-      scripts: 'Scripts',
-      script: 'Scripts',
-      characters: 'Characters',
-      people: 'Characters',
-      assets: 'Assets',
-      media: 'Assets',
-      documents: 'Assets',
-      scenes: 'Scenes',
-      narration: 'Narration',
-      music: 'Music',
-      preview: 'Preview',
-      render: 'Render',
+    const modeLabels: Record<StoryStudioMode, string> = {
+      story_cast: 'Story & Cast',
+      scenes_media: 'Scenes & Media',
+      audio_music: 'Audio & Music',
+      preview_export: 'Preview & Export',
     };
 
-    const label = sectionLabelMap[activeSection] || 'Overview';
+    const sectionLabelMap: Record<string, string> = {
+      overview: 'Overview',
+      story: 'Story Info',
+      info: 'Story Info',
+      biography: 'Biography',
+      timeline: 'Chronology',
+      scripts: 'Script Blueprint',
+      script: 'Script Blueprint',
+      characters: 'Characters',
+      people: 'Characters',
+      assets: 'Media Assets',
+      media: 'Media Assets',
+      documents: 'Source Documents',
+      scenes: 'Scenes',
+      narration: 'Narration',
+      music: 'Soundtrack & Music',
+      preview: 'Live Preview',
+      render: 'Render & Export',
+    };
 
-    if (activeSection === 'overview') {
-      setBreadcrumbs([
-        {
-          label: 'Story Studio',
-          onClick: handleBackClick,
+    const sectionLabel = sectionLabelMap[activeSection] || 'Overview';
+    const modeLabel = modeLabels[activeMode] || 'Story & Cast';
+
+    setBreadcrumbs([
+      {
+        label: 'Story Studio',
+        onClick: handleBackClick,
+      },
+      {
+        label: initialStory.title || 'Untitled Story',
+        onClick: () => {
+          handleModeChange('story_cast');
         },
-        {
-          label: initialStory.title || 'Untitled Story',
+      },
+      {
+        label: modeLabel,
+        onClick: () => {
+          setSearchParams({ id: initialStory.id, mode: activeMode, section: activeSection });
         },
-      ]);
-    } else {
-      setBreadcrumbs([
-        {
-          label: 'Story Studio',
-          onClick: handleBackClick,
-        },
-        {
-          label: initialStory.title || 'Untitled Story',
-          onClick: () => {
-            setActiveSection('overview');
-            setSearchParams({ id: initialStory.id, section: 'overview' });
-          },
-        },
-        {
-          label,
-        },
-      ]);
-    }
-  }, [activeSection, initialStory.title, initialStory.id, setBreadcrumbs, setSearchParams]);
+      },
+      ...(activeSection !== 'overview' && activeSection !== 'scenes' && activeSection !== 'narration' && activeSection !== 'preview'
+        ? [
+            {
+              label: sectionLabel,
+            },
+          ]
+        : []),
+    ]);
+  }, [activeMode, activeSection, initialStory.title, initialStory.id, setBreadcrumbs, setSearchParams, handleModeChange]);
 
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState<boolean>(false);
   const [isRightInspectorCollapsed, setIsRightInspectorCollapsed] = useState<boolean>(false);
@@ -1212,48 +1268,37 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
   }, [scenes, initialStory.id]);
 
   // Active sub-sections & Streamlined Top Horizontal Tabs
-  const studioTabs = [
-    { id: 'overview', label: 'Overview', icon: Film, description: 'Completion score, narrative brief & AI readiness' },
-    { id: 'story', label: 'Story', icon: BookOpen, description: 'Core metadata, tone parameters & manuscript biography' },
-    { id: 'timeline', label: 'Timeline', icon: Calendar, description: 'Milestones & chronological event builder' },
-    { id: 'scripts', label: 'Scripts', icon: FileText, description: 'AI Script prep, screenplay treatments & draft outlines' },
-    { id: 'characters', label: 'Characters', icon: Users, description: 'Associated family members, co-authors & interviewees' },
-    { id: 'assets', label: 'Assets', icon: Camera, description: 'Photos, scanned historical records & documents' },
-    { id: 'scenes', label: 'Scenes', icon: Wand2, description: 'Director scene breakdowns & script structure' },
-    { id: 'narration', label: 'Narration', icon: Mic, description: 'AI voiceover synthesis & narration cues' },
-    { id: 'music', label: 'Music', icon: Sliders, description: 'Soundtrack score & ambient audio layers' },
-    { id: 'preview', label: 'Preview', icon: Eye, description: 'Interactive draft preview & test player' },
-    { id: 'render', label: 'Render', icon: Layers, description: 'Video reels, podcast audio & digital memoir exports' },
-  ];
-  const sidebarSections = studioTabs; // Backward compatibility fallback
-
-  // Production Render Studio State
-  const [selectedRenderPreset, setSelectedRenderPreset] = useState<'video-16-9' | 'video-9-16' | 'audio-podcast' | 'pdf-memoir'>('video-16-9');
-  const [isRendering, setIsRendering] = useState<boolean>(false);
-  const [renderProgress, setRenderProgress] = useState<number>(0);
-  const [renderComplete, setRenderComplete] = useState<boolean>(false);
-
-  const handleStartRender = () => {
-    setIsRendering(true);
-    setRenderProgress(5);
-    setRenderComplete(false);
-    showToast('info', 'Production Pipeline Initialized', 'Synthesizing script scenes, voiceover, and media assets...');
-
-    const interval = setInterval(() => {
-      setRenderProgress((prev) => {
-        if (prev >= 95) {
-          clearInterval(interval);
-          setTimeout(() => {
-            setIsRendering(false);
-            setRenderComplete(true);
-            showToast('success', 'Render Complete!', 'Your media reel package is compiled and ready for preview.');
-          }, 600);
-          return 100;
-        }
-        return prev + Math.floor(Math.random() * 18) + 12;
-      });
-    }, 450);
-  };
+  const activeModeSubSections = useMemo(() => {
+    switch (activeMode) {
+      case 'story_cast':
+        return [
+          { id: 'overview', label: 'Overview', icon: Film },
+          { id: 'info', label: 'Story & Tone', icon: BookOpen },
+          { id: 'biography', label: 'Biography', icon: FileText },
+          { id: 'timeline', label: 'Chronology', icon: Calendar },
+          { id: 'scripts', label: 'Scripts', icon: FileText },
+          { id: 'people', label: 'Characters', icon: Users },
+        ];
+      case 'scenes_media':
+        return [
+          { id: 'scenes', label: 'Storyboard Scenes', icon: Wand2 },
+          { id: 'media', label: 'Media Library', icon: Camera },
+          { id: 'documents', label: 'Source Documents', icon: FileSpreadsheet },
+        ];
+      case 'audio_music':
+        return [
+          { id: 'narration', label: 'Voice Narration', icon: Mic },
+          { id: 'music', label: 'Soundtrack & Score', icon: Sliders },
+        ];
+      case 'preview_export':
+        return [
+          { id: 'preview', label: 'Interactive Preview', icon: Eye },
+          { id: 'render', label: 'Render & Export', icon: Layers },
+        ];
+      default:
+        return [];
+    }
+  }, [activeMode]);
 
   // REAL-TIME AUTO SAVE PROCESS
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1831,104 +1876,75 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
         </div>
       </div>
 
-      {/* 2. TOP HORIZONTAL NAVIGATION TAB BAR */}
-      <div id="workspace-top-tab-bar" className="bg-card/90 backdrop-blur-md border-b border-border px-4 md:px-6 py-2.5 flex items-center justify-between gap-4 overflow-x-auto custom-scrollbar shrink-0 z-10 shadow-sm">
-        <div className="flex items-center gap-1.5 md:gap-2 min-w-max">
-          {studioTabs.map((tab) => {
+      {/* 2. MODE NAVIGATION (4 CORE PHASES) */}
+      <StoryStudioModeNav activeMode={activeMode} onModeChange={handleModeChange} />
+
+      {/* 2.5 SUB-SECTION TABS FOR ACTIVE MODE */}
+      <div id="workspace-sub-tabs-bar" className="bg-muted/40 border-b border-border/80 px-4 md:px-6 py-2 flex items-center justify-between gap-3 overflow-x-auto custom-scrollbar text-xs shrink-0">
+        <div className="flex items-center gap-1.5 min-w-max">
+          {activeModeSubSections.map((subTab) => {
             const isActive =
-              activeSection === tab.id ||
-              (tab.id === 'story' && (activeSection === 'info' || activeSection === 'biography')) ||
-              (tab.id === 'characters' && activeSection === 'people') ||
-              (tab.id === 'assets' && (activeSection === 'media' || activeSection === 'documents')) ||
-              (tab.id === 'render' && ['templates', 'history', 'review', 'production'].includes(activeSection));
-            const IconComp = tab.icon;
+              activeSection === subTab.id ||
+              (subTab.id === 'story' && (activeSection === 'info' || activeSection === 'biography')) ||
+              (subTab.id === 'people' && activeSection === 'characters') ||
+              (subTab.id === 'media' && activeSection === 'assets');
+            const IconComp = subTab.icon;
+
             return (
               <button
-                key={tab.id}
-                id={`top-tab-btn-${tab.id}`}
+                key={subTab.id}
+                id={`sub-tab-btn-${subTab.id}`}
                 onClick={() => {
-                  let targetSection = tab.id;
-                  if (tab.id === 'story') targetSection = 'info';
-                  if (tab.id === 'characters') targetSection = 'people';
-                  if (tab.id === 'assets') targetSection = 'media';
+                  let targetSection = subTab.id;
+                  if (subTab.id === 'story') targetSection = 'info';
                   setActiveSection(targetSection);
-                  setSearchParams({ id: initialStory.id, section: tab.id });
+                  setSearchParams({ id: initialStory.id, mode: activeMode, section: targetSection });
 
                   // Module Context Panel synchronization
-                  if (tab.id === 'story' || tab.id === 'overview' || tab.id === 'info') {
+                  if (subTab.id === 'overview' || subTab.id === 'story' || subTab.id === 'info' || subTab.id === 'biography') {
                     setSelectedInspectorItem({ type: 'story', id: initialStory.id, data: initialStory });
-                  } else if (tab.id === 'timeline') {
+                  } else if (subTab.id === 'timeline') {
                     setSelectedInspectorItem({ type: 'timeline', id: timelineEvents[0]?.id || '1', data: timelineEvents[0] || initialStory });
-                  } else if (tab.id === 'scripts' || tab.id === 'scenes') {
+                  } else if (subTab.id === 'scripts') {
                     setSelection('scene', scenes[0] || initialStory);
-                  } else if (tab.id === 'characters') {
+                  } else if (subTab.id === 'people' || subTab.id === 'characters') {
                     setSelection('character', characters[0] || initialStory);
-                  } else if (tab.id === 'assets') {
-                    setSelection('media', mediaItems[0] || initialStory);
-                  } else if (tab.id === 'narration') {
-                    setSelection('narration', { voiceName: 'Standard Documentary Voice', assignedVoice: 'AI Voiceover' });
-                  } else if (tab.id === 'music') {
-                    setSelection('music', { trackTitle: 'Cinematic Heritage Theme', mood: 'Warm' });
-                  } else if (tab.id === 'preview') {
+                  } else if (subTab.id === 'scenes') {
                     setSelection('scene', scenes[0] || initialStory);
-                  } else if (tab.id === 'render') {
+                  } else if (subTab.id === 'media' || subTab.id === 'assets') {
+                    setSelection('media', mediaItems[0] || initialStory);
+                  } else if (subTab.id === 'documents') {
+                    setSelectedInspectorItem({ type: 'document', id: documents[0]?.id || '1', data: documents[0] || initialStory });
+                  } else if (subTab.id === 'narration') {
+                    setSelection('narration', { voiceName: 'Standard Documentary Voice', assignedVoice: 'AI Voiceover' });
+                  } else if (subTab.id === 'music') {
+                    setSelection('music', { trackTitle: 'Cinematic Heritage Theme', mood: 'Warm' });
+                  } else if (subTab.id === 'preview') {
+                    setSelection('scene', scenes[0] || initialStory);
+                  } else if (subTab.id === 'render') {
                     setSelection('render', { format: '1080p MP4', status: 'Ready' });
                   }
                 }}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer select-none ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none ${
                   isActive
-                    ? 'bg-cinema-amber-500/15 text-cinema-amber-600 dark:text-cinema-amber-400 border border-cinema-amber-500/35 shadow-sm font-black'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/70 border border-transparent'
+                    ? 'bg-cinema-amber-500 text-slate-950 font-bold shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                 }`}
-                title={tab.description}
               >
-                <IconComp className={`w-4 h-4 shrink-0 ${isActive ? 'text-cinema-amber-500' : 'text-muted-foreground'}`} />
-                <span className="uppercase tracking-wider font-display text-[11px]">{tab.label}</span>
+                <IconComp className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-slate-950' : 'text-muted-foreground'}`} />
+                <span>{subTab.label}</span>
               </button>
             );
           })}
         </div>
-      </div>
 
-      {/* 2.5 PRODUCTION PIPELINE CONTINUITY FLOW BAR */}
-      <div id="workspace-pipeline-bar" className="bg-muted/40 border-b border-border/80 px-4 md:px-6 py-2 flex items-center justify-between gap-2 overflow-x-auto custom-scrollbar text-[10px] font-mono shrink-0">
-        <div className="flex items-center gap-1.5 text-muted-foreground font-semibold shrink-0">
-          <Sparkles className="w-3.5 h-3.5 text-cinema-amber-500 animate-pulse" />
-          <span className="text-foreground font-bold uppercase tracking-wider">Continuity Engine:</span>
-        </div>
-        <div className="flex items-center gap-2 min-w-max">
-          {[
-            { stage: 1, label: '1. Story & Tone', keys: ['overview', 'story', 'info', 'biography'] },
-            { stage: 2, label: '2. Timeline', keys: ['timeline'] },
-            { stage: 3, label: '3. Scripts', keys: ['scripts', 'script'] },
-            { stage: 4, label: '4. Scenes & Assets', keys: ['scenes', 'characters', 'people', 'assets', 'media', 'documents'] },
-            { stage: 5, label: '5. Voice Narration', keys: ['narration'] },
-            { stage: 6, label: '6. Audio Mix', keys: ['music'] },
-            { stage: 7, label: '7. Preview & Export', keys: ['preview', 'render', 'production'] },
-          ].map((step, idx, arr) => {
-            const isCurrent = step.keys.includes(activeSection);
-            const currentStageObj = arr.find(s => s.keys.includes(activeSection));
-            const activeStageNum = currentStageObj ? currentStageObj.stage : 1;
-            const isCompleted = step.stage < activeStageNum;
-
-            return (
-              <React.Fragment key={step.stage}>
-                {idx > 0 && <span className="text-border">→</span>}
-                <div
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all ${
-                    isCurrent
-                      ? 'bg-cinema-amber-500 text-slate-950 font-bold shadow-xs'
-                      : isCompleted
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {isCompleted && <Check className="w-3 h-3 text-emerald-500 shrink-0" />}
-                  <span>{step.label}</span>
-                </div>
-              </React.Fragment>
-            );
-          })}
+        <div className="hidden md:flex items-center gap-2 text-[10px] font-mono text-muted-foreground shrink-0">
+          <span className="font-semibold text-cinema-amber-600 dark:text-cinema-amber-400">
+            {activeMode === 'story_cast' && 'Phase 1: Manuscript & Story Foundation'}
+            {activeMode === 'scenes_media' && 'Phase 2: Visual Production & Source Ledger'}
+            {activeMode === 'audio_music' && 'Phase 3: Narration & Sound Engineering'}
+            {activeMode === 'preview_export' && 'Phase 4: Review & Production Export'}
+          </span>
         </div>
       </div>
 
@@ -1939,1986 +1955,149 @@ export function StoryWorkspace({ story: initialStory, onClose, onSave }: StoryWo
           
           <AnimatePresence mode="wait">
             
-            {/* OVERVIEW SECTION */}
-            {activeSection === 'overview' && (
-              <motion.div
-                key="workspace-overview"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6"
-                id="pane-overview"
-              >
-                {/* Visual Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                      <Film className="w-4 h-4 text-cinema-amber-500 animate-pulse" /> Story Studio Overview
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Unified dashboard detailing data coverage, catalog depth, and AI processing criteria.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Dashboard stats grids */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4" id="overview-progress-mesh">
-                  <div className="p-4 bg-card border border-border rounded-2xl flex items-center gap-4 shadow-sm relative overflow-hidden">
-                    <div className="p-3 rounded-xl bg-cinema-amber-500/10 text-cinema-amber-500 border border-cinema-amber-500/20 shrink-0">
-                      <TrendingUp className="w-5 h-5 text-cinema-amber-500" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase block font-mono">Completion Score</span>
-                      <strong className="text-lg font-black text-foreground font-mono">{progressPercentage}%</strong>
-                    </div>
-                    <div className="absolute bottom-0 left-0 h-1 bg-cinema-amber-500" style={{ width: `${progressPercentage}%` }} />
-                  </div>
-
-                  <div className="p-4 bg-card border border-border rounded-2xl flex items-center gap-4 shadow-sm">
-                    <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
-                      <Calendar className="w-5 h-5 text-blue-400" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase block font-mono">Milestones</span>
-                      <strong className="text-lg font-black text-foreground font-mono">{timelineEvents.length} Points</strong>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-card border border-border rounded-2xl flex items-center gap-4 shadow-sm">
-                    <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
-                      <Camera className="w-5 h-5 text-emerald-400" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase block font-mono">Organized Media</span>
-                      <strong className="text-lg font-black text-foreground font-mono">{mediaItems.length} Files</strong>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-card border border-border rounded-2xl flex items-center gap-4 shadow-sm relative overflow-hidden">
-                    <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 shrink-0">
-                      <Sparkles className="w-5 h-5 text-indigo-400" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase block font-mono">AI Readiness</span>
-                      <strong className={`text-xs font-black block mt-1 ${isAIReady ? 'text-emerald-500' : 'text-amber-500'}`}>
-                        {isAIReady ? 'READY TO COMPILE' : 'NEEDS SETUP'}
-                      </strong>
-                    </div>
-                    {isAIReady && <div className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full animate-ping" />}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="overview-details-mesh">
-                  {/* Missing information alerts & action cards */}
-                  <div className="lg:col-span-2 space-y-6">
-                    <div className="p-5 bg-card border border-border rounded-2xl shadow-sm space-y-4">
-                      <h4 className="text-xs font-black uppercase text-foreground tracking-wider flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-cinema-amber-500" /> Verification Warnings & Suggestions
-                      </h4>
-                      
-                      <div className="space-y-2.5">
-                        {biographyText.length < 300 ? (
-                          <div className="p-3 bg-red-500/10 border border-red-500/15 rounded-xl flex gap-3">
-                            <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                            <div className="text-xs">
-                              <strong className="font-bold text-foreground">Biography draft too short:</strong>
-                              <p className="text-muted-foreground mt-0.5">Please add more comprehensive historical details to enrich AI script accuracy.</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="p-3 bg-emerald-500/5 border border-emerald-500/15 rounded-xl flex gap-3">
-                            <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                            <div className="text-xs">
-                              <strong className="font-bold text-foreground">Biography is fully detailed:</strong>
-                              <p className="text-muted-foreground mt-0.5">Meets standard production threshold (200+ words). Fully parsed.</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {timelineEvents.length < 5 ? (
-                          <div className="p-3 bg-amber-500/10 border border-amber-500/15 rounded-xl flex gap-3">
-                            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                            <div className="text-xs">
-                              <strong className="font-bold text-foreground">Low Timeline density:</strong>
-                              <p className="text-muted-foreground mt-0.5">We recommend logging at least 5 life milestones to avoid narrative chronological gaps.</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="p-3 bg-emerald-500/5 border border-emerald-500/15 rounded-xl flex gap-3">
-                            <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                            <div className="text-xs">
-                              <strong className="font-bold text-foreground">Timeline milestones verified:</strong>
-                              <p className="text-muted-foreground mt-0.5">Excellent chronological layout covering major life stages.</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {mediaItems.length < 5 ? (
-                          <div className="p-3 bg-amber-500/10 border border-amber-500/15 rounded-xl flex gap-3">
-                            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                            <div className="text-xs">
-                              <strong className="font-bold text-foreground">Media coverage low:</strong>
-                              <p className="text-muted-foreground mt-0.5">To compile a compelling 8-minute documentary, add portraits, home scans, or certificates.</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="p-3 bg-emerald-500/5 border border-emerald-500/15 rounded-xl flex gap-3">
-                            <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                            <div className="text-xs">
-                              <strong className="font-bold text-foreground">Media catalog initialized:</strong>
-                              <p className="text-muted-foreground mt-0.5">{mediaItems.length} scanned records are linked to narrator chapters.</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Quick Action blocks */}
-                    <div className="p-5 bg-card border border-border rounded-2xl shadow-sm space-y-3">
-                      <h4 className="text-xs font-black uppercase text-foreground tracking-wider">
-                        Quick Launch Studio Steps
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <button
-                          onClick={() => setActiveSection('biography')}
-                          className="p-3.5 rounded-xl border border-border bg-muted/20 hover:bg-muted/60 text-left transition-colors cursor-pointer group"
-                        >
-                          <BookOpen className="w-4 h-4 text-cinema-amber-500 group-hover:scale-110 transition-transform" />
-                          <h5 className="text-xs font-bold text-foreground mt-2">Edit Biography</h5>
-                          <p className="text-[10px] text-muted-foreground mt-1">Refine life retrospective text</p>
-                        </button>
-
-                        <button
-                          onClick={() => handleOpenTimelineModal('create')}
-                          className="p-3.5 rounded-xl border border-border bg-muted/20 hover:bg-muted/60 text-left transition-colors cursor-pointer group"
-                        >
-                          <Calendar className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
-                          <h5 className="text-xs font-bold text-foreground mt-2">Add Milestone</h5>
-                          <p className="text-[10px] text-muted-foreground mt-1">Register timeline event card</p>
-                        </button>
-
-                        <button
-                          onClick={() => setActiveSection('media')}
-                          className="p-3.5 rounded-xl border border-border bg-muted/20 hover:bg-muted/60 text-left transition-colors cursor-pointer group"
-                        >
-                          <Camera className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
-                          <h5 className="text-xs font-bold text-foreground mt-2">Browse Assets</h5>
-                          <p className="text-[10px] text-muted-foreground mt-1">Organize photos, clips, audio</p>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Recent Activity & Logs */}
-                  <div className="space-y-6">
-                    <div className="p-5 bg-card border border-border rounded-2xl shadow-sm space-y-4">
-                      <h4 className="text-xs font-black uppercase text-foreground tracking-wider flex items-center justify-between">
-                        <span>Recent Activity Log</span>
-                        <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                      </h4>
-
-                      <div className="space-y-3 text-xs" id="activity-log-timeline">
-                        {[
-                          { text: 'Philip Vance modified timeline chronology', time: '10 mins ago' },
-                          { text: 'Local browser cache auto-saved biography data', time: '1 hour ago' },
-                          { text: 'Scanned asset "Wedding vows" was faved', time: '4 hours ago' },
-                          { text: 'Co-author Robert Vance accepted workspace invite', time: 'Yesterday' },
-                          { text: 'Heritage document folders initialized', time: '2 days ago' }
-                        ].map((act, idx) => (
-                          <div key={idx} className="flex gap-2 pb-3 border-b border-border/40 last:border-none last:pb-0">
-                            <CornerDownRight className="w-3.5 h-3.5 text-cinema-amber-500 shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-foreground/90 font-medium">{act.text}</p>
-                              <span className="text-[9px] text-muted-foreground font-mono">{act.time}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="p-5 bg-card border border-border rounded-2xl shadow-sm space-y-3">
-                      <h4 className="text-xs font-black uppercase text-foreground tracking-wider">
-                        Digital Storytelling Tip
-                      </h4>
-                      <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-                        "Great memoirs balance formal career highlights with poetic, quiet daily memories. Consider linking scanned letters and diary pages directly to corresponding milestone markers."
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
+            {/* STORY & CAST MODE SECTIONS (Overview, Info/Story, Biography, Scripts, Timeline, Characters) */}
+            {['overview', 'info', 'story', 'biography', 'scripts', 'timeline', 'characters', 'people'].includes(activeSection) && (
+              <StoryCastMode
+                initialStory={initialStory}
+                storyMeta={storyMeta}
+                onMetaChange={handleMetaChange}
+                activeSection={activeSection === 'story' ? 'info' : activeSection}
+                onNavigateSection={(sec) => {
+                  const targetSec = sec === 'story' ? 'info' : sec;
+                  setActiveSection(targetSec);
+                  const newMode = mapSectionToMode(targetSec);
+                  setActiveMode(newMode);
+                  setSearchParams({ id: initialStory.id, mode: newMode, section: targetSec });
+                }}
+                progressPercentage={progressPercentage}
+                isAIReady={isAIReady}
+                biographyText={biographyText}
+                onBiographyChange={(val) => {
+                  setBiographyText(val);
+                  setSaveStatus('Unsaved Changes');
+                  triggerAutoSave(val);
+                }}
+                biographySummary={biographySummary}
+                onBiographySummaryChange={(val) => {
+                  setBiographySummary(val);
+                  setSaveStatus('Unsaved Changes');
+                }}
+                keyFacts={keyFacts}
+                factInput={factInput}
+                onFactInputChange={setFactInput}
+                onAddFact={handleAddFact}
+                onDeleteFact={handleDeleteFact}
+                timelineEvents={timelineEvents}
+                timelineStats={timelineStats}
+                timelineSearchQuery={timelineSearchQuery}
+                onTimelineSearchChange={setTimelineSearchQuery}
+                timelineCategoryFilter={timelineCategoryFilter}
+                onTimelineCategoryChange={setTimelineCategoryFilter}
+                timelineStatusFilter={timelineStatusFilter}
+                onTimelineStatusChange={setTimelineStatusFilter}
+                timelineSortOrder={timelineSortOrder}
+                onTimelineSortChange={(val) => setTimelineSortOrder(val)}
+                timelineViewMode={timelineViewMode}
+                onTimelineViewModeChange={(val) => setTimelineViewMode(val)}
+                eventsToRender={eventsToRender}
+                groupedByYear={groupedByYear}
+                groupedByDecade={groupedByDecade}
+                onOpenTimelineModal={handleOpenTimelineModal}
+                onReorderTimelineEvent={handleReorderTimelineEvent}
+                onToggleMilestoneEvent={handleToggleMilestoneEvent}
+                onDuplicateTimelineEvent={handleDuplicateTimelineEvent}
+                onArchiveTimelineEvent={handleArchiveTimelineEvent}
+                onRestoreTimelineEvent={handleRestoreTimelineEvent}
+                onDeleteTimelineEvent={handleDeleteTimelineEvent}
+                characters={characters}
+                onUpdateCharacters={(updated) => {
+                  setCharacters(updated);
+                  triggerAutoSave({ characters: updated });
+                }}
+                scenes={scenes}
+                mediaItems={mediaItems}
+                selectedInspectorItem={selectedInspectorItem}
+                onSelectInspectorItem={setSelectedInspectorItem}
+                showToast={showToast}
+              />
             )}
 
-            {/* STORY INFORMATION SECTION */}
-            {activeSection === 'info' && (
-              <motion.div
-                key="workspace-info"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6 w-full"
-                id="pane-info"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-cinema-amber-500" /> Story Information & Biography
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Configure story metadata, tone parameters, and edit full life manuscript narrative text.
-                    </p>
-                  </div>
-
-                  {/* Inner sub-tab switcher */}
-                  <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border/80 rounded-xl shrink-0">
-                    <button
-                      onClick={() => setActiveSection('info')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cinema-amber-500/15 text-cinema-amber-500 border border-cinema-amber-500/30"
-                    >
-                      Administrative Metadata
-                    </button>
-                    <button
-                      onClick={() => setActiveSection('biography')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-muted-foreground hover:text-foreground"
-                    >
-                      Biography Manuscript
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-6 bg-card border border-border rounded-2xl shadow-sm space-y-5">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-foreground">Story Title</label>
-                    <Input
-                      id="meta-title"
-                      value={storyMeta.title}
-                      onChange={(e) => handleMetaChange('title', e.target.value)}
-                      placeholder="Story Title"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-foreground">Subtitle / Narrative Hook</label>
-                    <Input
-                      id="meta-subtitle"
-                      value={storyMeta.subtitle}
-                      onChange={(e) => handleMetaChange('subtitle', e.target.value)}
-                      placeholder="Story Subtitle"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-foreground">Story Description Summary</label>
-                    <textarea
-                      id="meta-description"
-                      rows={4}
-                      value={storyMeta.description}
-                      onChange={(e) => handleMetaChange('description', e.target.value)}
-                      className="w-full p-3 bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 rounded-xl resize-none"
-                      placeholder="Provide a high-level summary..."
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Select
-                      id="meta-language"
-                      label="Narrative Production Language"
-                      value={storyMeta.language}
-                      onChange={(val) => handleMetaChange('language', val)}
-                      options={[
-                        { value: 'English', label: 'English (US Standard)' },
-                        { value: 'Spanish', label: 'Spanish (Español)' },
-                        { value: 'French', label: 'French (Français)' }
-                      ]}
-                    />
-
-                    <Select
-                      id="meta-visibility"
-                      label="Visibility & Archiving"
-                      value={storyMeta.visibility}
-                      onChange={(val) => handleMetaChange('visibility', val)}
-                      options={[
-                        { value: 'Private', label: 'Strictly Private (Me Only)' },
-                        { value: 'Family', label: 'Family Circle (Secured Invite)' },
-                        { value: 'Public', label: 'Public Link (Unrestricted viewing)' }
-                      ]}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5 pt-2">
-                    <label className="text-xs font-bold text-foreground block">Workspace Editorial Notes</label>
-                    <input
-                      id="meta-notes"
-                      type="text"
-                      value={storyMeta.internalNotes}
-                      onChange={(e) => handleMetaChange('internalNotes', e.target.value)}
-                      className="w-full h-10 px-3.5 bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 rounded-xl"
-                      placeholder="e.g. Needs review from Aunt Martha..."
-                    />
-                  </div>
-                </div>
-              </motion.div>
+            {/* SCENES & MEDIA MODE SECTIONS (Scenes / Storyboard, Media Assets, Supporting Documents) */}
+            {['scenes', 'media', 'assets', 'documents'].includes(activeSection) && (
+              <ScenesMediaMode
+                initialStory={initialStory}
+                storyMeta={storyMeta}
+                activeSection={activeSection === 'assets' ? 'media' : activeSection}
+                onNavigateSection={(sec) => {
+                  const targetSec = sec === 'assets' ? 'media' : sec;
+                  setActiveSection(targetSec);
+                  const newMode = mapSectionToMode(targetSec);
+                  setActiveMode(newMode);
+                  setSearchParams({ id: initialStory.id, mode: newMode, section: targetSec });
+                }}
+                scenes={scenes}
+                onUpdateScenes={setScenes}
+                mediaItems={mediaItems}
+                onRefreshMedia={handleRefreshMedia}
+                onToggleFavoriteMedia={handleToggleFavoriteMedia}
+                onRenameMedia={handleRenameMedia}
+                onDeleteMedia={handleDeleteMedia}
+                documents={documents}
+                onRefreshDocuments={handleRefreshDocuments}
+                onToggleFavoriteDocument={handleToggleFavoriteDocument}
+                onArchiveDocument={handleArchiveDocument}
+                onRestoreDocument={handleRestoreDocument}
+                onDeleteDocument={handleDeleteDocument}
+                onRenameDocument={handleRenameDocument}
+                timelineEvents={timelineEvents}
+                characters={characters}
+                selectedInspectorItem={selectedInspectorItem}
+                onSelectInspectorItem={setSelectedInspectorItem}
+                showToast={showToast}
+              />
             )}
 
-            {/* BIOGRAPHY WORKSPACE SECTION */}
-            {activeSection === 'biography' && (
-              <motion.div
-                key="workspace-biography"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6"
-                id="pane-biography"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-cinema-amber-500" /> Full Life Biography Writing Workspace
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Craft the core biographical manuscript. Narrator voiceover AI is scaffolded directly from this content.
-                    </p>
-                  </div>
-
-                  {/* Inner sub-tab switcher */}
-                  <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border/80 rounded-xl shrink-0">
-                    <button
-                      onClick={() => setActiveSection('info')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-muted-foreground hover:text-foreground"
-                    >
-                      Administrative Metadata
-                    </button>
-                    <button
-                      onClick={() => setActiveSection('biography')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cinema-amber-500/15 text-cinema-amber-500 border border-cinema-amber-500/30"
-                    >
-                      Biography Manuscript
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Textarea Editor and Statistics */}
-                  <div className="lg:col-span-2 space-y-4">
-                    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-                      <div className="px-5 py-3.5 border-b border-border bg-muted/40 flex justify-between items-center text-xs">
-                        <span className="font-bold text-foreground flex items-center gap-2">
-                          <BookOpen className="w-4 h-4 text-cinema-amber-500" /> Biography Manuscript
-                        </span>
-                        
-                        <div className="flex items-center gap-3 font-mono text-[10px] text-muted-foreground uppercase font-bold">
-                          <span>Chars: {biographyText.length}</span>
-                          <span>•</span>
-                          <span>Words: {biographyText.split(/\s+/).filter(Boolean).length}</span>
-                        </div>
-                      </div>
-
-                      <textarea
-                        id="biography-manuscript-editor"
-                        rows={16}
-                        value={biographyText}
-                        onChange={(e) => {
-                          setBiographyText(e.target.value);
-                          setSaveStatus('Unsaved Changes');
-                          triggerAutoSave(e.target.value);
-                        }}
-                        className="w-full p-6 text-sm text-foreground bg-transparent border-none focus:outline-none leading-relaxed font-sans placeholder:text-muted-foreground/35 min-h-[300px]"
-                        placeholder="Draft the life history narrative..."
-                      />
-                    </div>
-
-                    <div className="p-4 bg-muted/20 border border-border/80 rounded-2xl flex items-center justify-between text-xs text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-3.5 h-3.5 text-cinema-amber-500 animate-spin" />
-                        <span className="font-medium">Active drafting buffer enabled. Characters are auto-saved to browser local cache.</span>
-                      </div>
-                      <span className="font-mono font-bold text-[9px] uppercase bg-muted border border-border px-1.5 py-0.5 rounded">Active Revision</span>
-                    </div>
-                  </div>
-
-                  {/* Key facts, Summary & Version details */}
-                  <div className="space-y-6">
-                    {/* Life Summary Card */}
-                    <div className="p-5 bg-card border border-border rounded-2xl shadow-sm space-y-3">
-                      <h4 className="text-xs font-black uppercase text-foreground tracking-wider block">
-                        Vocal Narrative Overview
-                      </h4>
-                      <input
-                        id="bio-short-summary-field"
-                        type="text"
-                        value={biographySummary}
-                        onChange={(e) => { setBiographySummary(e.target.value); setSaveStatus('Unsaved Changes'); }}
-                        className="w-full h-9 px-3 bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 rounded-lg"
-                        placeholder="Add one-liner overview..."
-                      />
-                      <p className="text-[10px] text-muted-foreground leading-normal font-medium">
-                        This brief summary hooks the introductory scene narration for cinematic titles.
-                      </p>
-                    </div>
-
-                    {/* Key Facts Tracker */}
-                    <div className="p-5 bg-card border border-border rounded-2xl shadow-sm space-y-4">
-                      <h4 className="text-xs font-black uppercase text-foreground tracking-wider block">
-                        Verified Timeline Facts
-                      </h4>
-
-                      <div className="space-y-2 max-h-[22vh] overflow-y-auto pr-1">
-                        {keyFacts.map((fact, idx) => (
-                          <div key={idx} className="p-2.5 bg-muted/30 border border-border/60 rounded-xl flex items-center justify-between text-xs">
-                            <span className="font-medium text-foreground truncate max-w-[180px]" title={fact}>{fact}</span>
-                            <button
-                              onClick={() => handleDeleteFact(idx)}
-                              className="text-red-500 hover:text-red-400 p-1 cursor-pointer"
-                              title="Delete Fact"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="flex gap-1.5 pt-1">
-                        <input
-                          id="fact-input-field"
-                          type="text"
-                          value={factInput}
-                          onChange={(e) => setFactInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleAddFact()}
-                          placeholder="Add life milestone fact..."
-                          className="flex-grow h-9 px-3 bg-muted border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 rounded-lg placeholder:text-muted-foreground/50"
-                        />
-                        <Button
-                          id="btn-add-fact"
-                          variant="ghost"
-                          size="xs"
-                          onClick={handleAddFact}
-                          className="h-9 w-9 p-0 flex items-center justify-center border border-border hover:bg-muted shrink-0"
-                        >
-                          <Plus className="w-4 h-4 text-foreground" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Future AI Suggestion Panel Placeholder */}
-                    <div className="p-5 bg-indigo-950/20 border border-indigo-500/20 rounded-2xl space-y-3 relative overflow-hidden">
-                      <div className="flex items-center gap-2 text-indigo-400">
-                        <Sparkles className="w-4 h-4 text-indigo-400" />
-                        <h4 className="text-xs font-black uppercase tracking-wider">AI Copilot Blueprint</h4>
-                      </div>
-                      <p className="text-[11px] text-indigo-300/80 leading-relaxed font-semibold">
-                        Ready to synthesize chapters. In the next stage, this module will scan your text to suggest transitions, narration cues, and highlight archival letters.
-                      </p>
-                      <div className="absolute -right-6 -bottom-6 text-indigo-500/10 opacity-30">
-                        <Wand2 className="w-20 h-20" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
+            {/* AUDIO & MUSIC MODE SECTIONS (Voiceover Narration, Soundtrack & Score) */}
+            {['narration', 'music'].includes(activeSection) && (
+              <AudioMusicMode
+                initialStory={initialStory}
+                storyMeta={storyMeta}
+                onUpdateStoryMeta={(updates) => {
+                  setStoryMeta((prev) => ({ ...prev, ...updates }));
+                }}
+                activeSection={activeSection}
+                onNavigateSection={(sec) => {
+                  setActiveSection(sec);
+                  const newMode = mapSectionToMode(sec);
+                  setActiveMode(newMode);
+                  setSearchParams({ id: initialStory.id, mode: newMode, section: sec });
+                }}
+                scenes={scenes}
+                onUpdateScenes={setScenes}
+                mediaItems={mediaItems}
+                characters={characters}
+                showToast={showToast}
+              />
             )}
 
-            {/* AI SCRIPT PREP & NARRATIVE INTELLIGENCE CENTER */}
-            {activeSection === 'scripts' && (
-              <motion.div
-                key="workspace-scripts"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6 w-full"
-                id="pane-scripts"
-              >
-                <ScriptStudio
-                  story={initialStory}
-                  scenes={scenes}
-                  characters={characters}
-                  timelineEvents={timelineEvents}
-                  mediaItems={mediaItems}
-                  onOpenScene={(sceneId) => {
-                    setActiveSection('scenes');
-                    setSearchParams({ id: initialStory.id, section: 'scenes' });
-                  }}
-                  onUpdateScript={(blocks) => {
-                    setSaveStatus('Unsaved Changes');
-                  }}
-                />
-              </motion.div>
-            )}
-
-            {/* TIMELINE CHRONOLOGY WORKSPACE */}
-            {activeSection === 'timeline' && (
-              <motion.div
-                key="workspace-timeline"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6"
-                id="pane-timeline"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider">
-                      Life Timeline Chronology Ledger
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Verify and arrange the sequential milestones of the legacy story. Click any card to load metadata into the inspector.
-                    </p>
-                  </div>
-
-                  <Button
-                    id="btn-add-timeline-event-trigger"
-                    variant="accent"
-                    size="sm"
-                    leftIcon={<Plus className="w-4 h-4 text-slate-950" />}
-                    onClick={() => handleOpenTimelineModal('create')}
-                    className="bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold self-start sm:self-auto"
-                  >
-                    Add Milestone Event
-                  </Button>
-                </div>
-
-                {/* Timeline density, search, filters toolbar */}
-                <div className="p-5 bg-card border border-border rounded-2xl space-y-4" id="timeline-toolbar">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-[10px] font-mono font-bold bg-muted text-muted-foreground uppercase px-2 py-0.5 rounded border border-border">
-                        {timelineEvents.length} Total Events
-                      </span>
-                      <span className="text-xs text-muted-foreground font-semibold">Decade Span: {timelineStats.yearsCovered}</span>
-                    </div>
-
-                    {/* View Modes Selector tabs */}
-                    <div className="flex flex-wrap items-center gap-1.5 p-1 bg-muted/60 border border-border/80 rounded-xl">
-                      {[
-                        { id: 'multitrack', label: 'CapCut Multi-Track', icon: Film },
-                        { id: 'chrono', label: 'Chronological', icon: Calendar },
-                        { id: 'intelligence', label: 'Legacy Intelligence', icon: Brain },
-                        { id: 'director', label: 'AI Director', icon: Sparkles },
-                        { id: 'group-year', label: 'By Year', icon: ListFilter },
-                        { id: 'group-decade', label: 'By Decade', icon: Layers },
-                      ].map(mode => {
-                        const ModeIcon = mode.icon;
-                        return (
-                          <button
-                            key={mode.id}
-                            onClick={() => setTimelineViewMode(mode.id as any)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
-                              timelineViewMode === mode.id
-                                ? 'bg-cinema-amber-500 text-slate-950 border-cinema-amber-500 shadow-sm font-black'
-                                : 'text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/50'
-                            }`}
-                          >
-                            <ModeIcon className="w-3.5 h-3.5" />
-                            <span>{mode.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Search, Filter, Sort Inputs Row */}
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/50" />
-                      <input
-                        type="text"
-                        value={timelineSearchQuery}
-                        onChange={(e) => setTimelineSearchQuery(e.target.value)}
-                        placeholder="Search title, description..."
-                        className="w-full h-9 pl-9 pr-3 bg-muted/50 border border-border text-foreground text-xs font-semibold focus:outline-none focus:border-cinema-amber-500 rounded-lg placeholder:text-muted-foreground/50"
-                      />
-                    </div>
-
-                    <Select
-                      id="timeline-category-filter"
-                      value={timelineCategoryFilter}
-                      onChange={setTimelineCategoryFilter}
-                      options={[
-                        { value: 'All', label: 'All Categories' },
-                        { value: 'Birth', label: 'Birth' },
-                        { value: 'Childhood', label: 'Childhood' },
-                        { value: 'Education', label: 'Education' },
-                        { value: 'Graduation', label: 'Graduation' },
-                        { value: 'Employment', label: 'Employment' },
-                        { value: 'Promotion', label: 'Promotion' },
-                        { value: 'Marriage', label: 'Marriage' },
-                        { value: 'Family', label: 'Family' },
-                        { value: 'Achievement', label: 'Achievement' },
-                        { value: 'Award', label: 'Award' },
-                        { value: 'Travel', label: 'Travel' },
-                        { value: 'Relocation', label: 'Relocation' },
-                        { value: 'Milestone', label: 'Milestone' },
-                        { value: 'Retirement', label: 'Retirement' },
-                        { value: 'Custom Event', label: 'Custom Event' }
-                      ]}
-                    />
-
-                    <Select
-                      id="timeline-status-filter"
-                      value={timelineStatusFilter}
-                      onChange={setTimelineStatusFilter}
-                      options={[
-                        { value: 'Active', label: 'Active Events' },
-                        { value: 'Draft', label: 'Drafts Only' },
-                        { value: 'Archived', label: 'Archived Only' }
-                      ]}
-                    />
-
-                    <Select
-                      id="timeline-sort-order"
-                      value={timelineSortOrder}
-                      onChange={(val) => setTimelineSortOrder(val as any)}
-                      options={[
-                        { value: 'asc', label: 'Sort: Oldest First' },
-                        { value: 'desc', label: 'Sort: Newest First' },
-                        { value: 'title', label: 'Sort: Alphabetical' },
-                        { value: 'importance', label: 'Sort: High Priority First' }
-                      ]}
-                    />
-                  </div>
-                </div>
-
-                {/* Timeline empty state check */}
-                {eventsToRender.length === 0 ? (
-                  <EmptyState
-                    id="timeline-empty-state"
-                    title="No Timeline Events for this Story Project"
-                    description="Begin documenting this Story Project by adding key life milestones, dates, and historical events. Your project's timeline helps structure the narrative for scripting, narration, and video production."
-                    primaryActionLabel="Add First Milestone Event"
-                    onPrimaryAction={() => handleOpenTimelineModal('create')}
-                    secondaryActionLabel="Learn About Timelines"
-                    onSecondaryAction={() => showToast('info', 'Guided Entry Help', 'Timelines structure chronological highlights such as Birth, Education, Marriage or Community Service to create a cohesive narrative.')}
-                  />
-                ) : (
-                  <div>
-                    {/* Render CapCut Multi-Track Film Editor */}
-                    {timelineViewMode === 'multitrack' && (
-                      <CapCutTimeline storyTitle={initialStory.title} scenes={scenes} />
-                    )}
-
-                    {/* Render Legacy Intelligence Panel */}
-                    {timelineViewMode === 'intelligence' && (
-                      <LegacyIntelligencePanel
-                        storyTitle={initialStory.title}
-                        characters={characters}
-                        timelineEvents={timelineEvents}
-                      />
-                    )}
-
-                    {/* Render Active AI Director Panel */}
-                    {timelineViewMode === 'director' && (
-                      <AIDirectorPanel storyTitle={initialStory.title} />
-                    )}
-
-                    {/* Render standard chronological list */}
-                    {(timelineViewMode === 'chrono' || timelineViewMode === 'milestones') && (
-                      <div className="relative border-l-2 border-border pl-6 ml-4 space-y-8" id="timeline-flow-list">
-                        {eventsToRender.map((evt) => {
-                          const isSelected = selectedInspectorItem.type === 'timeline' && selectedInspectorItem.id === evt.id;
-                          const isArchived = evt.status === 'Archived';
-                          const isMilestone = evt.category === 'Milestone' || evt.importance === 'High' || evt.status === 'Milestone';
-                          return (
-                            <div
-                              key={evt.id}
-                              id={`timeline-node-${evt.id}`}
-                              onClick={() => setSelectedInspectorItem({ type: 'timeline', id: evt.id, data: evt })}
-                              className={`group relative p-5 bg-card border rounded-2xl cursor-pointer transition-all hover:shadow-md ${
-                                isSelected 
-                                  ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03] ring-1 ring-cinema-amber-500' 
-                                  : isArchived
-                                    ? 'border-border/60 opacity-60 bg-muted/20'
-                                    : 'border-border hover:border-muted-foreground/30'
-                              }`}
-                            >
-                              <div className={`absolute -left-[31px] top-7 w-4 h-4 rounded-full border-2 transition-all ${
-                                isSelected ? 'bg-cinema-amber-500 border-background scale-110' : 'bg-background border-border group-hover:border-muted-foreground/50'
-                              }`} />
-
-                              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                                <div className="space-y-1.5 flex-grow">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="text-sm font-black font-mono text-cinema-amber-600 dark:text-cinema-amber-400">
-                                      {evt.year}
-                                    </span>
-                                    <span className="text-[10px] font-mono font-bold uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
-                                      {evt.category}
-                                    </span>
-                                    <span className={`text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded ${
-                                      evt.importance === 'High' 
-                                        ? 'bg-red-500/10 text-red-400 border border-red-500/15'
-                                        : 'bg-muted text-muted-foreground border border-border/80'
-                                    }`}>
-                                      {evt.importance} Priority
-                                    </span>
-                                    {isArchived && (
-                                      <span className="text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/15">
-                                        Archived
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <h4 className="text-xs font-black text-foreground flex items-center gap-1.5">
-                                    {evt.title}
-                                    {isMilestone && <Star className="w-3.5 h-3.5 text-cinema-amber-500 fill-cinema-amber-500" />}
-                                  </h4>
-                                  <p className="text-[11px] text-muted-foreground leading-relaxed font-semibold max-w-2xl">{evt.description}</p>
-                                  
-                                  {evt.location && (
-                                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono pt-1">
-                                      <MapPin className="w-3 h-3 text-muted-foreground" />
-                                      <span>{evt.location}</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 bg-muted/40 p-1 rounded-lg border border-border opacity-60 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'up'); }}
-                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                    title="Move Up"
-                                  >
-                                    <ArrowUp className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'down'); }}
-                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                    title="Move Down"
-                                  >
-                                    <ArrowDown className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleToggleMilestoneEvent(evt.id, isMilestone); }}
-                                    className={`p-1 rounded cursor-pointer ${isMilestone ? 'text-cinema-amber-500 hover:text-cinema-amber-600' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
-                                    title={isMilestone ? 'Unmark Milestone' : 'Mark Milestone'}
-                                  >
-                                    <Star className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleOpenTimelineModal('edit', evt); }}
-                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                    title="Edit event"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleDuplicateTimelineEvent(evt); }}
-                                    className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                    title="Duplicate"
-                                  >
-                                    <Copy className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); isArchived ? handleRestoreTimelineEvent(evt.id) : handleArchiveTimelineEvent(evt.id); }}
-                                    className={`p-1 rounded cursor-pointer ${isArchived ? 'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
-                                    title={isArchived ? 'Restore' : 'Archive'}
-                                  >
-                                    {isArchived ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteTimelineEvent(evt.id); }}
-                                    className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
-                                    title="Delete event"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Render grouped by Year list */}
-                    {timelineViewMode === 'group-year' && (
-                      <div className="space-y-8" id="timeline-flow-list-year">
-                        {Object.keys(groupedByYear).sort((a,b) => {
-                          const numA = parseInt(a) || 0;
-                          const numB = parseInt(b) || 0;
-                          return timelineSortOrder === 'desc' ? numB - numA : numA - numB;
-                        }).map(year => (
-                          <div key={year} className="space-y-4">
-                            <div className="flex items-center gap-3">
-                              <span className="text-sm font-black font-mono text-cinema-amber-500 bg-cinema-amber-500/10 px-3 py-1 rounded-lg border border-cinema-amber-500/25">
-                                Year {year}
-                              </span>
-                              <div className="h-px bg-border flex-grow" />
-                            </div>
-                            <div className="relative border-l-2 border-border pl-6 ml-4 space-y-6">
-                              {groupedByYear[year].map(evt => {
-                                const isSelected = selectedInspectorItem.type === 'timeline' && selectedInspectorItem.id === evt.id;
-                                const isArchived = evt.status === 'Archived';
-                                const isMilestone = evt.category === 'Milestone' || evt.importance === 'High' || evt.status === 'Milestone';
-                                return (
-                                  <div
-                                    key={evt.id}
-                                    onClick={() => setSelectedInspectorItem({ type: 'timeline', id: evt.id, data: evt })}
-                                    className={`group relative p-5 bg-card border rounded-2xl cursor-pointer transition-all hover:shadow-md ${
-                                      isSelected 
-                                        ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03] ring-1 ring-cinema-amber-500' 
-                                        : isArchived
-                                          ? 'border-border/60 opacity-60 bg-muted/20'
-                                          : 'border-border hover:border-muted-foreground/30'
-                                    }`}
-                                  >
-                                    <div className={`absolute -left-[31px] top-7 w-4 h-4 rounded-full border-2 transition-all ${
-                                      isSelected ? 'bg-cinema-amber-500 border-background scale-110' : 'bg-background border-border group-hover:border-muted-foreground/50'
-                                    }`} />
-                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                                      <div className="space-y-1.5 flex-grow">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <span className="text-[10px] font-mono font-bold uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
-                                            {evt.category}
-                                          </span>
-                                          <span className={`text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded ${
-                                            evt.importance === 'High' 
-                                              ? 'bg-red-500/10 text-red-400 border border-red-500/15'
-                                              : 'bg-muted text-muted-foreground border border-border/80'
-                                          }`}>
-                                            {evt.importance} Priority
-                                          </span>
-                                          {isArchived && (
-                                            <span className="text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/15">
-                                              Archived
-                                            </span>
-                                          )}
-                                        </div>
-                                        <h4 className="text-xs font-black text-foreground flex items-center gap-1.5">
-                                          {evt.title}
-                                          {isMilestone && <Star className="w-3.5 h-3.5 text-cinema-amber-500 fill-cinema-amber-500" />}
-                                        </h4>
-                                        <p className="text-[11px] text-muted-foreground leading-relaxed font-semibold max-w-2xl">{evt.description}</p>
-                                        {evt.location && (
-                                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono pt-1">
-                                            <MapPin className="w-3 h-3 text-muted-foreground" />
-                                            <span>{evt.location}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 bg-muted/40 p-1 rounded-lg border border-border opacity-60 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'up'); }}
-                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                          title="Move Up"
-                                        >
-                                          <ArrowUp className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'down'); }}
-                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                          title="Move Down"
-                                        >
-                                          <ArrowDown className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleToggleMilestoneEvent(evt.id, isMilestone); }}
-                                          className={`p-1 rounded cursor-pointer ${isMilestone ? 'text-cinema-amber-500 hover:text-cinema-amber-600' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
-                                          title={isMilestone ? 'Unmark Milestone' : 'Mark Milestone'}
-                                        >
-                                          <Star className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleOpenTimelineModal('edit', evt); }}
-                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                          title="Edit event"
-                                        >
-                                          <Edit2 className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleDuplicateTimelineEvent(evt); }}
-                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                          title="Duplicate"
-                                        >
-                                          <Copy className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); isArchived ? handleRestoreTimelineEvent(evt.id) : handleArchiveTimelineEvent(evt.id); }}
-                                          className={`p-1 rounded cursor-pointer ${isArchived ? 'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
-                                          title={isArchived ? 'Restore' : 'Archive'}
-                                        >
-                                          {isArchived ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleDeleteTimelineEvent(evt.id); }}
-                                          className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
-                                          title="Delete event"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Render grouped by Decade list */}
-                    {timelineViewMode === 'group-decade' && (
-                      <div className="space-y-8" id="timeline-flow-list-decade">
-                        {Object.keys(groupedByDecade).sort((a,b) => {
-                          const numA = parseInt(a) || 0;
-                          const numB = parseInt(b) || 0;
-                          return timelineSortOrder === 'desc' ? numB - numA : numA - numB;
-                        }).map(decade => (
-                          <div key={decade} className="space-y-4">
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs font-black uppercase tracking-wider font-mono text-cinema-amber-400 bg-muted border border-border px-3 py-1 rounded-lg">
-                                The {decade} Decade
-                              </span>
-                              <div className="h-px bg-border flex-grow" />
-                            </div>
-                            <div className="relative border-l-2 border-border pl-6 ml-4 space-y-6">
-                              {groupedByDecade[decade].map(evt => {
-                                const isSelected = selectedInspectorItem.type === 'timeline' && selectedInspectorItem.id === evt.id;
-                                const isArchived = evt.status === 'Archived';
-                                const isMilestone = evt.category === 'Milestone' || evt.importance === 'High' || evt.status === 'Milestone';
-                                return (
-                                  <div
-                                    key={evt.id}
-                                    onClick={() => setSelectedInspectorItem({ type: 'timeline', id: evt.id, data: evt })}
-                                    className={`group relative p-5 bg-card border rounded-2xl cursor-pointer transition-all hover:shadow-md ${
-                                      isSelected 
-                                        ? 'border-cinema-amber-500 bg-cinema-amber-500/[0.03] ring-1 ring-cinema-amber-500' 
-                                        : isArchived
-                                          ? 'border-border/60 opacity-60 bg-muted/20'
-                                          : 'border-border hover:border-muted-foreground/30'
-                                    }`}
-                                  >
-                                    <div className={`absolute -left-[31px] top-7 w-4 h-4 rounded-full border-2 transition-all ${
-                                      isSelected ? 'bg-cinema-amber-500 border-background scale-110' : 'bg-background border-border group-hover:border-muted-foreground/50'
-                                    }`} />
-                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                                      <div className="space-y-1.5 flex-grow">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <span className="text-sm font-black font-mono text-cinema-amber-600 dark:text-cinema-amber-400">
-                                            {evt.year}
-                                          </span>
-                                          <span className="text-[10px] font-mono font-bold uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
-                                            {evt.category}
-                                          </span>
-                                          <span className={`text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded ${
-                                            evt.importance === 'High' 
-                                              ? 'bg-red-500/10 text-red-400 border border-red-500/15'
-                                              : 'bg-muted text-muted-foreground border border-border/80'
-                                          }`}>
-                                            {evt.importance} Priority
-                                          </span>
-                                          {isArchived && (
-                                            <span className="text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/15">
-                                              Archived
-                                            </span>
-                                          )}
-                                        </div>
-                                        <h4 className="text-xs font-black text-foreground flex items-center gap-1.5">
-                                          {evt.title}
-                                          {isMilestone && <Star className="w-3.5 h-3.5 text-cinema-amber-500 fill-cinema-amber-500" />}
-                                        </h4>
-                                        <p className="text-[11px] text-muted-foreground leading-relaxed font-semibold max-w-2xl">{evt.description}</p>
-                                        {evt.location && (
-                                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono pt-1">
-                                            <MapPin className="w-3 h-3 text-muted-foreground" />
-                                            <span>{evt.location}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 bg-muted/40 p-1 rounded-lg border border-border opacity-60 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'up'); }}
-                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                          title="Move Up"
-                                        >
-                                          <ArrowUp className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleReorderTimelineEvent(evt.id, 'down'); }}
-                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                          title="Move Down"
-                                        >
-                                          <ArrowDown className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleToggleMilestoneEvent(evt.id, isMilestone); }}
-                                          className={`p-1 rounded cursor-pointer ${isMilestone ? 'text-cinema-amber-500 hover:text-cinema-amber-600' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
-                                          title={isMilestone ? 'Unmark Milestone' : 'Mark Milestone'}
-                                        >
-                                          <Star className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleOpenTimelineModal('edit', evt); }}
-                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                          title="Edit event"
-                                        >
-                                          <Edit2 className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleDuplicateTimelineEvent(evt); }}
-                                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded cursor-pointer"
-                                          title="Duplicate"
-                                        >
-                                          <Copy className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); isArchived ? handleRestoreTimelineEvent(evt.id) : handleArchiveTimelineEvent(evt.id); }}
-                                          className={`p-1 rounded cursor-pointer ${isArchived ? 'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-muted-foreground hover:text-foreground hover:bg-card'}`}
-                                          title={isArchived ? 'Restore' : 'Archive'}
-                                        >
-                                          {isArchived ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleDeleteTimelineEvent(evt.id); }}
-                                          className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
-                                          title="Delete event"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </motion.div>
-            )}
-
-            {/* MEDIA ORGANIZER WORKSPACE */}
-            {activeSection === 'media' && (
-              <motion.div
-                key="workspace-media"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6 w-full"
-                id="pane-media"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                      <Camera className="w-4 h-4 text-cinema-amber-500" /> Media & Supporting Documents
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Verify portrait quality, tag visual themes, and manage scanned documents and certificates.
-                    </p>
-                  </div>
-
-                  {/* Sub-tab switcher */}
-                  <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border/80 rounded-xl shrink-0">
-                    <button
-                      onClick={() => setActiveSection('media')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cinema-amber-500/15 text-cinema-amber-500 border border-cinema-amber-500/30"
-                    >
-                      Media Assets ({mediaItems.length})
-                    </button>
-                    <button
-                      onClick={() => setActiveSection('documents')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-muted-foreground hover:text-foreground"
-                    >
-                      Supporting Documents ({documents.length})
-                    </button>
-                  </div>
-                </div>
-
-                  <div className="flex items-center gap-3 self-start sm:self-auto">
-                    <input
-                      type="file"
-                      ref={workspaceFileInputRef}
-                      className="hidden"
-                      multiple
-                      onChange={handleWorkspaceFileChange}
-                      accept="image/*,video/*,audio/*,application/pdf"
-                    />
-                    <button
-                      onClick={handleOpenWorkspaceUpload}
-                      className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-400 text-black font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer uppercase tracking-wider"
-                    >
-                      <Plus className="w-4 h-4 stroke-[2.5]" /> Upload Asset
-                    </button>
-
-                    <div className="p-1.5 bg-muted rounded-xl border border-border flex items-center gap-1 shrink-0">
-                      {[
-                        { id: 'All', label: 'All Files' },
-                        { id: 'image', label: 'Photos' },
-                        { id: 'video', label: 'Videos' },
-                        { id: 'document', label: 'Letters' }
-                      ].map(tab => (
-                        <button
-                          key={tab.id}
-                          onClick={() => setMediaFilter(tab.id as any)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            mediaFilter === tab.id 
-                              ? 'bg-card text-foreground border border-border shadow-xs' 
-                              : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          {tab.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                {/* Grid container of files */}
-                {filteredMedia.length === 0 ? (
-                  <div className="py-12 border border-dashed border-border rounded-2xl flex items-center justify-center bg-card/25" id="media-empty-placeholder">
-                    <EmptyState
-                      type="media"
-                      title="No Archival Media Found"
-                      description="To construct your legacy story's visual timeline, upload scanned files, photographs, or official letters."
-                      primaryActionLabel="Upload First Asset"
-                      onPrimaryAction={handleOpenWorkspaceUpload}
-                    />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5" id="media-asset-grid">
-                    {filteredMedia.map((media) => {
-                      const isSelected = selectedInspectorItem.type === 'media' && selectedInspectorItem.id === media.id;
-                      return (
-                        <div
-                          key={media.id}
-                          id={`media-card-${media.id}`}
-                          onClick={() => setSelectedInspectorItem({ type: 'media', id: media.id, data: media })}
-                          className={`group border rounded-2xl overflow-hidden bg-card cursor-pointer flex flex-col justify-between relative shadow-sm hover:shadow-md transition-all h-[240px] ${
-                            isSelected 
-                              ? 'border-cinema-amber-500 ring-1 ring-cinema-amber-500' 
-                              : 'border-border hover:border-muted-foreground/30'
-                          }`}
-                        >
-                          {/* Media Cover Preview */}
-                          <div className="h-28 w-full relative overflow-hidden bg-muted">
-                            <img
-                              src={media.url}
-                              alt=""
-                              className="w-full h-full object-cover grayscale-15 group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                            
-                            {/* File Type badge */}
-                            <span className="absolute top-2.5 left-2.5 inline-flex items-center text-[8px] font-mono font-bold bg-black/60 text-cinema-amber-400 border border-cinema-amber-500/20 px-1.5 py-0.5 rounded-md uppercase">
-                              {media.category}
-                            </span>
-
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleToggleFavoriteMedia(media.id); }}
-                              className={`absolute top-2.5 right-2.5 p-1 rounded bg-black/40 border border-white/5 cursor-pointer hover:bg-black/65 transition-colors ${
-                                media.favorite ? 'text-cinema-amber-500' : 'text-white/55 hover:text-white'
-                              }`}
-                            >
-                              <Bookmark className="w-3.5 h-3.5 stroke-[2.5]" />
-                            </button>
-                          </div>
-
-                          {/* Title & Metadata Details */}
-                          <div className="p-4 flex-grow flex flex-col justify-between">
-                            <div>
-                              <h4 className="text-xs font-black text-foreground truncate max-w-[200px]" title={media.title}>
-                                {media.title}
-                              </h4>
-                              <div className="flex items-center gap-1.5 font-mono text-[9px] text-muted-foreground mt-0.5 font-bold uppercase">
-                                <span>Size: {media.size}</span>
-                                <span>•</span>
-                                <span>Scanned: {media.uploadDate}</span>
-                              </div>
-                            </div>
-
-                            {/* Tags row */}
-                            <div className="flex flex-wrap gap-1 pt-1.5 max-h-12 overflow-hidden">
-                              {media.tags.map((tg, idx) => (
-                                <span key={idx} className="text-[9px] font-mono font-bold text-muted-foreground bg-muted border border-border px-1.5 py-0.2 rounded">
-                                  #{tg}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Actions footer */}
-                          <div className="px-4 py-2.5 bg-muted/30 border-t border-border flex items-center justify-between text-[10px] font-mono text-muted-foreground font-bold shrink-0">
-                            <span>{media.linkedEvents.length} Linked Milestones</span>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleRenameMedia(media.id); }}
-                                className="p-1 hover:text-foreground hover:bg-muted rounded"
-                                title="Rename metadata"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleDeleteMedia(media.id); }}
-                                className="p-1 hover:text-red-500 hover:bg-red-500/10 rounded"
-                                title="Delete file"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </motion.div>
-            )}
-
-            {/* CHARACTERS WORKSPACE */}
-            {(activeSection === 'characters' || activeSection === 'people') && (
-              <motion.div
-                key="workspace-characters"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="w-full"
-                id="pane-characters"
-              >
-                <CharactersWorkspace
-                  storyId={initialStory.id}
-                  storyTitle={storyMeta.title || initialStory.title}
-                  characters={characters}
-                  onUpdateCharacters={(updated) => {
-                    setCharacters(updated);
-                    triggerAutoSave({ characters: updated });
-                  }}
-                  timelineEvents={timelineEvents}
-                  mediaItems={mediaItems}
-                  selectedCharacterId={selectedInspectorItem.type === 'person' ? selectedInspectorItem.id : undefined}
-                  onSelectCharacter={(char) => {
-                    setSelectedInspectorItem({
-                      type: 'person',
-                      id: char.id,
-                      data: char,
-                    });
-                  }}
-                  showToast={showToast}
-                />
-              </motion.div>
-            )}
-
-            {/* SUPPORTING DOCUMENTS WORKSPACE */}
-            {activeSection === 'documents' && (
-              <motion.div
-                key="workspace-documents"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6 relative"
-                id="pane-documents"
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                {/* Hidden File Input */}
-                <input
-                  type="file"
-                  ref={documentsFileInputRef}
-                  onChange={handleDocumentFileChange}
-                  className="hidden"
-                  multiple
-                  accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
-                />
-
-                {/* Drag and Drop Hover Overlay */}
-                {isDraggingDoc && (
-                  <div className="absolute inset-4 z-40 bg-background/95 backdrop-blur-xs border-2 border-dashed border-cinema-amber-500 rounded-2xl flex flex-col items-center justify-center space-y-4 pointer-events-none animate-fade-in">
-                    <div className="w-16 h-16 rounded-full bg-cinema-amber-500/10 flex items-center justify-center text-cinema-amber-500">
-                      <FileText className="w-8 h-8 animate-bounce" />
-                    </div>
-                    <div className="text-center">
-                      <h4 className="font-bold text-foreground text-sm uppercase">Drop your files here</h4>
-                      <p className="text-xs text-muted-foreground mt-1">Accepts PDF, DOC, TXT, and Images (up to 50MB)</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Header Row */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-cinema-amber-500" /> Supporting Documents Ledger
-                      </h3>
-                      <span className="text-[10px] font-mono font-bold bg-cinema-amber-500/15 text-cinema-amber-500 px-1.5 py-0.5 rounded border border-cinema-amber-500/20">
-                        {documents.length} PERSISTED
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Organize scanned letters, diplomas, military records, and physical archives using local storage. Drag & drop files directly onto this panel.
-                    </p>
-                  </div>
-
-                  {/* Sub-tab switcher */}
-                  <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border/80 rounded-xl shrink-0">
-                    <button
-                      onClick={() => setActiveSection('media')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-muted-foreground hover:text-foreground"
-                    >
-                      Media Assets ({mediaItems.length})
-                    </button>
-                    <button
-                      onClick={() => setActiveSection('documents')}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cinema-amber-500/15 text-cinema-amber-500 border border-cinema-amber-500/30"
-                    >
-                      Supporting Documents ({documents.length})
-                    </button>
-                  </div>
-                </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Upload Trigger */}
-                    <button
-                      onClick={handleOpenDocumentUpload}
-                      className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-600 active:scale-98 text-slate-950 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm"
-                    >
-                      <Plus className="w-4 h-4 stroke-[3]" />
-                      Upload Document
-                    </button>
-
-                    {/* Archive toggle */}
-                    <button
-                      onClick={() => setShowArchivedDocs(!showArchivedDocs)}
-                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
-                        showArchivedDocs
-                          ? 'bg-red-500/10 border-red-500/25 text-red-500'
-                          : 'bg-card border-border hover:bg-muted text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      <Archive className="w-3.5 h-3.5" />
-                      {showArchivedDocs ? 'Viewing Archived' : 'Show Archived'}
-                    </button>
-                  </div>
-
-                {/* Filter / Search Controls bar */}
-                <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-muted/40 p-3 rounded-2xl border border-border/80">
-                  {/* Category Selection Tabs */}
-                  <div className="flex flex-wrap items-center gap-1 w-full lg:w-auto">
-                    {['All', 'Certificate', 'Letter', 'Resume', 'Article', 'Favorites'].map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => setDocumentFilter(cat)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          documentFilter === cat 
-                            ? 'bg-card text-foreground border border-border shadow-xs' 
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {cat === 'All' ? 'All Files' : cat}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Search and Sort */}
-                  <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
-                    {/* Search Input */}
-                    <div className="relative w-full sm:w-64">
-                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-                      <input
-                        type="text"
-                        placeholder="Search ledger..."
-                        value={documentSearchQuery}
-                        onChange={(e) => setDocumentSearchQuery(e.target.value)}
-                        className="w-full bg-card border border-border rounded-xl pl-9 pr-8 py-1.5 text-xs focus:outline-none focus:border-cinema-amber-500 font-medium"
-                      />
-                      {documentSearchQuery && (
-                        <button
-                          onClick={() => setDocumentSearchQuery('')}
-                          className="absolute right-2 top-2 p-0.5 hover:bg-muted rounded-full text-muted-foreground hover:text-foreground cursor-pointer"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Sort Dropdown */}
-                    <Select
-                      id="document-sort-by"
-                      value={documentSortBy}
-                      onChange={(val) => setDocumentSortBy(val as any)}
-                      options={[
-                        { value: 'recently-uploaded', label: 'Recently Added' },
-                        { value: 'name', label: 'Sort by Name' },
-                        { value: 'size', label: 'Sort by Size' },
-                        { value: 'type', label: 'Sort by Type' }
-                      ]}
-                      className="w-40"
-                    />
-                  </div>
-                </div>
-
-                {/* Table of documents / Empty state */}
-                {filteredDocuments.length === 0 ? (
-                  <div className="py-16 border border-dashed border-border rounded-2xl flex flex-col items-center justify-center bg-card/25 text-center p-6" id="documents-empty-placeholder">
-                    <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center text-muted-foreground border border-border/80 mb-4 shadow-xs">
-                      <FileText className="w-6 h-6 text-muted-foreground/80" />
-                    </div>
-                    <h3 className="font-display font-black text-foreground uppercase tracking-wider text-sm">
-                      No matching credentials
-                    </h3>
-                    <p className="text-xs text-muted-foreground max-w-sm mt-1 leading-relaxed">
-                      {documentSearchQuery || documentFilter !== 'All' || showArchivedDocs
-                        ? 'No documents found matching the search criteria or active filters.'
-                        : 'Your digital document repository is currently empty. Upload physical awards, certificates, or letters of endorsement to establish secure proof.'}
-                    </p>
-                    <div className="mt-4 flex gap-2">
-                      <button
-                        onClick={handleOpenDocumentUpload}
-                        className="px-3 py-1.5 bg-muted hover:bg-muted/80 text-foreground border border-border font-bold text-xs rounded-lg transition-colors cursor-pointer"
-                      >
-                        Select Files
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm" id="documents-table-wrapper">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse" id="documents-ledger-table">
-                        <thead>
-                          <tr className="border-b border-border bg-muted/40 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                            <th className="p-4">Document Title</th>
-                            <th className="p-4">Category</th>
-                            <th className="p-4">Description</th>
-                            <th className="p-4">Size</th>
-                            <th className="p-4">Tags</th>
-                            <th className="p-4">Added On</th>
-                            <th className="p-4 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredDocuments.map((doc) => {
-                            const isSelected = selectedInspectorItem.type === 'document' && selectedInspectorItem.id === doc.id;
-                            const sizeKb = doc.fileSize ? (doc.fileSize / 1024).toFixed(1) : '0';
-                            return (
-                              <tr
-                                key={doc.id}
-                                onClick={() => setSelectedInspectorItem({ type: 'document', id: doc.id, data: doc })}
-                                className={`border-b border-border/60 text-xs hover:bg-muted/30 cursor-pointer transition-colors ${
-                                  isSelected ? 'bg-cinema-amber-500/5' : ''
-                                }`}
-                              >
-                                <td className="p-4">
-                                  <div className="flex items-center gap-2.5">
-                                    <FileText className="w-4 h-4 text-cinema-amber-500 shrink-0" />
-                                    <div className="font-bold text-foreground block truncate max-w-xs">{doc.displayName}</div>
-                                  </div>
-                                </td>
-                                <td className="p-4">
-                                  <span className="font-mono text-[9px] font-bold bg-muted text-muted-foreground border border-border px-1.5 py-0.5 rounded uppercase">
-                                    {doc.documentType}
-                                  </span>
-                                </td>
-                                <td className="p-4 text-muted-foreground font-semibold truncate max-w-xs">
-                                  {doc.description || 'No description provided.'}
-                                </td>
-                                <td className="p-4 font-mono font-bold text-muted-foreground">{sizeKb} KB</td>
-                                <td className="p-4">
-                                  <div className="flex flex-wrap gap-1 max-w-[150px]">
-                                    {doc.tags?.slice(0, 2).map((t, i) => (
-                                      <span key={i} className="text-[9px] font-semibold bg-muted/60 text-muted-foreground px-1 py-0.5 rounded">
-                                        #{t}
-                                      </span>
-                                    ))}
-                                    {(doc.tags?.length || 0) > 2 && (
-                                      <span className="text-[9px] font-bold text-muted-foreground">
-                                        +{doc.tags.length - 2}
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="p-4 text-muted-foreground font-mono">{new Date(doc.uploadDate).toLocaleDateString()}</td>
-                                <td className="p-4 text-right">
-                                  <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                                    {/* Favorite Action */}
-                                    <button
-                                      onClick={() => handleToggleFavoriteDocument(doc.id, !doc.favorite)}
-                                      className={`p-1.5 rounded-lg border border-border bg-card cursor-pointer hover:bg-muted transition-colors ${
-                                        doc.favorite ? 'text-cinema-amber-500' : 'text-muted-foreground hover:text-foreground'
-                                      }`}
-                                      title={doc.favorite ? 'Remove from favorites' : 'Mark as favorite'}
-                                    >
-                                      ★
-                                    </button>
-
-                                    {/* Open Preview Modal Action */}
-                                    <button
-                                      onClick={() => handleOpenDocPreview(doc)}
-                                      className="text-[10px] font-bold border border-border bg-card hover:bg-muted py-1 px-2.5 rounded-lg text-foreground transition-colors cursor-pointer flex items-center gap-1"
-                                    >
-                                      <Eye className="w-3.5 h-3.5" />
-                                      Explore
-                                    </button>
-
-                                    {/* Delete Action */}
-                                    <button
-                                      onClick={() => handleDeleteDocument(doc.id)}
-                                      className="p-1.5 rounded-lg border border-red-500/10 hover:border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-500 cursor-pointer transition-colors"
-                                      title="Delete file permanently"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* DYNAMIC METADATA PREVIEW & EDIT DIALOG OVERLAY */}
-                <AnimatePresence>
-                  {previewDoc && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xs animate-fade-in">
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                        className="bg-background border border-border rounded-3xl overflow-hidden max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl"
-                      >
-                        {/* Modal Header */}
-                        <div className="p-5 border-b border-border bg-card flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-cinema-amber-500/10 border border-cinema-amber-500/20 flex items-center justify-center text-cinema-amber-500">
-                              <FileText className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-foreground text-sm uppercase tracking-wide">
-                                {isEditingDoc ? 'Credentials Metadata Editor' : 'Heritage Document Explorer'}
-                              </h4>
-                              <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
-                                Registry Ref: {previewDoc.id} • v{previewDoc.version}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => setPreviewDoc(null)}
-                            className="p-1.5 bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground rounded-full transition-colors cursor-pointer"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        {/* Modal Body Container */}
-                        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                          
-                          {/* Left Column: Visual Scanned Preview */}
-                          <div className="space-y-4">
-                            <span className="text-[10px] font-mono font-bold text-muted-foreground uppercase block">
-                              Active Document Scan Frame
-                            </span>
-                            <div className="border border-border/80 rounded-2xl bg-muted/40 aspect-4/3 w-full relative overflow-hidden flex items-center justify-center p-3">
-                              {previewDoc.localStorageReference ? (
-                                previewDoc.mimeType.startsWith('image/') ? (
-                                  <img
-                                    src={previewDoc.localStorageReference}
-                                    alt={previewDoc.displayName}
-                                    className="w-full h-full object-contain max-h-[300px] rounded"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                ) : (
-                                  <iframe
-                                    src={previewDoc.localStorageReference}
-                                    title={previewDoc.displayName}
-                                    className="w-full h-full border-0 min-h-[280px] bg-white rounded"
-                                  />
-                                )
-                              ) : (
-                                <div className="text-center p-6">
-                                  <FileText className="w-12 h-12 text-muted-foreground/50 mx-auto mb-2" />
-                                  <span className="text-xs text-muted-foreground font-semibold block">Preview Unavailable</span>
-                                  <span className="text-[10px] text-muted-foreground/80 font-medium">Please download file to view contents.</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Technical attributes badge panel */}
-                            <div className="bg-muted/35 p-3 rounded-2xl border border-border/60 grid grid-cols-2 gap-3 text-xs font-semibold">
-                              <div>
-                                <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">MIME TYPE</span>
-                                <span className="text-foreground font-mono block truncate">{previewDoc.mimeType}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">EXTENSION</span>
-                                <span className="text-foreground font-mono block uppercase">.{previewDoc.extension}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">ORIGINAL NAME</span>
-                                <span className="text-foreground block truncate" title={previewDoc.originalFilename}>{previewDoc.originalFilename}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">FILE SIZE</span>
-                                <span className="text-foreground font-mono block">{(previewDoc.fileSize / 1024).toFixed(2)} KB</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Right Column: Metadata Detail Pane */}
-                          <div className="space-y-4 flex flex-col justify-between">
-                            {isEditingDoc ? (
-                              /* EDITING MODE FORM */
-                              <div className="space-y-4">
-                                <span className="text-[10px] font-mono font-bold text-cinema-amber-500 uppercase block">
-                                  EDITABLE DETAILS
-                                </span>
-                                
-                                <div className="space-y-1">
-                                  <label className="text-xs font-bold text-muted-foreground uppercase block">Document Display Title</label>
-                                  <input
-                                    type="text"
-                                    value={editDisplayName}
-                                    onChange={(e) => setEditDisplayName(e.target.value)}
-                                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cinema-amber-500 font-bold"
-                                  />
-                                </div>
-
-                                <Select
-                                  id="edit-document-type"
-                                  label="Classification Type"
-                                  value={editDocumentType}
-                                  onChange={setEditDocumentType}
-                                  options={[
-                                    { value: 'Certificate', label: 'Certificate' },
-                                    { value: 'Letter', label: 'Letter of Endorsement / Correspondence' },
-                                    { value: 'Resume', label: 'Resume / CV' },
-                                    { value: 'Article', label: 'Press Article / Catalogue' },
-                                    { value: 'Official', label: 'Official Record' }
-                                  ]}
-                                />
-
-                                <div className="space-y-1">
-                                  <label className="text-xs font-bold text-muted-foreground uppercase block">Description & Notes</label>
-                                  <textarea
-                                    value={editDescription}
-                                    onChange={(e) => setEditDescription(e.target.value)}
-                                    rows={4}
-                                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cinema-amber-500 font-semibold text-muted-foreground leading-normal"
-                                    placeholder="Enter descriptive text, historical context, key names, or archival details..."
-                                  />
-                                </div>
-
-                                <div className="space-y-1">
-                                  <label className="text-xs font-bold text-muted-foreground uppercase block">Tags (comma-separated)</label>
-                                  <input
-                                    type="text"
-                                    value={editTags}
-                                    onChange={(e) => setEditTags(e.target.value)}
-                                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cinema-amber-500 font-bold"
-                                    placeholder="Award, Salem, Military"
-                                  />
-                                </div>
-                              </div>
-                            ) : (
-                              /* VIEW READ-ONLY MODE */
-                              <div className="space-y-5">
-                                <span className="text-[10px] font-mono font-bold text-muted-foreground uppercase block">
-                                  CREDENTIAL PROFILE
-                                </span>
-
-                                <div className="space-y-1">
-                                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Display Name</span>
-                                  <strong className="text-foreground text-base block font-display uppercase tracking-wide">
-                                    {previewDoc.displayName}
-                                  </strong>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Document Category</span>
-                                  <span className="text-foreground text-xs font-mono font-bold bg-muted border border-border px-2 py-1 rounded uppercase inline-block">
-                                    {previewDoc.documentType}
-                                  </span>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Description & Historical Notes</span>
-                                  <p className="text-muted-foreground text-xs leading-relaxed font-semibold">
-                                    {previewDoc.description || 'No descriptive notes logged for this archival item.'}
-                                  </p>
-                                </div>
-
-                                {previewDoc.tags && previewDoc.tags.length > 0 && (
-                                  <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase block">Assigned Tags</span>
-                                    <div className="flex flex-wrap gap-1">
-                                      {previewDoc.tags.map((t, idx) => (
-                                        <span key={idx} className="text-[9px] font-mono bg-muted/80 px-2 py-0.5 rounded text-muted-foreground border border-border/40">
-                                          #{t}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                <div className="grid grid-cols-2 gap-3 border-t border-border/60 pt-4 text-xs font-semibold">
-                                  <div>
-                                    <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">Uploaded Date</span>
-                                    <span className="text-foreground">{new Date(previewDoc.uploadDate).toLocaleString()}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground block text-[9px] font-mono uppercase font-bold">Last Modified</span>
-                                    <span className="text-foreground">{new Date(previewDoc.lastModified).toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Modal Action Controls footer */}
-                            <div className="border-t border-border pt-4 flex items-center justify-between gap-3">
-                              {isEditingDoc ? (
-                                <>
-                                  <button
-                                    onClick={() => setIsEditingDoc(false)}
-                                    className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl transition-all cursor-pointer"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    onClick={handleSaveDocMetadata}
-                                    className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-600 text-slate-950 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                                  >
-                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                    Save Changes
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <div className="flex items-center gap-1.5">
-                                    <button
-                                      onClick={() => handleToggleFavoriteDocument(previewDoc.id, !previewDoc.favorite)}
-                                      className={`p-2 rounded-xl border border-border bg-card cursor-pointer hover:bg-muted transition-colors text-xs font-bold ${
-                                        previewDoc.favorite ? 'text-cinema-amber-500 border-cinema-amber-500/25 bg-cinema-amber-500/5' : 'text-muted-foreground hover:text-foreground'
-                                      }`}
-                                      title="Toggle Favorite"
-                                    >
-                                      ★ {previewDoc.favorite ? 'Favorited' : 'Favorite'}
-                                    </button>
-
-                                    <a
-                                      href={previewDoc.localStorageReference}
-                                      download={previewDoc.originalFilename}
-                                      className="p-2 border border-border bg-card hover:bg-muted text-foreground hover:text-foreground rounded-xl text-xs font-bold transition-all cursor-pointer"
-                                      title="Download Original File"
-                                    >
-                                      📥 Download
-                                    </a>
-                                  </div>
-
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => setIsEditingDoc(true)}
-                                      className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground border border-border font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                      Edit Metadata
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        const pId = previewDoc.id;
-                                        setPreviewDoc(null);
-                                        handleDeleteDocument(pId);
-                                      }}
-                                      className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-bold text-xs rounded-xl transition-all cursor-pointer"
-                                    >
-                                      Delete File
-                                    </button>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                        </div>
-                      </motion.div>
-                    </div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            )}
-
-            {/* SCENES & STORYBOARD WORKSPACE */}
-            {activeSection === 'scenes' && (
-              <motion.div
-                key="workspace-scenes"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="w-full"
-                id="pane-scenes"
-              >
-                <ScenesWorkspace
-                  storyId={initialStory.id}
-                  storyTitle={storyMeta.title}
-                  scenes={scenes}
-                  onUpdateScenes={setScenes}
-                  timelineEvents={timelineEvents}
-                  characters={characters}
-                  mediaItems={mediaItems}
-                  showToast={showToast}
-                />
-              </motion.div>
-            )}
-
-            {/* NARRATION STUDIO WORKSPACE */}
-            {activeSection === 'narration' && (
-              <motion.div
-                key="workspace-narration"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6 w-full"
-                id="pane-narration"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                      <Mic className="w-4 h-4 text-cinema-amber-500" /> AI Narration & Voice Synthesis Studio
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Configure narrator voices, speech cadence, emotional inflection, and generate spoken audio for story manuscript.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => showToast('success', 'Voice Synthesis Initialized', 'Synthesizing chapter 1 voiceover track...')}
-                    className="px-4 py-2 bg-cinema-amber-500 hover:bg-cinema-amber-400 text-black font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer uppercase tracking-wider shrink-0"
-                  >
-                    <Mic className="w-4 h-4" /> Synthesize All Voiceover
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="p-5 bg-card border border-border rounded-2xl space-y-4">
-                    <h4 className="font-display font-bold text-sm text-foreground">Narrator Voice Profile</h4>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-[10px] font-mono font-bold text-muted-foreground uppercase block mb-1">Voice Persona</label>
-                        <select className="w-full h-9 bg-muted border border-border rounded-xl px-3 text-xs font-semibold">
-                          <option>Warm Legacy Memoirist (Deep Male)</option>
-                          <option>Warm Family Biographer (Gentle Female)</option>
-                          <option>Documentary Broadcaster (Classic)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-mono font-bold text-muted-foreground uppercase block mb-1">Pacing Speed</label>
-                        <input type="range" min="0.8" max="1.2" step="0.05" defaultValue="1.0" className="w-full accent-cinema-amber-500" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="lg:col-span-2 p-5 bg-card border border-border rounded-2xl space-y-4">
-                    <h4 className="font-display font-bold text-sm text-foreground">Script Voice Cues</h4>
-                    <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-                      <div className="p-3 bg-muted/40 border border-border rounded-xl space-y-1">
-                        <span className="text-[10px] font-mono text-cinema-amber-500 font-bold">Intro Cut • Scene #1</span>
-                        <p className="text-xs text-foreground italic">"{storyMeta.subtitle || 'Every life holds a saga worth preserving...'}"</p>
-                      </div>
-                      <div className="p-3 bg-muted/40 border border-border rounded-xl space-y-1">
-                        <span className="text-[10px] font-mono text-cinema-amber-500 font-bold">Childhood Roots • Scene #2</span>
-                        <p className="text-xs text-foreground italic">"{biographyText ? biographyText.slice(0, 120) + '...' : 'In the early chapters of life, roots were planted that would shape decades to come...'}"</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* MUSIC & SOUNDTRACK WORKSPACE */}
-            {activeSection === 'music' && (
-              <motion.div
-                key="workspace-music"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6 w-full"
-                id="pane-music"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
-                  <div>
-                    <h3 className="font-display text-base font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                      <Sliders className="w-4 h-4 text-cinema-amber-500" /> Soundtrack & Ambient Score
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Pair orchestral scores, acoustic guitar, nostalgia pianos, and ambient soundscapes to elevate story emotion.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {[
-                    { title: 'Acoustic Nostalgia', genre: 'Acoustic Guitar', mood: 'Warm & Intimate', duration: '3m 45s' },
-                    { title: 'Orchestral Heritage', genre: 'Strings & Piano', mood: 'Majestic & Emotional', duration: '4m 12s' },
-                    { title: 'Golden Hour Piano', genre: 'Solo Piano', mood: 'Reflective', duration: '2m 50s' },
-                    { title: 'Vintage Folk Ballad', genre: 'Americana Folk', mood: 'Historical Roots', duration: '3m 20s' },
-                  ].map((track, idx) => (
-                    <div key={idx} className="p-4 bg-card border border-border rounded-2xl space-y-3 hover:border-cinema-amber-500/50 transition-all cursor-pointer">
-                      <div className="w-10 h-10 rounded-xl bg-cinema-amber-500/10 flex items-center justify-center text-cinema-amber-500 font-bold">
-                        🎵
-                      </div>
-                      <div>
-                        <h4 className="font-display font-bold text-xs text-foreground">{track.title}</h4>
-                        <p className="text-[10px] font-mono text-muted-foreground">{track.genre} • {track.mood}</p>
-                      </div>
-                      <button
-                        onClick={() => showToast('info', 'Track Selected', `Assigned "${track.title}" to background score.`)}
-                        className="w-full py-1.5 bg-muted hover:bg-cinema-amber-500 hover:text-black text-foreground text-[10px] font-bold uppercase rounded-lg transition-all"
-                      >
-                        Select Soundtrack
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
-            {/* INTERACTIVE PREVIEW WORKSPACE */}
-            {activeSection === 'preview' && (
-              <motion.div
-                key="workspace-preview"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="w-full p-6 md:p-8"
-                id="pane-preview"
-              >
-                <PreviewWorkspace
-                  storyId={initialStory.id}
-                  storyTitle={storyMeta.title}
-                  scenes={scenes}
-                  characters={characters}
-                  timelineEvents={timelineEvents}
-                  mediaItems={mediaItems}
-                  onNavigateToTab={(tabId) => setActiveSection(tabId)}
-                  showToast={showToast}
-                />
-              </motion.div>
-            )}
-
-            {/* PRODUCTION & RENDER STUDIO VIEW */}
-            {['render', 'production', 'templates', 'history', 'review'].includes(activeSection) && (
-              <motion.div
-                key="workspace-render-studio"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-6 md:p-8 space-y-6 w-full"
-                id="pane-render-studio"
-              >
-                <RenderWorkspace
-                  storyId={initialStory.id}
-                  storyTitle={initialStory.title}
-                  scenes={scenes}
-                  characters={characters}
-                  timelineEvents={timelineEvents}
-                  mediaItems={mediaItems}
-                  onNavigateToQueue={() => {
-                    showToast('info', 'Render Queue', 'Opening global render queue...');
-                  }}
-                  showToast={showToast}
-                />
-              </motion.div>
+            {/* PREVIEW & EXPORT MODE SECTIONS (Interactive Preview, Production & Render) */}
+            {['preview', 'render', 'production', 'templates', 'history', 'review'].includes(activeSection) && (
+              <PreviewExportMode
+                initialStory={initialStory}
+                storyMeta={storyMeta}
+                activeSection={activeSection}
+                onNavigateSection={(sec) => {
+                  setActiveSection(sec);
+                  const newMode = mapSectionToMode(sec);
+                  setActiveMode(newMode);
+                  setSearchParams({ id: initialStory.id, mode: newMode, section: sec });
+                }}
+                scenes={scenes}
+                characters={characters}
+                timelineEvents={timelineEvents}
+                mediaItems={mediaItems}
+                showToast={showToast}
+              />
             )}
 
           </AnimatePresence>

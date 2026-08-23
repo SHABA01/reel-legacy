@@ -703,6 +703,3 @@ export function ReelMediaPlayer({
     </div>
   );
 }
-
-// Export YouTubeVideoPlayer as an alias for backward compatibility
-export const YouTubeVideoPlayer = ReelMediaPlayer;
