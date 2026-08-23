@@ -13,20 +13,16 @@ import {
   Eye,
   CheckCircle2,
   AlertCircle,
-  MoreVertical,
   Play,
-  Share2,
   Trash2,
   Edit2,
-  Tag,
-  Plus,
-  Bookmark,
   CheckSquare,
   Square,
   Sparkles,
   Link2
 } from 'lucide-react';
 import { ExtendedMediaAsset } from '../../types/media';
+import { ContextTrigger } from '../ui/ContextTrigger';
 
 interface MediaAssetCardProps {
   key?: React.Key;
@@ -39,6 +35,7 @@ interface MediaAssetCardProps {
   onPreview: (asset: ExtendedMediaAsset) => void;
   onRename: (asset: ExtendedMediaAsset) => void;
   onDelete: (asset: ExtendedMediaAsset) => void;
+  onInspectDetails?: (asset: ExtendedMediaAsset) => void;
   onQuickTag?: (asset: ExtendedMediaAsset) => void;
   onAddToStory?: (asset: ExtendedMediaAsset) => void;
   viewMode?: 'grid' | 'list';
@@ -54,6 +51,7 @@ export function MediaAssetCard({
   onPreview,
   onRename,
   onDelete,
+  onInspectDetails,
   onQuickTag,
   onAddToStory,
   viewMode = 'grid'
@@ -116,7 +114,7 @@ export function MediaAssetCard({
 
   const usageCount = asset.usageCount || (asset.relationships ? asset.relationships.linkedScenes.length + asset.relationships.linkedTimelineEvents.length : 0);
 
-  // LIST VIEW
+  // LIST VIEW: High density schema
   if (viewMode === 'list') {
     return (
       <div
@@ -129,11 +127,12 @@ export function MediaAssetCard({
       >
         <div className="flex items-center gap-3 min-w-0">
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               onToggleMultiSelect(asset.id);
             }}
-            className="p-1 text-muted-foreground hover:text-cinema-amber-400"
+            className="p-1 text-muted-foreground hover:text-cinema-amber-400 cursor-pointer"
           >
             {isMultiSelected ? (
               <CheckSquare className="w-4 h-4 text-cinema-amber-500" />
@@ -178,63 +177,79 @@ export function MediaAssetCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {usageCount > 0 && (
-            <span className="px-2 py-0.5 rounded-full bg-cinema-amber-500/10 text-cinema-amber-400 border border-cinema-amber-500/20 font-mono text-[10px] flex items-center gap-1">
+            <span className="hidden sm:flex px-2 py-0.5 rounded-full bg-cinema-amber-500/10 text-cinema-amber-400 border border-cinema-amber-500/20 font-mono text-[10px] items-center gap-1">
               <Link2 className="w-3 h-3" /> {usageCount} uses
             </span>
           )}
 
           {getStatusBadge()}
 
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onPreview(asset);
-              }}
-              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-              title="Preview Asset"
-            >
-              <Eye className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleFavorite(asset.id);
-              }}
-              className="p-1.5 rounded text-muted-foreground hover:text-amber-400 hover:bg-muted"
-              title="Toggle Favorite"
-            >
-              <Star className={`w-3.5 h-3.5 ${asset.favorite ? 'text-amber-400 fill-amber-400' : ''}`} />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRename(asset);
-              }}
-              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-              title="Rename"
-            >
-              <Edit2 className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(asset);
-              }}
-              className="p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
-              title="Delete"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+          {/* Action cluster including ⓘ Details trigger */}
+          <div className="flex items-center gap-1">
+            {onInspectDetails && (
+              <ContextTrigger
+                onClick={() => onInspectDetails(asset)}
+                size="sm"
+                title="View details"
+                className="opacity-70 group-hover:opacity-100 hover:opacity-100"
+              />
+            )}
+
+            <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPreview(asset);
+                }}
+                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                title="Preview Asset"
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite(asset.id);
+                }}
+                className="p-1.5 rounded text-muted-foreground hover:text-amber-400 hover:bg-muted cursor-pointer"
+                title="Toggle Favorite"
+              >
+                <Star className={`w-3.5 h-3.5 ${asset.favorite ? 'text-amber-400 fill-amber-400' : ''}`} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRename(asset);
+                }}
+                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                title="Rename"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(asset);
+                }}
+                className="p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 cursor-pointer"
+                title="Delete"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // GRID VIEW (Lightroom / Resolve Media Pool style card)
+  // GRID VIEW (Lightroom / Resolve Media Pool card)
   return (
     <div
       onClick={(e) => onSelect(asset, e)}
@@ -256,11 +271,12 @@ export function MediaAssetCard({
         {/* Overlay Badges Top Row */}
         <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-10 pointer-events-none">
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               onToggleMultiSelect(asset.id);
             }}
-            className="pointer-events-auto p-1 rounded bg-black/60 backdrop-blur-md text-white hover:bg-cinema-amber-500 hover:text-slate-950 transition-colors"
+            className="pointer-events-auto p-1 rounded bg-black/60 backdrop-blur-md text-white hover:bg-cinema-amber-500 hover:text-slate-950 transition-colors cursor-pointer"
           >
             {isMultiSelected ? (
               <CheckSquare className="w-3.5 h-3.5 text-cinema-amber-400" />
@@ -271,12 +287,26 @@ export function MediaAssetCard({
 
           <div className="flex items-center gap-1">
             {getStatusBadge()}
+
+            {/* Universal ⓘ Details Trigger Button */}
+            {onInspectDetails && (
+              <div className="pointer-events-auto">
+                <ContextTrigger
+                  onClick={() => onInspectDetails(asset)}
+                  size="sm"
+                  title="View details"
+                  className="bg-black/60 backdrop-blur-md text-white hover:bg-cinema-amber-500 hover:text-slate-950 border-0"
+                />
+              </div>
+            )}
+
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleFavorite(asset.id);
               }}
-              className="pointer-events-auto p-1 rounded bg-black/60 backdrop-blur-md text-white hover:text-amber-400 transition-colors"
+              className="pointer-events-auto p-1 rounded bg-black/60 backdrop-blur-md text-white hover:text-amber-400 transition-colors cursor-pointer"
             >
               <Star className={`w-3.5 h-3.5 ${asset.favorite ? 'text-amber-400 fill-amber-400' : 'text-white/80'}`} />
             </button>
@@ -341,31 +371,34 @@ export function MediaAssetCard({
 
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onPreview(asset);
               }}
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
               title="Preview"
             >
               <Eye className="w-3.5 h-3.5" />
             </button>
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onRename(asset);
               }}
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
               title="Rename"
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete(asset);
               }}
-              className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
+              className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 cursor-pointer"
               title="Delete"
             >
               <Trash2 className="w-3.5 h-3.5" />

@@ -5,8 +5,6 @@
 
 import React, { useState } from 'react';
 import {
-  X,
-  Info,
   Sparkles,
   Layers,
   Link2,
@@ -51,20 +49,11 @@ export function MediaInspector({
   stories,
   showToast
 }: MediaInspectorProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'metadata' | 'ai' | 'relationships' | 'versions' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'metadata' | 'ai' | 'relationships' | 'versions'>('overview');
   const [isRestoring, setIsRestoring] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [newComment, setNewComment] = useState('');
 
-  if (!asset) {
-    return (
-      <aside className="w-80 shrink-0 border-l border-border bg-card/60 backdrop-blur-md p-6 flex flex-col items-center justify-center text-center text-muted-foreground text-xs">
-        <Info className="w-8 h-8 text-cinema-amber-500/60 mb-2" />
-        <p className="font-mono text-xs uppercase font-bold text-foreground">No Asset Selected</p>
-        <p className="mt-1 text-[11px] max-w-[200px]">Click any media item in the vault grid to view metadata and AI tools.</p>
-      </aside>
-    );
-  }
+  if (!asset) return null;
 
   const analysis = asset.aiAnalysis || AssetAnalysisService.analyzeAsset(asset);
   const relationships = asset.relationships || {
@@ -105,41 +94,8 @@ export function MediaInspector({
     }
   };
 
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-    const comments = asset.comments || [];
-    const updated = {
-      ...asset,
-      comments: [
-        ...comments,
-        {
-          id: `cmt-${Date.now()}`,
-          author: 'Archivist Lead',
-          text: newComment.trim(),
-          date: 'Just now'
-        }
-      ]
-    };
-    onUpdateAsset(updated);
-    setNewComment('');
-    showToast('info', 'Comment Added', 'Notes saved to asset audit log.');
-  };
-
   return (
-    <aside className="w-80 shrink-0 border-l border-border bg-card/80 backdrop-blur-md flex flex-col h-full overflow-hidden text-xs">
-      {/* Header */}
-      <div className="p-3 border-b border-border flex items-center justify-between shrink-0">
-        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-cinema-amber-600 dark:text-cinema-amber-400 flex items-center gap-1.5">
-          <Info className="w-3.5 h-3.5" /> Inspector DAM
-        </span>
-        <button
-          onClick={onClose}
-          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
+    <div className="flex flex-col h-full overflow-hidden text-xs">
       {/* Hero Thumbnail Preview */}
       <div className="relative aspect-video w-full bg-muted/80 overflow-hidden border-b border-border shrink-0">
         <img
@@ -172,13 +128,13 @@ export function MediaInspector({
           onClick={() => setActiveTab('metadata')}
           className={`px-2 py-1 rounded transition-colors cursor-pointer ${activeTab === 'metadata' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
         >
-          Meta
+          Metadata
         </button>
         <button
           onClick={() => setActiveTab('ai')}
           className={`px-2 py-1 rounded transition-colors cursor-pointer flex items-center gap-1 ${activeTab === 'ai' ? 'bg-cinema-amber-500 text-slate-950 font-bold' : 'text-muted-foreground hover:text-foreground'}`}
         >
-          <Sparkles className="w-2.5 h-2.5" /> AI
+          <Sparkles className="w-2.5 h-2.5" /> AI Tools
         </button>
         <button
           onClick={() => setActiveTab('relationships')}
@@ -195,7 +151,7 @@ export function MediaInspector({
       </div>
 
       {/* Tab Content Body */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-3">
@@ -240,10 +196,10 @@ export function MediaInspector({
         {/* METADATA TAB */}
         {activeTab === 'metadata' && (
           <div className="space-y-2 text-[11px]">
-            <div className="p-2.5 rounded-lg bg-muted/60 space-y-1.5">
+            <div className="p-3 rounded-lg bg-muted/60 space-y-2">
               <div className="flex justify-between text-muted-foreground">
                 <span>Filename</span>
-                <span className="font-mono text-foreground truncate max-w-[140px]">{asset.name}</span>
+                <span className="font-mono text-foreground truncate max-w-[160px]">{asset.name}</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>Resolution</span>
@@ -276,7 +232,7 @@ export function MediaInspector({
         {/* AI ANALYSIS TAB */}
         {activeTab === 'ai' && (
           <div className="space-y-3 text-[11px]">
-            <div className="p-2.5 rounded-lg bg-cinema-amber-500/10 border border-cinema-amber-500/30 space-y-2">
+            <div className="p-3 rounded-lg bg-cinema-amber-500/10 border border-cinema-amber-500/30 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-mono font-bold text-cinema-amber-600 dark:text-cinema-amber-400 uppercase text-[10px] flex items-center gap-1">
                   <Sparkles className="w-3 h-3" /> AI Vision & Audio Analysis
@@ -306,7 +262,7 @@ export function MediaInspector({
               {analysis.damageDetected && (
                 <div className="pt-2 border-t border-rose-500/30 space-y-2">
                   <div className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5" /> Damage / Degradation Detected
+                    <AlertCircle className="w-3.5 h-3.5" /> Degradation Detected
                   </div>
                   <p className="text-muted-foreground text-[10px]">{analysis.restorationRecommendation}</p>
                   <button
@@ -330,7 +286,7 @@ export function MediaInspector({
 
               {(asset.type === 'audio' || asset.type === 'video') && (
                 <div className="pt-2 border-t border-cinema-amber-500/20 space-y-1.5">
-                  <span className="text-muted-foreground font-semibold block">Speech Transcript & Audio:</span>
+                  <span className="text-muted-foreground font-semibold block">Speech Transcript:</span>
                   {analysis.speechTranscript ? (
                     <p className="p-2 rounded bg-muted/80 border border-border/60 font-mono text-[10px] text-foreground leading-relaxed">
                       "{analysis.speechTranscript}"
@@ -365,7 +321,7 @@ export function MediaInspector({
                     linkedStoryName: s ? s.title : 'Unlinked Assets'
                   });
                 }}
-                className="w-full p-1.5 rounded bg-muted border border-border text-foreground font-semibold focus:outline-none"
+                className="w-full p-2 rounded bg-muted border border-border text-foreground font-semibold focus:outline-none"
               >
                 <option value="unlinked">Unlinked (General Vault)</option>
                 {stories.map(s => (
@@ -374,7 +330,7 @@ export function MediaInspector({
               </select>
             </div>
 
-            <div className="p-2.5 rounded-lg bg-muted/60 space-y-2 border border-border">
+            <div className="p-3 rounded-lg bg-muted/60 space-y-2 border border-border">
               <span className="font-mono text-[10px] font-bold text-cinema-amber-600 dark:text-cinema-amber-400 uppercase flex items-center gap-1">
                 <Link2 className="w-3 h-3" /> Connected Story Elements
               </span>
@@ -405,7 +361,7 @@ export function MediaInspector({
         {/* VERSIONS TAB */}
         {activeTab === 'versions' && (
           <div className="space-y-2 text-[11px]">
-            <span className="text-muted-foreground font-mono text-[10px] uppercase font-bold block">Asset Version Tree</span>
+            <span className="text-muted-foreground font-mono text-[10px] uppercase font-bold block">Asset Version History</span>
             {(asset.versions || [
               {
                 id: 'v-orig',
@@ -419,7 +375,7 @@ export function MediaInspector({
             ]).map(ver => (
               <div
                 key={ver.id}
-                className={`p-2 rounded-lg border transition-all flex items-center justify-between ${
+                className={`p-2.5 rounded-lg border transition-all flex items-center justify-between ${
                   ver.isCurrent ? 'bg-cinema-amber-500/15 border-cinema-amber-500/40' : 'bg-muted/40 border-border'
                 }`}
               >
@@ -428,7 +384,7 @@ export function MediaInspector({
                   <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{ver.versionType} • {ver.fileSize}</div>
                 </div>
                 {ver.isCurrent ? (
-                  <span className="px-1.5 py-0.5 rounded bg-cinema-amber-500 text-slate-950 font-bold font-mono text-[9px]">
+                  <span className="px-2 py-0.5 rounded bg-cinema-amber-500 text-slate-950 font-bold font-mono text-[9px]">
                     Active
                   </span>
                 ) : (
@@ -447,6 +403,6 @@ export function MediaInspector({
           </div>
         )}
       </div>
-    </aside>
+    </div>
   );
 }

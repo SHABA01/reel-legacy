@@ -47,6 +47,8 @@ import { FavoriteButton } from '../ui/FavoriteButton';
 import { PinButton } from '../ui/PinButton';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { TabNavigation } from '../ui/TabNavigation';
+import { ViewModeTransition } from '../ui/ViewModeTransition';
+import { ContextTrigger } from '../ui/ContextTrigger';
 
 import { useToast } from '../../context/ToastContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -675,8 +677,14 @@ export function ProfilesView() {
                             {p.relationship}
                           </span>
 
-                          {/* Kebab Menu */}
-                          <div className="absolute top-2.5 right-2.5" onClick={(e) => e.stopPropagation()}>
+                          {/* Context Trigger & Kebab Menu */}
+                          <div className="absolute top-2.5 right-2.5 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <ContextTrigger
+                              onClick={() => handleSelectProfile(p.id, true)}
+                              size="sm"
+                              title="View details"
+                              className="bg-black/60 text-white hover:bg-cinema-amber-500 hover:text-slate-950 border-0"
+                            />
                             <KebabMenu
                               id={`profile-${p.id}`}
                               items={[
@@ -892,6 +900,11 @@ export function ProfilesView() {
                               </td>
                               <td className="p-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center justify-end gap-1">
+                                  <ContextTrigger
+                                    onClick={() => handleSelectProfile(p.id, true)}
+                                    size="sm"
+                                    title="View details"
+                                  />
                                   <Button id={`btn-row-explore-${p.id}`} onClick={() => handleExploreProfile(p.id)} variant="ghost" size="xs" className="py-1 px-2 border border-border text-[10px] h-7">
                                     Explore
                                   </Button>

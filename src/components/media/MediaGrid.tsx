@@ -7,7 +7,8 @@ import React, { useMemo } from 'react';
 import { ExtendedMediaAsset } from '../../types/media';
 import { MediaAssetCard } from './MediaAssetCard';
 import { EmptyState } from '../ui/EmptyState';
-import { FolderOpen, Layers } from 'lucide-react';
+import { ViewModeTransition } from '../ui/ViewModeTransition';
+import { Layers } from 'lucide-react';
 
 interface MediaGridProps {
   assets: ExtendedMediaAsset[];
@@ -19,6 +20,7 @@ interface MediaGridProps {
   onPreview: (asset: ExtendedMediaAsset) => void;
   onRename: (asset: ExtendedMediaAsset) => void;
   onDelete: (asset: ExtendedMediaAsset) => void;
+  onInspectDetails?: (asset: ExtendedMediaAsset) => void;
   viewMode: 'grid' | 'list';
   grouping: 'none' | 'type' | 'story' | 'category' | 'status';
   onClearFilters?: () => void;
@@ -34,6 +36,7 @@ export function MediaGrid({
   onPreview,
   onRename,
   onDelete,
+  onInspectDetails,
   viewMode,
   grouping,
   onClearFilters
@@ -74,44 +77,49 @@ export function MediaGrid({
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-6">
-      {Object.entries(groupedAssets).map(([groupTitle, groupItems]: [string, ExtendedMediaAsset[]]) => (
-        <div key={groupTitle} className="space-y-3">
-          {grouping !== 'none' && (
-            <div className="flex items-center justify-between border-b border-border pb-1.5 pt-2">
-              <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-cinema-amber-400 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5" /> {groupTitle}
-              </h3>
-              <span className="font-mono text-[10px] text-muted-foreground bg-muted/80 px-2 py-0.5 rounded-full">
-                {groupItems.length} items
-              </span>
-            </div>
-          )}
+      <ViewModeTransition viewMode={viewMode}>
+        <div className="space-y-6">
+          {Object.entries(groupedAssets).map(([groupTitle, groupItems]: [string, ExtendedMediaAsset[]]) => (
+            <div key={groupTitle} className="space-y-3">
+              {grouping !== 'none' && (
+                <div className="flex items-center justify-between border-b border-border pb-1.5 pt-2">
+                  <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-cinema-amber-400 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5" /> {groupTitle}
+                  </h3>
+                  <span className="font-mono text-[10px] text-muted-foreground bg-muted/80 px-2 py-0.5 rounded-full">
+                    {groupItems.length} items
+                  </span>
+                </div>
+              )}
 
-          <div
-            className={
-              viewMode === 'grid'
-                ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
-                : 'space-y-2'
-            }
-          >
-            {groupItems.map(asset => (
-              <MediaAssetCard
-                key={asset.id}
-                asset={asset}
-                isSelected={selectedAssetId === asset.id}
-                isMultiSelected={selectedAssets.includes(asset.id)}
-                onSelect={onSelectAsset}
-                onToggleMultiSelect={onToggleMultiSelect}
-                onToggleFavorite={onToggleFavorite}
-                onPreview={onPreview}
-                onRename={onRename}
-                onDelete={onDelete}
-                viewMode={viewMode}
-              />
-            ))}
-          </div>
+              <div
+                className={
+                  viewMode === 'grid'
+                    ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
+                    : 'space-y-2'
+                }
+              >
+                {groupItems.map(asset => (
+                  <MediaAssetCard
+                    key={asset.id}
+                    asset={asset}
+                    isSelected={selectedAssetId === asset.id}
+                    isMultiSelected={selectedAssets.includes(asset.id)}
+                    onSelect={onSelectAsset}
+                    onToggleMultiSelect={onToggleMultiSelect}
+                    onToggleFavorite={onToggleFavorite}
+                    onPreview={onPreview}
+                    onRename={onRename}
+                    onDelete={onDelete}
+                    onInspectDetails={onInspectDetails}
+                    viewMode={viewMode}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </ViewModeTransition>
     </div>
   );
 }

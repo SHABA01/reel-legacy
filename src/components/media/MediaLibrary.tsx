@@ -6,17 +6,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   Upload,
-  FolderPlus,
-  Sparkles,
-  HardDrive,
-  Layers,
-  Search,
-  Plus,
-  FolderOpen,
-  Info,
-  X,
-  CheckCircle2,
-  AlertCircle
+  Info
 } from 'lucide-react';
 import { PageHeader } from '../ui/PageHeader';
 import { Button } from '../ui/Button';
@@ -29,15 +19,13 @@ import { useToast } from '../../context/ToastContext';
 import { persistenceService, MediaService } from '../../storage';
 import { INITIAL_STORIES } from '../stories/mockStoriesData';
 
-import { ExtendedMediaAsset, MediaCollection, SmartCollectionType, UploadQueueItem } from '../../types/media';
+import { ExtendedMediaAsset, MediaCollection, UploadQueueItem } from '../../types/media';
 import { MediaLibraryService, INITIAL_SMART_COLLECTIONS } from '../../services/mediaLibraryService';
-import { AssetAnalysisService } from '../../services/assetAnalysisService';
 
-import { MediaCollectionBar } from './MediaCollectionBar';
+import { ContextDrawer } from '../ui/ContextDrawer';
 import { MediaToolbar } from './MediaToolbar';
 import { MediaGrid } from './MediaGrid';
 import { MediaInspector } from './MediaInspector';
-import { MediaStatusBar } from './MediaStatusBar';
 import { MediaBulkActionBar } from './MediaBulkActionBar';
 
 export function MediaLibrary() {
@@ -48,21 +36,20 @@ export function MediaLibrary() {
   const [collections, setCollections] = useState<MediaCollection[]>([]);
   const [stories, setStories] = useState<Array<{ id: string; title: string }>>([]);
 
-  // Selection & Navigation
+  // Selection & Navigation (Context Drawer closed by default on page load)
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
-  const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(true);
+  const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(false);
 
-  // Collections & Filtering Scope
-  const [activeSmartCollection, setActiveSmartCollection] = useState<SmartCollectionType>('all');
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
-  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
-
-  // Toolbar Filters
+  // Consolidated Toolbar Filters (Row 1 Primary + More Filters Facets)
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedType, setSelectedType] = useState<string>('All');
   const [selectedStoryFilter, setSelectedStoryFilter] = useState<string>('All');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('All');
+  const [isFavoriteFilter, setIsFavoriteFilter] = useState<boolean>(false);
+  const [isAiGeneratedFilter, setIsAiGeneratedFilter] = useState<boolean>(false);
+
+  // Row 2 Sorting, Grouping & View Mode
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'size'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -72,7 +59,6 @@ export function MediaLibrary() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<ExtendedMediaAsset | null>(null);
-  const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
   const [isCreateCollectionOpen, setIsCreateCollectionOpen] = useState(false);
 
   // Delete & Rename Modals
@@ -113,7 +99,7 @@ export function MediaLibrary() {
         qualityRating: 5
       }));
 
-      // If empty, supply rich starter media assets
+      // Rich initial heritage media assets
       if (extended.length === 0) {
         extended = [
           {
@@ -244,34 +230,32 @@ export function MediaLibrary() {
   const filteredAssets = useMemo(() => {
     let result = assets;
 
-    // Smart collection filter
-    if (activeSmartCollection) {
-      result = MediaLibraryService.filterBySmartCollection(result, activeSmartCollection);
-    }
-
-    // Story Folder / Selected Story Filter
-    if (selectedStoryId) {
-      result = result.filter(a => a.linkedStoryId === selectedStoryId);
-    } else if (selectedStoryFilter !== 'All') {
-      result = result.filter(a => a.linkedStoryId === selectedStoryFilter);
-    }
-
-    // Custom Album Collection Filter
-    if (selectedCollectionId) {
-      const col = collections.find(c => c.id === selectedCollectionId);
-      if (col && !col.isSmart) {
-        result = result.filter(a => a.tags.some(t => col.tags.includes(t)));
-      }
-    }
-
-    // Media Type Filter
+    // Primary Single Type Filter
     if (selectedType !== 'All') {
-      result = result.filter(a => a.type === selectedType.toLowerCase());
+      result = result.filter(a => a.type.toLowerCase() === selectedType.toLowerCase());
+    }
+
+    // Story Scope Filter
+    if (selectedStoryFilter !== 'All') {
+      result = result.filter(a => a.linkedStoryId === selectedStoryFilter);
     }
 
     // Readiness Status Filter
     if (selectedStatusFilter !== 'All') {
       result = result.filter(a => a.readinessStatus === selectedStatusFilter);
+    }
+
+    // Starred Favorites Filter (from More Filters popover)
+    if (isFavoriteFilter) {
+      result = result.filter(a => !!a.favorite);
+    }
+
+    // AI Generated Filter (from More Filters popover)
+    if (isAiGeneratedFilter) {
+      result = result.filter(a =>
+        a.tags.some(t => /ai|generated|colorized|restored|upscaled/i.test(t)) ||
+        /ai generated/i.test(a.category)
+      );
     }
 
     // Global Multi-field Search
@@ -293,13 +277,11 @@ export function MediaLibrary() {
     });
   }, [
     assets,
-    activeSmartCollection,
-    selectedStoryId,
-    selectedStoryFilter,
-    selectedCollectionId,
-    collections,
     selectedType,
+    selectedStoryFilter,
     selectedStatusFilter,
+    isFavoriteFilter,
+    isAiGeneratedFilter,
     searchQuery,
     sortBy,
     sortOrder
@@ -309,14 +291,10 @@ export function MediaLibrary() {
     return assets.find(a => a.id === selectedAssetId) || null;
   }, [assets, selectedAssetId]);
 
-  const totalBytesUsed = useMemo(() => {
-    return assets.reduce((sum, a) => sum + (a.bytes || 0), 0);
-  }, [assets]);
-
-  // --- 3. HANDLERS ---
+  // --- 3. INTERACTION HANDLERS ---
+  // Card click: selects entity (does NOT auto-open drawer unless already open)
   const handleSelectAsset = (asset: ExtendedMediaAsset, e: React.MouseEvent) => {
     if (e.shiftKey) {
-      // Toggle multi-selection
       if (selectedAssets.includes(asset.id)) {
         setSelectedAssets(prev => prev.filter(id => id !== asset.id));
       } else {
@@ -324,8 +302,13 @@ export function MediaLibrary() {
       }
     } else {
       setSelectedAssetId(asset.id);
-      setIsInspectorOpen(true);
     }
+  };
+
+  // Explicit Context Trigger (ⓘ View details): opens drawer with asset
+  const handleInspectDetails = (asset: ExtendedMediaAsset) => {
+    setSelectedAssetId(asset.id);
+    setIsInspectorOpen(true);
   };
 
   const handleToggleMultiSelect = (assetId: string) => {
@@ -402,7 +385,6 @@ export function MediaLibrary() {
       const uploadId = `up-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       setUploadQueue(prev => [...prev, { id: uploadId, name: file.name, progress: 20 }]);
 
-      // Simulate step upload progress
       setTimeout(() => {
         setUploadQueue(prev =>
           prev.map(item => (item.id === uploadId ? { ...item, progress: 70 } : item))
@@ -556,9 +538,8 @@ export function MediaLibrary() {
     setSelectedType('All');
     setSelectedStoryFilter('All');
     setSelectedStatusFilter('All');
-    setActiveSmartCollection('all');
-    setSelectedStoryId(null);
-    setSelectedCollectionId(null);
+    setIsFavoriteFilter(false);
+    setIsAiGeneratedFilter(false);
   };
 
   return (
@@ -569,14 +550,6 @@ export function MediaLibrary() {
         subtitle="Single source of truth for every photo, video, B-roll, document, and audio asset in production."
         rightContent={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsStorageModalOpen(true)}
-              leftIcon={<HardDrive className="w-4 h-4 text-cinema-amber-500" />}
-            >
-              Vault Capacity
-            </Button>
             <Button
               variant="accent"
               size="sm"
@@ -589,21 +562,7 @@ export function MediaLibrary() {
         }
       />
 
-      {/* 2. HORIZONTAL COLLECTION SELECTOR BAR (Replaces old left navigation sidebar) */}
-      <MediaCollectionBar
-        activeSmartCollection={activeSmartCollection}
-        onSelectSmartCollection={setActiveSmartCollection}
-        collections={collections}
-        selectedCollectionId={selectedCollectionId}
-        onSelectCollection={setSelectedCollectionId}
-        onCreateCollectionClick={() => setIsCreateCollectionOpen(true)}
-        stories={stories}
-        selectedStoryId={selectedStoryId}
-        onSelectStoryFolder={setSelectedStoryId}
-        assets={assets}
-      />
-
-      {/* 3. SMART FILTER & SEARCH TOOLBAR */}
+      {/* 2. CONSOLIDATED FILTER & SEARCH TOOLBAR (Row 1 Find/Filter + Row 2 Manage/Display) */}
       <MediaToolbar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -613,6 +572,10 @@ export function MediaLibrary() {
         onStoryFilterChange={setSelectedStoryFilter}
         selectedStatusFilter={selectedStatusFilter}
         onStatusFilterChange={setSelectedStatusFilter}
+        isFavoriteFilter={isFavoriteFilter}
+        onToggleFavoriteFilter={() => setIsFavoriteFilter(prev => !prev)}
+        isAiGeneratedFilter={isAiGeneratedFilter}
+        onToggleAiGeneratedFilter={() => setIsAiGeneratedFilter(prev => !prev)}
         sortBy={sortBy}
         onSortByChange={setSortBy}
         sortOrder={sortOrder}
@@ -626,20 +589,17 @@ export function MediaLibrary() {
         totalCount={filteredAssets.length}
         onSelectAllToggle={handleSelectAllToggle}
         isAllSelected={selectedAssets.length > 0 && selectedAssets.length === filteredAssets.length}
-        onBulkTagClick={handleBulkTag}
-        onBulkAssignStoryClick={handleBulkAssignStory}
-        onBulkDeleteClick={handleBulkDelete}
         onClearFilters={handleClearFilters}
       />
 
-      {/* 4. MAIN WORKSPACE CONTENT (Dominant Asset Grid/List + Required Context Inspector) */}
+      {/* 3. MAIN WORKSPACE CONTENT (Dominant 100% Full-Width Asset Grid/List) */}
       <div className="flex-1 flex overflow-hidden relative min-h-0">
-        {/* DOMINANT ASSET GRID / LIST (Uses 100% of usable width when inspector is closed or right-aligned) */}
         <MediaGrid
           assets={filteredAssets}
           selectedAssetId={selectedAssetId}
           selectedAssets={selectedAssets}
           onSelectAsset={handleSelectAsset}
+          onInspectDetails={handleInspectDetails}
           onToggleMultiSelect={handleToggleMultiSelect}
           onToggleFavorite={handleToggleFavorite}
           onPreview={(asset) => {
@@ -652,19 +612,27 @@ export function MediaLibrary() {
           grouping={grouping}
           onClearFilters={handleClearFilters}
         />
-
-        {/* REQUIRED CONTEXT PANEL (Right Inspector DAM) */}
-        {isInspectorOpen && (
-          <MediaInspector
-            asset={selectedAsset}
-            onClose={() => setIsInspectorOpen(false)}
-            onUpdateAsset={handleUpdateAsset}
-            onDeleteAsset={(asset) => setDeleteTarget(asset)}
-            stories={stories}
-            showToast={showToast}
-          />
-        )}
       </div>
+
+      {/* 4. ON-DEMAND CONTEXT DRAWER FOR ASSET INSPECTION (Closed by default on load) */}
+      <ContextDrawer
+        isOpen={isInspectorOpen && !!selectedAsset}
+        onClose={() => setIsInspectorOpen(false)}
+        title={selectedAsset?.name || 'Asset Details'}
+        subtitle={selectedAsset ? `${selectedAsset.category} • ${selectedAsset.size}` : undefined}
+        badge={selectedAsset?.readinessStatus}
+        icon={<Info className="w-4 h-4 text-cinema-amber-500" />}
+        ariaLabel="Asset Details Drawer"
+      >
+        <MediaInspector
+          asset={selectedAsset}
+          onClose={() => setIsInspectorOpen(false)}
+          onUpdateAsset={handleUpdateAsset}
+          onDeleteAsset={(asset) => setDeleteTarget(asset)}
+          stories={stories}
+          showToast={showToast}
+        />
+      </ContextDrawer>
 
       {/* 5. FLOATING CONTEXTUAL BULK ACTION BAR */}
       <MediaBulkActionBar
@@ -683,165 +651,85 @@ export function MediaLibrary() {
         onDelete={handleBulkDelete}
       />
 
-      {/* 6. BOTTOM STATUS BAR */}
-      <MediaStatusBar
-        totalAssetsCount={assets.length}
-        selectedCount={selectedAssets.length}
-        totalBytesUsed={totalBytesUsed}
-      />
-
-      {/* --- MODALS & OVERLAYS --- */}
-
-      {/* UPLOAD STUDIO MODAL */}
+      {/* UPLOAD MODAL */}
       <Modal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
-        title="Upload Assets to Heritage Vault"
-        size="lg"
+        title="Upload Media Assets"
       >
-        <div className="space-y-4 text-xs">
+        <div className="space-y-4">
           <div
-            onDragOver={e => e.preventDefault()}
-            onDrop={e => {
-              e.preventDefault();
-              if (e.dataTransfer.files) handleUploadFiles(Array.from(e.dataTransfer.files));
-            }}
-            className="border-2 border-dashed border-cinema-amber-500/40 hover:border-cinema-amber-500 bg-card/60 p-8 rounded-xl text-center space-y-3 cursor-pointer transition-colors"
             onClick={() => fileInputRef.current?.click()}
+            className="border-2 border-dashed border-border hover:border-cinema-amber-500 rounded-xl p-8 text-center cursor-pointer transition-colors"
           >
+            <Upload className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+            <p className="font-bold text-sm text-foreground">Click or Drag & Drop Media Files</p>
+            <p className="text-xs text-muted-foreground mt-1">Supports PNG, JPG, MP4, MOV, MP3, WAV, PDF up to 250MB</p>
             <input
               ref={fileInputRef}
               type="file"
               multiple
               className="hidden"
-              onChange={e => {
-                if (e.target.files) handleUploadFiles(Array.from(e.target.files));
+              onChange={(e) => {
+                if (e.target.files) {
+                  handleUploadFiles(Array.from(e.target.files));
+                  setIsUploadModalOpen(false);
+                }
               }}
             />
-            <div className="w-12 h-12 rounded-full bg-cinema-amber-500/10 border border-cinema-amber-500/30 flex items-center justify-center text-cinema-amber-500 mx-auto">
-              <Upload className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="font-semibold text-foreground text-sm">Drag and drop heritage files here, or click to browse</p>
-              <p className="text-muted-foreground text-[11px] mt-1">Supports High-Res Photos, 4K B-Roll, Audio Tapes (WAV/MP3), and Scanned PDF Documents (Max 50MB per file)</p>
-            </div>
           </div>
-
-          {/* Upload Queue Progress */}
-          {uploadQueue.length > 0 && (
-            <div className="space-y-2 border-t border-border pt-3">
-              <span className="font-mono text-[10px] uppercase font-bold text-cinema-amber-400">Upload Pipeline Activity</span>
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {uploadQueue.map(item => (
-                  <MediaUploadLoader key={item.id} id={item.id} fileName={item.name} progress={item.progress} />
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setIsUploadModalOpen(false)}>
+              Cancel
+            </Button>
+          </div>
         </div>
       </Modal>
 
-      {/* LIGHTBOX MEDIA PREVIEW MODAL */}
+      {/* PREVIEW MODAL */}
       <Modal
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
+        isOpen={isPreviewOpen && !!previewAsset}
+        onClose={() => {
+          setIsPreviewOpen(false);
+          setPreviewAsset(null);
+        }}
         title={previewAsset?.name || 'Media Preview'}
         size="xl"
       >
         {previewAsset && (
-          <div className="space-y-3">
-            <div className="rounded-xl overflow-hidden bg-black/90 max-h-[60vh] flex items-center justify-center border border-border">
-              {previewAsset.type === 'video' || previewAsset.type === 'audio' ? (
-                <ReelMediaPlayer
-                  src={previewAsset.thumbnailUrl}
-                  title={previewAsset.name}
-                />
-              ) : (
-                <img
-                  src={previewAsset.thumbnailUrl}
-                  alt={previewAsset.name}
-                  className="max-h-[55vh] object-contain"
-                />
-              )}
-            </div>
-            <div className="flex justify-between items-center text-xs text-muted-foreground font-mono">
-              <span>{previewAsset.category} • {previewAsset.size}</span>
-              <span className="text-cinema-amber-400">Story: {previewAsset.linkedStoryName}</span>
+          <div className="space-y-4">
+            <ReelMediaPlayer
+              src={previewAsset.thumbnailUrl}
+              title={previewAsset.name}
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground font-mono">
+              <span>Type: {previewAsset.type.toUpperCase()}</span>
+              <span>Size: {previewAsset.size}</span>
+              <span>Upload: {previewAsset.uploadDate}</span>
             </div>
           </div>
         )}
       </Modal>
 
-      {/* STORAGE CAPACITY MODAL */}
-      <Modal
-        isOpen={isStorageModalOpen}
-        onClose={() => setIsStorageModalOpen(false)}
-        title="Vault Storage Capacity"
-      >
-        <div className="space-y-4 text-xs">
-          <div className="p-4 rounded-xl bg-card border border-border space-y-2">
-            <div className="flex justify-between items-center font-mono">
-              <span className="text-muted-foreground">Used Vault Storage:</span>
-              <span className="font-bold text-foreground font-mono">
-                {(totalBytesUsed / (1024 * 1024)).toFixed(1)} MB / 50.0 MB
-              </span>
-            </div>
-            <div className="w-full h-2 rounded-full bg-muted overflow-hidden border border-border">
-              <div
-                className="h-full bg-cinema-amber-500"
-                style={{ width: `${Math.min(100, (totalBytesUsed / (50 * 1024 * 1024)) * 100)}%` }}
-              />
-            </div>
-          </div>
-          <p className="text-muted-foreground text-[11px] leading-relaxed">
-            All files are stored locally in your encrypted IndexedDB storage vault and synced across your story studio workspace.
-          </p>
-        </div>
-      </Modal>
-
-      {/* CREATE COLLECTION MODAL */}
-      <PromptModal
-        isOpen={isCreateCollectionOpen}
-        onClose={() => setIsCreateCollectionOpen(false)}
-        onConfirm={(name) => {
-          if (!name.trim()) return;
-          const newCol: MediaCollection = {
-            id: `col-${Date.now()}`,
-            name: name.trim(),
-            description: 'Custom heritage collection album.',
-            coverImage: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?auto=format&fit=crop&w=300&q=80',
-            assetCount: 0,
-            lastUpdated: 'Just now',
-            tags: [name.trim()]
-          };
-          setCollections(prev => [...prev, newCol]);
-          showToast('success', 'Collection Created', `Created album "${name.trim()}".`);
-          setIsCreateCollectionOpen(false);
-        }}
-        title="Create New Custom Collection"
-        message="Enter a name for your new album or collection:"
-        placeholder="e.g. WWII Letters & Medals"
-      />
-
       {/* RENAME PROMPT MODAL */}
       <PromptModal
         isOpen={!!renameTarget}
-        onClose={() => setRenameTarget(null)}
-        onConfirm={handleConfirmRename}
         title="Rename Media Asset"
-        message={`Enter new display filename for "${renameTarget?.name}":`}
+        message={`Enter a new name for "${renameTarget?.name}":`}
         defaultValue={renameTarget?.name || ''}
+        onConfirm={handleConfirmRename}
+        onClose={() => setRenameTarget(null)}
       />
 
       {/* DELETE CONFIRMATION MODAL */}
       <ConfirmationModal
         isOpen={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleConfirmDelete}
         title="Delete Media Asset"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This will permanently remove the asset from the Heritage Vault.`}
+        message={`Are you sure you want to permanently delete "${deleteTarget?.name}"? This action cannot be undone.`}
         confirmLabel="Delete Asset"
         isDestructive={true}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteTarget(null)}
       />
     </div>
   );
