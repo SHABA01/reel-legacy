@@ -648,279 +648,281 @@ export function ProfilesView() {
                 />
               )}
 
-              {/* GRID VIEW */}
-              {viewMode === 'grid' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-6" id="profiles-grid-canvas">
-                  {filteredAndSortedProfiles.map((p) => {
-                    const birthYr = p.dateOfBirth ? new Date(p.dateOfBirth).getFullYear() : 'N/A';
-                    const deathYr = p.dateOfDeath ? new Date(p.dateOfDeath).getFullYear() : '';
-                    const lifeSpan = deathYr ? `${birthYr} – ${deathYr}` : `${birthYr} – Living`;
-                    const isSelected = selectedProfileId === p.id;
+              {/* CANONICAL VIEW MODE TRANSITION (GRID / LIST TABLE) */}
+              <ViewModeTransition viewMode={viewMode}>
+                {viewMode === 'grid' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-6" id="profiles-grid-canvas">
+                    {filteredAndSortedProfiles.map((p) => {
+                      const birthYr = p.dateOfBirth ? new Date(p.dateOfBirth).getFullYear() : 'N/A';
+                      const deathYr = p.dateOfDeath ? new Date(p.dateOfDeath).getFullYear() : '';
+                      const lifeSpan = deathYr ? `${birthYr} – ${deathYr}` : `${birthYr} – Living`;
+                      const isSelected = selectedProfileId === p.id;
 
-                    return (
-                      <div
-                        key={p.id}
-                        id={`profile-grid-card-${p.id}`}
-                        onClick={() => handleSelectProfile(p.id)}
-                        onDoubleClick={() => handleExploreProfile(p.id)}
-                        className={`group border bg-card rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-sm hover:shadow-md transition-all h-[310px] cursor-pointer ${
-                          isSelected ? 'border-cinema-amber-500 ring-1 ring-cinema-amber-500/30' : 'border-border'
-                        }`}
-                      >
-                        {/* Cover photo block */}
-                        <div className="h-20 w-full relative shrink-0 bg-muted">
-                          <img src={p.coverPhoto} alt={`${p.preferredName} cover`} className="w-full h-full object-cover grayscale-15 group-hover:grayscale-0 transition-all duration-300" referrerPolicy="no-referrer" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                          
-                          {/* Relationship badge */}
-                          <span className="absolute top-2.5 left-2.5 inline-flex items-center text-[9px] font-bold bg-black/60 text-white border border-white/10 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                            {p.relationship}
-                          </span>
-
-                          {/* Context Trigger & Kebab Menu */}
-                          <div className="absolute top-2.5 right-2.5 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            <ContextTrigger
-                              onClick={() => handleSelectProfile(p.id, true)}
-                              size="sm"
-                              title="View details"
-                              className="bg-black/60 text-white hover:bg-cinema-amber-500 hover:text-slate-950 border-0"
-                            />
-                            <KebabMenu
-                              id={`profile-${p.id}`}
-                              items={[
-                                { id: `dropdown-action-explore-${p.id}`, label: 'Explore Profile', onClick: () => handleExploreProfile(p.id), icon: <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> },
-                                { id: `dropdown-action-edit-${p.id}`, label: 'Edit Profile', onClick: () => handleEditProfile(p.id), icon: <FileText className="w-3.5 h-3.5 text-muted-foreground" /> },
-                                { id: `dropdown-action-clone-${p.id}`, label: 'Duplicate', onClick: () => handleDuplicateProfile(p.id), icon: <Copy className="w-3.5 h-3.5 text-muted-foreground" /> },
-                                { id: `dropdown-action-archive-${p.id}`, label: 'Archive', onClick: () => handleArchiveProfile(p.id), icon: <Archive className="w-3.5 h-3.5 text-muted-foreground" /> },
-                                { id: `dropdown-action-delete-${p.id}`, label: 'Delete', onClick: () => handleDeleteProfile(p.id), isDestructive: true, hasDividerBefore: true, icon: <Trash2 className="w-3.5 h-3.5 text-red-500" /> },
-                              ]}
-                              dropdownClassName="w-40"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Overlapping Avatar */}
-                        <div className="px-4 relative -mt-5 flex items-end justify-between shrink-0" id={`avatar-overlapping-${p.id}`}>
-                          <div className="relative w-11 h-11 rounded-full border-2 border-card overflow-hidden bg-muted shadow-sm">
-                            <img src={p.profilePhoto} alt={p.preferredName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <FavoriteButton
-                              id={`btn-toggle-favorite-${p.id}`}
-                              isFavorite={!!p.favorite}
-                              onClick={(e) => { e.stopPropagation(); handleToggleFavorite(p.id); }}
-                            />
-                            <PinButton
-                              id={`btn-toggle-pin-${p.id}`}
-                              isPinned={!!p.pinned}
-                              onClick={(e) => { e.stopPropagation(); handleTogglePin(p.id); }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Card Content Body */}
-                        <div className="px-4 py-2 flex-grow flex flex-col justify-between min-h-0 overflow-hidden" id={`card-details-middle-${p.id}`}>
-                          <div className="min-h-0 overflow-hidden space-y-1">
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-display font-bold text-xs text-foreground truncate group-hover:text-cinema-amber-500 transition-colors">
-                                {p.preferredName || `${p.firstName} ${p.lastName}`}
-                              </h4>
-                            </div>
-                            <p className="text-[9px] text-muted-foreground font-mono">{lifeSpan}</p>
+                      return (
+                        <div
+                          key={p.id}
+                          id={`profile-grid-card-${p.id}`}
+                          onClick={() => handleSelectProfile(p.id)}
+                          onDoubleClick={() => handleExploreProfile(p.id)}
+                          className={`group border bg-card rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-sm hover:shadow-md transition-all h-[310px] cursor-pointer ${
+                            isSelected ? 'border-cinema-amber-500 ring-1 ring-cinema-amber-500/30' : 'border-border'
+                          }`}
+                        >
+                          {/* Cover photo block */}
+                          <div className="h-20 w-full relative shrink-0 bg-muted">
+                            <img src={p.coverPhoto} alt={`${p.preferredName} cover`} className="w-full h-full object-cover grayscale-15 group-hover:grayscale-0 transition-all duration-300" referrerPolicy="no-referrer" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                             
-                            {/* Progress bar */}
-                            <div className="space-y-1 pt-1">
-                              <div className="flex items-center justify-between text-[9px] font-mono">
-                                <span className="text-muted-foreground font-semibold">Story Readiness</span>
-                                <span className="font-bold text-cinema-amber-500">{p.storyProgress}%</span>
-                              </div>
-                              <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
-                                <div className="h-full bg-cinema-amber-500 rounded-full" style={{ width: `${p.storyProgress}%` }} />
-                              </div>
+                            {/* Relationship badge */}
+                            <span className="absolute top-2.5 left-2.5 inline-flex items-center text-[9px] font-bold bg-black/60 text-white border border-white/10 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                              {p.relationship}
+                            </span>
+
+                            {/* Context Trigger & Kebab Menu */}
+                            <div className="absolute top-2.5 right-2.5 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              <ContextTrigger
+                                onClick={() => handleSelectProfile(p.id, true)}
+                                size="sm"
+                                variant="card-overlay"
+                                title="View details"
+                              />
+                              <KebabMenu
+                                id={`profile-${p.id}`}
+                                items={[
+                                  { id: `dropdown-action-explore-${p.id}`, label: 'Explore Profile', onClick: () => handleExploreProfile(p.id), icon: <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" /> },
+                                  { id: `dropdown-action-edit-${p.id}`, label: 'Edit Profile', onClick: () => handleEditProfile(p.id), icon: <FileText className="w-3.5 h-3.5 text-muted-foreground" /> },
+                                  { id: `dropdown-action-clone-${p.id}`, label: 'Duplicate', onClick: () => handleDuplicateProfile(p.id), icon: <Copy className="w-3.5 h-3.5 text-muted-foreground" /> },
+                                  { id: `dropdown-action-archive-${p.id}`, label: 'Archive', onClick: () => handleArchiveProfile(p.id), icon: <Archive className="w-3.5 h-3.5 text-muted-foreground" /> },
+                                  { id: `dropdown-action-delete-${p.id}`, label: 'Delete', onClick: () => handleDeleteProfile(p.id), isDestructive: true, hasDividerBefore: true, icon: <Trash2 className="w-3.5 h-3.5 text-red-500" /> },
+                                ]}
+                                dropdownClassName="w-40"
+                              />
                             </div>
-                            
-                            <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed font-medium pt-1">
-                              {p.biographySummary || 'Biographical chronicle registered in workspace repository.'}
-                            </p>
                           </div>
 
-                          {/* Stat counters */}
-                          <div className="flex items-center justify-between pt-2 border-t border-border mt-2 shrink-0 text-[9px] font-mono text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3 text-muted-foreground/60" />
-                              <span>{p.timelineEventsCount} Milestones</span>
+                          {/* Overlapping Avatar */}
+                          <div className="px-4 relative -mt-5 flex items-end justify-between shrink-0" id={`avatar-overlapping-${p.id}`}>
+                            <div className="relative w-11 h-11 rounded-full border-2 border-card overflow-hidden bg-muted shadow-sm">
+                              <img src={p.profilePhoto} alt={p.preferredName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             </div>
                             <div className="flex items-center gap-1">
-                              <ImageIcon className="w-3 h-3 text-muted-foreground/60" />
-                              <span>{p.mediaCount} Media</span>
+                              <FavoriteButton
+                                id={`btn-toggle-favorite-${p.id}`}
+                                isFavorite={!!p.favorite}
+                                onClick={(e) => { e.stopPropagation(); handleToggleFavorite(p.id); }}
+                              />
+                              <PinButton
+                                id={`btn-toggle-pin-${p.id}`}
+                                isPinned={!!p.pinned}
+                                onClick={(e) => { e.stopPropagation(); handleTogglePin(p.id); }}
+                              />
                             </div>
                           </div>
-                        </div>
 
-                        {/* Footer Action Bar */}
-                        <div className="px-4 py-2 border-t border-border bg-muted/20 flex items-center justify-between shrink-0" id={`card-footer-action-row-${p.id}`}>
-                          <span className={`inline-flex items-center text-[9px] font-bold font-mono uppercase px-1.5 py-0.5 rounded ${
-                            p.status === 'published'
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                          }`}>
-                            {p.status}
-                          </span>
+                          {/* Card Content Body */}
+                          <div className="px-4 py-2 flex-grow flex flex-col justify-between min-h-0 overflow-hidden" id={`card-details-middle-${p.id}`}>
+                            <div className="min-h-0 overflow-hidden space-y-1">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-display font-bold text-xs text-foreground truncate group-hover:text-cinema-amber-500 transition-colors">
+                                  {p.preferredName || `${p.firstName} ${p.lastName}`}
+                                </h4>
+                              </div>
+                              <p className="text-[9px] text-muted-foreground font-mono">{lifeSpan}</p>
+                              
+                              {/* Progress bar */}
+                              <div className="space-y-1 pt-1">
+                                <div className="flex items-center justify-between text-[9px] font-mono">
+                                  <span className="text-muted-foreground font-semibold">Story Readiness</span>
+                                  <span className="font-bold text-cinema-amber-500">{p.storyProgress}%</span>
+                                </div>
+                                <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
+                                  <div className="h-full bg-cinema-amber-500 rounded-full" style={{ width: `${p.storyProgress}%` }} />
+                                </div>
+                              </div>
+                              
+                              <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed font-medium pt-1">
+                                {p.biographySummary || 'Biographical chronicle registered in workspace repository.'}
+                              </p>
+                            </div>
 
-                          <Button
-                            id={`btn-open-detail-${p.id}`}
-                            onClick={(e) => { e.stopPropagation(); handleExploreProfile(p.id); }}
-                            variant="ghost"
-                            size="xs"
-                            rightIcon={<ChevronRight className="w-3.5 h-3.5 text-foreground" />}
-                            className="text-[10px] font-bold hover:bg-muted py-1 h-7"
-                          >
-                            Explore Profile
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            {/* Stat counters */}
+                            <div className="flex items-center justify-between pt-2 border-t border-border mt-2 shrink-0 text-[9px] font-mono text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3 text-muted-foreground/60" />
+                                <span>{p.timelineEventsCount} Milestones</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <ImageIcon className="w-3 h-3 text-muted-foreground/60" />
+                                <span>{p.mediaCount} Media</span>
+                              </div>
+                            </div>
+                          </div>
 
-                  {filteredAndSortedProfiles.length === 0 && (
-                    <div className="col-span-full py-16 text-center space-y-4" id="empty-search-grid-state">
-                      <EmptyState
-                        type="search"
-                        title="No Legacy Records Found"
-                        description={`No profiles found matching "${searchQuery}". Try modifying your active categories or text query.`}
-                        primaryActionLabel="Reset All Query Filters"
-                        onPrimaryAction={() => { setSearchQuery(''); setCategoryFilter('all'); setStatusFilter('all'); setShowArchivedOnly(false); }}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
+                          {/* Footer Action Bar */}
+                          <div className="px-4 py-2 border-t border-border bg-muted/20 flex items-center justify-between shrink-0" id={`card-footer-action-row-${p.id}`}>
+                            <span className={`inline-flex items-center text-[9px] font-bold font-mono uppercase px-1.5 py-0.5 rounded ${
+                              p.status === 'published'
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                            }`}>
+                              {p.status}
+                            </span>
 
-              {/* LIST VIEW TABLE */}
-              {viewMode === 'list' && (
-                <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm" id="profiles-table-container">
-                  <div className="overflow-y-auto overflow-x-hidden max-h-[550px] relative scrollbar-thin">
-                    <table className="w-full text-left border-collapse" id="profiles-table">
-                      <thead>
-                        <tr className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border bg-muted/30">
-                          <th className="sticky top-0 bg-card z-20 p-4 w-10 border-b border-border">
-                            <input
-                              id="bulk-all-select-checkbox"
-                              type="checkbox"
-                              checked={selectedRowIds.length === filteredAndSortedProfiles.length && filteredAndSortedProfiles.length > 0}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedRowIds(filteredAndSortedProfiles.map(p => p.id));
-                                } else {
-                                  setSelectedRowIds([]);
-                                }
-                              }}
-                              className="w-3.5 h-3.5 rounded border-border bg-muted cursor-pointer"
-                            />
-                          </th>
-                          <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Ancestor Profile</th>
-                          <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Relationship</th>
-                          <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Lifespan</th>
-                          <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Status</th>
-                          <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Story Progress</th>
-                          <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Assets</th>
-                          <th className="sticky top-0 bg-card z-20 p-4 text-right border-b border-border">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredAndSortedProfiles.map((p) => {
-                          const birthYr = p.dateOfBirth ? new Date(p.dateOfBirth).getFullYear() : 'N/A';
-                          const deathYr = p.dateOfDeath ? new Date(p.dateOfDeath).getFullYear() : '';
-                          const lifeSpan = deathYr ? `${birthYr} – ${deathYr}` : `${birthYr} – Living`;
-                          const isChecked = selectedRowIds.includes(p.id);
-                          const isSelected = selectedProfileId === p.id;
-
-                          return (
-                            <tr
-                              key={p.id}
-                              id={`profile-table-row-${p.id}`}
-                              onClick={() => handleSelectProfile(p.id)}
-                              className={`border-b border-border text-xs hover:bg-muted/40 transition-colors cursor-pointer ${
-                                isChecked || isSelected ? 'bg-cinema-amber-500/5' : ''
-                              }`}
+                            <Button
+                              id={`btn-open-detail-${p.id}`}
+                              onClick={(e) => { e.stopPropagation(); handleExploreProfile(p.id); }}
+                              variant="ghost"
+                              size="xs"
+                              rightIcon={<ChevronRight className="w-3.5 h-3.5 text-foreground" />}
+                              className="text-[10px] font-bold hover:bg-muted py-1 h-7"
                             >
-                              <td className="p-4 w-10" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  id={`select-checkbox-${p.id}`}
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedRowIds(prev => [...prev, p.id]);
-                                    } else {
-                                      setSelectedRowIds(prev => prev.filter(rowId => rowId !== p.id));
-                                    }
-                                  }}
-                                  className="w-3.5 h-3.5 rounded border-border bg-muted cursor-pointer"
-                                />
-                              </td>
-                              <td className="p-4 min-w-0 max-w-[200px]">
-                                <div className="flex items-center gap-3">
-                                  <img src={p.profilePhoto} className="w-8 h-8 rounded-full object-cover border border-border shrink-0" alt={p.preferredName} referrerPolicy="no-referrer" />
-                                  <div className="min-w-0 flex-1">
-                                    <h4 className="font-bold text-foreground truncate hover:text-cinema-amber-500 transition-colors">
-                                      {p.preferredName || `${p.firstName} ${p.lastName}`}
-                                    </h4>
-                                    <span className="text-[10px] text-muted-foreground font-mono capitalize block">{p.category.replace('-', ' ')}</span>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="p-4 whitespace-nowrap">
-                                <span className="font-mono text-[10px] font-bold text-cinema-amber-500 bg-cinema-amber-500/10 px-2 py-0.5 rounded border border-cinema-amber-500/20">
-                                  {p.relationship}
-                                </span>
-                              </td>
-                              <td className="p-4 whitespace-nowrap font-mono text-[10px] text-muted-foreground">
-                                {lifeSpan}
-                              </td>
-                              <td className="p-4 whitespace-nowrap">
-                                <span className={`inline-flex items-center text-[9px] font-bold font-mono uppercase px-2 py-0.5 rounded ${
-                                  p.status === 'published'
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25'
-                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25'
-                                }`}>
-                                  {p.status}
-                                </span>
-                              </td>
-                              <td className="p-4 whitespace-nowrap">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-14 h-1.5 bg-muted rounded-full overflow-hidden shrink-0">
-                                    <div className="h-full bg-cinema-amber-500 rounded-full" style={{ width: `${p.storyProgress}%` }} />
-                                  </div>
-                                  <span className="font-mono text-[10px] font-bold text-foreground">{p.storyProgress}%</span>
-                                </div>
-                              </td>
-                              <td className="p-4 whitespace-nowrap font-mono text-[10px] text-muted-foreground">
-                                {p.timelineEventsCount} Milestones • {p.mediaCount} Media
-                              </td>
-                              <td className="p-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center justify-end gap-1">
-                                  <ContextTrigger
-                                    onClick={() => handleSelectProfile(p.id, true)}
-                                    size="sm"
-                                    title="View details"
-                                  />
-                                  <Button id={`btn-row-explore-${p.id}`} onClick={() => handleExploreProfile(p.id)} variant="ghost" size="xs" className="py-1 px-2 border border-border text-[10px] h-7">
-                                    Explore
-                                  </Button>
-                                  <Button id={`btn-row-edit-${p.id}`} onClick={() => handleEditProfile(p.id)} variant="ghost" size="xs" className="py-1 px-2 border border-border text-[10px] h-7">
-                                    Edit
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                              Explore Profile
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {filteredAndSortedProfiles.length === 0 && (
+                      <div className="col-span-full py-16 text-center space-y-4" id="empty-search-grid-state">
+                        <EmptyState
+                          type="search"
+                          title="No Legacy Records Found"
+                          description={`No profiles found matching "${searchQuery}". Try modifying your active categories or text query.`}
+                          primaryActionLabel="Reset All Query Filters"
+                          onPrimaryAction={() => { setSearchQuery(''); setCategoryFilter('all'); setStatusFilter('all'); setShowArchivedOnly(false); }}
+                        />
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm" id="profiles-table-container">
+                    <div className="overflow-y-auto overflow-x-hidden max-h-[550px] relative scrollbar-thin">
+                      <table className="w-full text-left border-collapse" id="profiles-table">
+                        <thead>
+                          <tr className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border bg-muted/30">
+                            <th className="sticky top-0 bg-card z-20 p-4 w-10 border-b border-border">
+                              <input
+                                id="bulk-all-select-checkbox"
+                                type="checkbox"
+                                checked={selectedRowIds.length === filteredAndSortedProfiles.length && filteredAndSortedProfiles.length > 0}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedRowIds(filteredAndSortedProfiles.map(p => p.id));
+                                  } else {
+                                    setSelectedRowIds([]);
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 rounded border-border bg-muted cursor-pointer"
+                              />
+                            </th>
+                            <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Ancestor Profile</th>
+                            <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Relationship</th>
+                            <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Lifespan</th>
+                            <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Status</th>
+                            <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Story Progress</th>
+                            <th className="sticky top-0 bg-card z-20 p-4 border-b border-border">Assets</th>
+                            <th className="sticky top-0 bg-card z-20 p-4 text-right border-b border-border">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredAndSortedProfiles.map((p) => {
+                            const birthYr = p.dateOfBirth ? new Date(p.dateOfBirth).getFullYear() : 'N/A';
+                            const deathYr = p.dateOfDeath ? new Date(p.dateOfDeath).getFullYear() : '';
+                            const lifeSpan = deathYr ? `${birthYr} – ${deathYr}` : `${birthYr} – Living`;
+                            const isChecked = selectedRowIds.includes(p.id);
+                            const isSelected = selectedProfileId === p.id;
+
+                            return (
+                              <tr
+                                key={p.id}
+                                id={`profile-table-row-${p.id}`}
+                                onClick={() => handleSelectProfile(p.id)}
+                                className={`border-b border-border text-xs hover:bg-muted/40 transition-colors cursor-pointer ${
+                                  isChecked || isSelected ? 'bg-cinema-amber-500/5' : ''
+                                }`}
+                              >
+                                <td className="p-4 w-10" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    id={`select-checkbox-${p.id}`}
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedRowIds(prev => [...prev, p.id]);
+                                      } else {
+                                        setSelectedRowIds(prev => prev.filter(rowId => rowId !== p.id));
+                                      }
+                                    }}
+                                    className="w-3.5 h-3.5 rounded border-border bg-muted cursor-pointer"
+                                  />
+                                </td>
+                                <td className="p-4 min-w-0 max-w-[200px]">
+                                  <div className="flex items-center gap-3">
+                                    <img src={p.profilePhoto} className="w-8 h-8 rounded-full object-cover border border-border shrink-0" alt={p.preferredName} referrerPolicy="no-referrer" />
+                                    <div className="min-w-0 flex-1">
+                                      <h4 className="font-bold text-foreground truncate hover:text-cinema-amber-500 transition-colors">
+                                        {p.preferredName || `${p.firstName} ${p.lastName}`}
+                                      </h4>
+                                      <span className="text-[10px] text-muted-foreground font-mono capitalize block">{p.category.replace('-', ' ')}</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-4 whitespace-nowrap">
+                                  <span className="font-mono text-[10px] font-bold text-cinema-amber-500 bg-cinema-amber-500/10 px-2 py-0.5 rounded border border-cinema-amber-500/20">
+                                    {p.relationship}
+                                  </span>
+                                </td>
+                                <td className="p-4 whitespace-nowrap font-mono text-[10px] text-muted-foreground">
+                                  {lifeSpan}
+                                </td>
+                                <td className="p-4 whitespace-nowrap">
+                                  <span className={`inline-flex items-center text-[9px] font-bold font-mono uppercase px-2 py-0.5 rounded ${
+                                    p.status === 'published'
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25'
+                                      : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25'
+                                  }`}>
+                                    {p.status}
+                                  </span>
+                                </td>
+                                <td className="p-4 whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-14 h-1.5 bg-muted rounded-full overflow-hidden shrink-0">
+                                      <div className="h-full bg-cinema-amber-500 rounded-full" style={{ width: `${p.storyProgress}%` }} />
+                                    </div>
+                                    <span className="font-mono text-[10px] font-bold text-foreground">{p.storyProgress}%</span>
+                                  </div>
+                                </td>
+                                <td className="p-4 whitespace-nowrap font-mono text-[10px] text-muted-foreground">
+                                  {p.timelineEventsCount} Milestones • {p.mediaCount} Media
+                                </td>
+                                <td className="p-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <ContextTrigger
+                                      onClick={() => handleSelectProfile(p.id, true)}
+                                      size="xs"
+                                      showLabel
+                                      label="Details"
+                                      variant="pill"
+                                      title="View details in context drawer"
+                                    />
+                                    <Button id={`btn-row-explore-${p.id}`} onClick={() => handleExploreProfile(p.id)} variant="ghost" size="xs" className="py-1 px-2 border border-border text-[10px] h-7">
+                                      Explore
+                                    </Button>
+                                    <Button id={`btn-row-edit-${p.id}`} onClick={() => handleEditProfile(p.id)} variant="ghost" size="xs" className="py-1 px-2 border border-border text-[10px] h-7">
+                                      Edit
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </ViewModeTransition>
             </div>
           )}
 

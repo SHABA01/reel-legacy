@@ -52,8 +52,6 @@ export function MediaAssetCard({
   onRename,
   onDelete,
   onInspectDetails,
-  onQuickTag,
-  onAddToStory,
   viewMode = 'grid'
 }: MediaAssetCardProps) {
   const getMediaTypeIcon = () => {
@@ -75,19 +73,19 @@ export function MediaAssetCard({
     switch (asset.readinessStatus) {
       case 'Ready':
         return (
-          <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-mono text-[9px] font-bold flex items-center gap-1">
+          <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-mono text-[9px] font-bold inline-flex items-center gap-1">
             <CheckCircle2 className="w-2.5 h-2.5" /> Ready
           </span>
         );
       case 'Needs Metadata':
         return (
-          <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-mono text-[9px] font-bold flex items-center gap-1">
+          <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-mono text-[9px] font-bold inline-flex items-center gap-1">
             <AlertCircle className="w-2.5 h-2.5" /> Needs Meta
           </span>
         );
       case 'Damaged':
         return (
-          <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30 font-mono text-[9px] font-bold flex items-center gap-1">
+          <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30 font-mono text-[9px] font-bold inline-flex items-center gap-1">
             <Sparkles className="w-2.5 h-2.5" /> Damaged
           </span>
         );
@@ -106,33 +104,34 @@ export function MediaAssetCard({
       default:
         return (
           <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono text-[9px]">
-            {asset.readinessStatus}
+            {asset.readinessStatus || 'Unspecified'}
           </span>
         );
     }
   };
 
-  const usageCount = asset.usageCount || (asset.relationships ? asset.relationships.linkedScenes.length + asset.relationships.linkedTimelineEvents.length : 0);
+  const usageCount =
+    asset.usageCount ||
+    (asset.relationships
+      ? asset.relationships.linkedScenes.length + asset.relationships.linkedTimelineEvents.length
+      : 0);
 
-  // LIST VIEW: High density schema
+  // LIST VIEW: Canonical Table Row
   if (viewMode === 'list') {
     return (
-      <div
+      <tr
         onClick={(e) => onSelect(asset, e)}
-        className={`group p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 text-xs ${
-          isSelected
-            ? 'bg-cinema-amber-500/15 border-cinema-amber-500/50 shadow-md ring-1 ring-cinema-amber-500/30'
-            : 'bg-card/70 border-border hover:border-cinema-amber-500/30 hover:bg-card'
+        className={`border-b border-border text-xs hover:bg-muted/40 transition-colors cursor-pointer select-none ${
+          isMultiSelected || isSelected ? 'bg-cinema-amber-500/10' : ''
         }`}
       >
-        <div className="flex items-center gap-3 min-w-0">
+        {/* Checkbox */}
+        <td className="p-3 w-10" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleMultiSelect(asset.id);
-            }}
+            onClick={() => onToggleMultiSelect(asset.id)}
             className="p-1 text-muted-foreground hover:text-cinema-amber-400 cursor-pointer"
+            aria-label={`Select ${asset.name}`}
           >
             {isMultiSelected ? (
               <CheckSquare className="w-4 h-4 text-cinema-amber-500" />
@@ -140,8 +139,11 @@ export function MediaAssetCard({
               <Square className="w-4 h-4 text-muted-foreground/60" />
             )}
           </button>
+        </td>
 
-          <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-muted/80 border border-border shrink-0">
+        {/* Thumbnail Preview */}
+        <td className="p-3 w-16">
+          <div className="relative w-11 h-11 rounded-lg overflow-hidden bg-muted/80 border border-border shrink-0">
             <img
               src={asset.thumbnailUrl}
               alt={asset.name}
@@ -150,102 +152,132 @@ export function MediaAssetCard({
             />
             {asset.type === 'video' && (
               <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                <Play className="w-3.5 h-3.5 text-white fill-white" />
+                <Play className="w-3 h-3 text-white fill-white" />
               </div>
             )}
           </div>
+        </td>
 
+        {/* Asset Name & Tags */}
+        <td className="p-3 min-w-[180px] max-w-[280px]">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground truncate">{asset.name}</span>
-              {asset.favorite && <Star className="w-3 h-3 text-amber-400 fill-amber-400" />}
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-foreground truncate hover:text-cinema-amber-400 transition-colors">
+                {asset.name}
+              </span>
+              {asset.favorite && <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />}
             </div>
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
-              <span className="flex items-center gap-1">{getMediaTypeIcon()} {asset.category}</span>
-              <span>•</span>
-              <span className="font-mono">{asset.size}</span>
-              {asset.duration && <span>• {asset.duration}</span>}
-              {asset.linkedStoryName && (
-                <>
-                  <span>•</span>
-                  <span className="text-cinema-amber-400 font-mono truncate max-w-[120px]">
-                    {asset.linkedStoryName}
+            {asset.tags && asset.tags.length > 0 && (
+              <div className="flex items-center gap-1 mt-0.5 truncate">
+                {asset.tags.slice(0, 3).map((t, idx) => (
+                  <span
+                    key={idx}
+                    className="px-1.5 py-0.2 rounded bg-muted/80 text-[9px] text-muted-foreground font-mono"
+                  >
+                    #{t}
                   </span>
-                </>
-              )}
-            </div>
+                ))}
+                {asset.tags.length > 3 && (
+                  <span className="text-[9px] text-muted-foreground font-mono">
+                    +{asset.tags.length - 3}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-        </div>
+        </td>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {usageCount > 0 && (
-            <span className="hidden sm:flex px-2 py-0.5 rounded-full bg-cinema-amber-500/10 text-cinema-amber-400 border border-cinema-amber-500/20 font-mono text-[10px] items-center gap-1">
-              <Link2 className="w-3 h-3" /> {usageCount} uses
+        {/* Type & Size */}
+        <td className="p-3 whitespace-nowrap">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            {getMediaTypeIcon()}
+            <span className="capitalize font-medium text-foreground">{asset.type}</span>
+            <span className="text-muted-foreground/60">•</span>
+            <span className="font-mono text-[11px]">{asset.size}</span>
+            {asset.duration && (
+              <>
+                <span className="text-muted-foreground/60">•</span>
+                <span className="font-mono text-[11px]">{asset.duration}</span>
+              </>
+            )}
+          </div>
+        </td>
+
+        {/* Story Scope */}
+        <td className="p-3 whitespace-nowrap">
+          {asset.linkedStoryName ? (
+            <span className="text-cinema-amber-400 font-mono text-[11px] font-medium bg-cinema-amber-500/10 px-2 py-0.5 rounded border border-cinema-amber-500/20">
+              {asset.linkedStoryName}
             </span>
+          ) : (
+            <span className="text-muted-foreground/60 font-mono text-[11px]">Unlinked</span>
           )}
+        </td>
 
-          {getStatusBadge()}
+        {/* Usage */}
+        <td className="p-3 whitespace-nowrap">
+          {usageCount > 0 ? (
+            <span className="px-2 py-0.5 rounded-full bg-cinema-amber-500/10 text-cinema-amber-400 border border-cinema-amber-500/20 font-mono text-[10px] inline-flex items-center gap-1">
+              <Link2 className="w-3 h-3" /> {usageCount} {usageCount === 1 ? 'use' : 'uses'}
+            </span>
+          ) : (
+            <span className="text-muted-foreground/60 font-mono text-[11px]">0 uses</span>
+          )}
+        </td>
 
-          {/* Action cluster including ⓘ Details trigger */}
-          <div className="flex items-center gap-1">
+        {/* Readiness */}
+        <td className="p-3 whitespace-nowrap">{getStatusBadge()}</td>
+
+        {/* Actions */}
+        <td className="p-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-end gap-1.5">
+            {/* Primary Details Trigger */}
             {onInspectDetails && (
               <ContextTrigger
                 onClick={() => onInspectDetails(asset)}
-                size="sm"
-                title="View details"
-                className="opacity-70 group-hover:opacity-100 hover:opacity-100"
+                size="xs"
+                showLabel
+                label="Details"
+                variant="pill"
+                title="View details in context drawer"
               />
             )}
 
-            <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPreview(asset);
-                }}
-                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
-                title="Preview Asset"
-              >
-                <Eye className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleFavorite(asset.id);
-                }}
-                className="p-1.5 rounded text-muted-foreground hover:text-amber-400 hover:bg-muted cursor-pointer"
-                title="Toggle Favorite"
-              >
-                <Star className={`w-3.5 h-3.5 ${asset.favorite ? 'text-amber-400 fill-amber-400' : ''}`} />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRename(asset);
-                }}
-                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
-                title="Rename"
-              >
-                <Edit2 className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(asset);
-                }}
-                className="p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 cursor-pointer"
-                title="Delete"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => onPreview(asset)}
+              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+              title="Preview Asset"
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleFavorite(asset.id)}
+              className="p-1.5 rounded text-muted-foreground hover:text-amber-400 hover:bg-muted cursor-pointer"
+              title="Toggle Favorite"
+            >
+              <Star className={`w-3.5 h-3.5 ${asset.favorite ? 'text-amber-400 fill-amber-400' : ''}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onRename(asset)}
+              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+              title="Rename"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(asset)}
+              className="p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 cursor-pointer"
+              title="Delete"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
-        </div>
-      </div>
+        </td>
+      </tr>
     );
   }
 
@@ -294,8 +326,8 @@ export function MediaAssetCard({
                 <ContextTrigger
                   onClick={() => onInspectDetails(asset)}
                   size="sm"
+                  variant="card-overlay"
                   title="View details"
-                  className="bg-black/60 backdrop-blur-md text-white hover:bg-cinema-amber-500 hover:text-slate-950 border-0"
                 />
               </div>
             )}
@@ -409,3 +441,4 @@ export function MediaAssetCard({
     </div>
   );
 }
+
